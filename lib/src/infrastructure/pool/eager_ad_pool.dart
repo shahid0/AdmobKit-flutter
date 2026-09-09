@@ -56,6 +56,9 @@ class EagerAdPool {
   /// Returns true if user is currently entitled to an ad-free experience.
   bool get isUserPremium => _isPremium?.call() ?? false;
 
+  /// Returns the underlying presentation mutex.
+  PresentationMutex get mutex => _mutex;
+
   /// Primes a list of placements at app startup according to their priority tiers.
   void primeAll(List<AdPlacement> placements) {
     if (isUserPremium) {

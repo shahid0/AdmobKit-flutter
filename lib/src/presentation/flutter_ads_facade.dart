@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../domain/models/ad_placement.dart';
 import '../infrastructure/consent/consent_coordinator.dart';
 import '../infrastructure/drivers/google_mobile_ads_driver.dart';
@@ -128,12 +129,57 @@ abstract final class FlutterAds {
   /// Returns true if the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _pool?.isUserPremium ?? false;
 
+  /// Pauses automatic presentation of App Open ads on resume
+  /// (e.g. while camera/gallery picker is active, or during sensitive user flows).
+  static void pauseAppOpen() {
+    _resumeListener?.pause();
+  }
+
+  /// Resumes automatic presentation of App Open ads on resume.
+  static void resumeAppOpen() {
+    _resumeListener?.resume();
+  }
+
+  /// Internal map tracking action counts for interval-based ad triggers.
+  static final Map<String, int> _actionCounters = {};
+
+  /// Increments an action counter for [actionKey] and returns `true` if it reaches [interval].
+  ///
+  /// Resets the counter to 0 upon reaching the threshold.
+  /// Example:
+  /// ```dart
+  /// if (FlutterAds.recordActionAndCheckInterval('task_completed', interval: 3)) {
+  ///   FlutterAds.show(SampleAds.interstitial, onDismissed: () {});
+  /// }
+  /// ```
+  static bool recordActionAndCheckInterval(String actionKey, {int interval = 3}) {
+    if (isUserPremium) return false;
+    final current = (_actionCounters[actionKey] ?? 0) + 1;
+    if (current >= interval) {
+      _actionCounters[actionKey] = 0;
+      return true;
+    }
+    _actionCounters[actionKey] = current;
+    return false;
+  }
+
   /// Returns true if valid consent has been gathered to request ads.
   static bool get canRequestAds => _canRequestAds;
 
   /// Presents the Google UMP privacy options form so users can update consent in settings.
   static Future<bool> showPrivacyOptionsForm() async {
     return _consent?.showPrivacyOptionsForm() ?? Future.value(false);
+  }
+
+  /// Opens the native Google Mobile Ads Inspector for on-device ad verification.
+  static void openAdInspector([void Function(String? error)? onComplete]) {
+    try {
+      MobileAds.instance.openAdInspector((adError) {
+        onComplete?.call(adError?.message);
+      });
+    } catch (e) {
+      onComplete?.call(e.toString());
+    }
   }
 
   /// Leases an inline ad from the pool buffer. Internal package use.

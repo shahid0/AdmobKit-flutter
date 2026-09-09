@@ -6,6 +6,8 @@ import '../logging/platform_ad_logger.dart';
 class PresentationMutex {
   final PlatformAdLogger? _logger;
   String? _currentHolderId;
+  DateTime? _lastAdDismissedAt;
+  bool _isResumingFromAd = false;
 
   PresentationMutex([this._logger]);
 
@@ -14,6 +16,26 @@ class PresentationMutex {
 
   /// ID of the placement or component currently holding the lock.
   String? get currentHolderId => _currentHolderId;
+
+  /// Timestamp when the most recent fullscreen ad was dismissed.
+  DateTime? get lastAdDismissedAt => _lastAdDismissedAt;
+
+  /// Whether the app is resuming as a direct result of dismissing a fullscreen ad.
+  bool get isResumingFromAd => _isResumingFromAd;
+
+  /// Clears the [isResumingFromAd] flag once the post-dismissal resume cycle is consumed.
+  void consumeResumeFromAd() {
+    if (_isResumingFromAd) {
+      _isResumingFromAd = false;
+      _logger?.debug('[Mutex] Consumed post-ad resume suppression.');
+    }
+  }
+
+  /// Returns true if the last ad was dismissed within the given [duration].
+  bool isWithinCooldown(Duration duration) {
+    if (_lastAdDismissedAt == null) return false;
+    return DateTime.now().difference(_lastAdDismissedAt!) < duration;
+  }
 
   /// Attempts to acquire the presentation lock for [holderId].
   ///
@@ -29,6 +51,7 @@ class PresentationMutex {
     }
 
     _currentHolderId = holderId;
+    _isResumingFromAd = true;
     _logger?.info('[Mutex] 🔒 Presentation lock ACQUIRED by "$holderId".');
     return true;
   }
@@ -37,6 +60,7 @@ class PresentationMutex {
   void release(String holderId) {
     if (_currentHolderId == holderId) {
       _currentHolderId = null;
+      _lastAdDismissedAt = DateTime.now();
       _logger?.info('[Mutex] 🔓 Presentation lock RELEASED by "$holderId".');
     } else {
       _logger?.warning(
@@ -50,6 +74,7 @@ class PresentationMutex {
     if (_currentHolderId != null) {
       _logger?.warning('[Mutex] ⚠️ Force-releasing presentation lock from "$_currentHolderId".');
       _currentHolderId = null;
+      _lastAdDismissedAt = DateTime.now();
     }
   }
 }

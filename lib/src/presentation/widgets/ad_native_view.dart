@@ -71,11 +71,19 @@ class _AdNativeViewState extends State<AdNativeView> {
             _nativeAd = newlyLoaded;
             _isLoading = false;
           });
+        } else {
+          setState(() => _isLoading = false);
         }
       }).catchError((_) {
         if (mounted) setState(() => _isLoading = false);
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _nativeAd?.dispose();
+    super.dispose();
   }
 
   double get _effectiveHeight =>

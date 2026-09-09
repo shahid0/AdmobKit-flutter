@@ -37,6 +37,23 @@ void main() {
 
       mutex.forceRelease();
       expect(mutex.isLocked, false);
+      expect(mutex.lastAdDismissedAt, isNotNull);
+    });
+
+    test('Tracks isResumingFromAd and post-ad cooldown', () {
+      final mutex = PresentationMutex();
+      expect(mutex.isResumingFromAd, false);
+
+      mutex.tryAcquire('interstitial_flow');
+      expect(mutex.isResumingFromAd, true);
+
+      mutex.release('interstitial_flow');
+      expect(mutex.isResumingFromAd, true);
+      expect(mutex.isWithinCooldown(const Duration(seconds: 2)), true);
+
+      // Consume resume flag
+      mutex.consumeResumeFromAd();
+      expect(mutex.isResumingFromAd, false);
     });
   });
 }

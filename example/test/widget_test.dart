@@ -3,7 +3,7 @@ import 'package:flutter_ads/flutter_ads.dart';
 import 'package:flutter_ads_example/main.dart';
 
 void main() {
-  testWidgets('FlutterAdsExampleApp renders UI controls properly', (WidgetTester tester) async {
+  testWidgets('TaskFlowApp renders UI splash and brand identity', (WidgetTester tester) async {
     await FlutterAds.initialize(
       config: const FlutterAdsConfig(
         placements: [],
@@ -12,13 +12,11 @@ void main() {
       ),
     );
 
-    await tester.pumpWidget(const FlutterAdsExampleApp());
+    await tester.pumpWidget(const TaskFlowApp());
     await tester.pump();
 
-    // Verify main components render
-    expect(find.text('FlutterAds Showcase'), findsOneWidget);
-    expect(find.text('Show Interstitial'), findsOneWidget);
-    expect(find.text('Show Rewarded (+50)'), findsOneWidget);
-    expect(find.text('Live Analytics & Diagnostics Stream'), findsOneWidget);
+    // Verify main splash components render
+    expect(find.text('TaskFlow Pro'), findsOneWidget);
+    expect(find.text('Smart Orchestration & Focus'), findsOneWidget);
   });
 }
