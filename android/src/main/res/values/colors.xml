@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gnt_white">#FFFFFF</color>
+    <color name="ad_primary_color">#9185E9</color>
+    <color name="ad_secondary_color">#40A9D6</color>
+    <color name="ad_card_background">#141416</color>
+</resources>
