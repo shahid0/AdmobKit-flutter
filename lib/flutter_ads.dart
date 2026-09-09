@@ -1,5 +1,8 @@
-/// A Calculator.
-class Calculator {
-  /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
+
+import 'flutter_ads_platform_interface.dart';
+
+class FlutterAds {
+  Future<String?> getPlatformVersion() {
+    return FlutterAdsPlatform.instance.getPlatformVersion();
+  }
 }
