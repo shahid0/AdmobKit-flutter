@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ads/flutter_ads.dart';
 import '../config/sample_ads.dart';
 import '../state/task_store.dart';
+import '../theme/task_theme.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -12,9 +13,14 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late final AnimationController _heroController;
+  late final Animation<double> _heroFadeAnim;
+  late final Animation<double> _heroScaleAnim;
+
+  late final AnimationController _beaconController;
+  late final Animation<double> _beaconAnim;
+
   Timer? _navTimer;
   bool _hasNavigated = false;
 
@@ -24,36 +30,94 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // 1. Pause App Open ads during Splash to prevent collisions
     FlutterAds.pauseAppOpen();
 
-    _animController = AnimationController(
+    // 2. Composited Mount animation for Hero Monogram: 600ms ease-out
+    _heroController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _heroFadeAnim = CurvedAnimation(
+      parent: _heroController,
+      curve: Curves.easeOut,
+    );
+    _heroScaleAnim = Tween<double>(begin: 0.96, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _heroController,
+        curve: Curves.easeOut,
+      ),
+    );
+    _heroController.forward();
+
+    // 3. Ambient Telemetry Beacon pulsing animation: 1200ms ease-in-out
+    _beaconController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _animController.forward();
+    _beaconAnim = Tween<double>(begin: 0.35, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _beaconController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    _beaconController.repeat(reverse: true);
 
-    // 2. Schedule navigation after splash intro
-    _navTimer = Timer(const Duration(milliseconds: 3000), _proceedToNextScreen);
+    // 4. Start responsive splash loading sequence (min 2.5s brand intro, max 4.5s ad readiness window)
+    _startSplashSequence();
+  }
+
+  void _startSplashSequence() {
+    const minSplashDuration = Duration(milliseconds: 2500);
+    const maxSplashDuration = Duration(milliseconds: 4500);
+    const pollInterval = Duration(milliseconds: 150);
+
+    final startTime = DateTime.now();
+
+    _navTimer = Timer.periodic(pollInterval, (timer) {
+      if (!mounted || _hasNavigated) {
+        timer.cancel();
+        return;
+      }
+
+      final elapsed = DateTime.now().difference(startTime);
+      final hasReachedMinTime = elapsed >= minSplashDuration;
+      final hasReachedMaxTime = elapsed >= maxSplashDuration;
+
+      final isInterstitialReady = FlutterAds.isReady(SampleAds.splashInterstitial);
+      final isAppOpenReady = FlutterAds.isReady(SampleAds.appOpen);
+
+      if (hasReachedMaxTime || (hasReachedMinTime && (isInterstitialReady || isAppOpenReady))) {
+        timer.cancel();
+        _proceedToNextScreen();
+      }
+    });
   }
 
   void _proceedToNextScreen() {
     if (_hasNavigated || !mounted) return;
     _hasNavigated = true;
 
-    // Splash priority handshake: If Splash Interstitial is ready, present it!
-    if (FlutterAds.isReady(SampleAds.splashInterstitial)) {
-      TaskStore.instance.appendLog('🚀 [Splash] Presenting primed Splash Interstitial ad...');
-      FlutterAds.show(
-        SampleAds.splashInterstitial,
-        onDismissed: _navigateToOnboarding,
-      );
-    } else {
-      TaskStore.instance.appendLog('⚡ [Splash] Splash Interstitial not primed yet. Proceeding immediately (0ms wait).');
-      _navigateToOnboarding();
-    }
+    // Transition beacon to static emerald as per State Matrix
+    _beaconController.stop();
+    _beaconController.value = 1.0;
+
+    // Splash presentation: prefer splash interstitial, fallback to primed app open
+    final FullscreenPlacement candidate = FlutterAds.isReady(SampleAds.splashInterstitial)
+        ? SampleAds.splashInterstitial
+        : (FlutterAds.isReady(SampleAds.appOpen)
+            ? SampleAds.appOpen
+            : SampleAds.splashInterstitial);
+
+    TaskStore.instance.appendLog(
+      '🚀 [Splash] Presenting ${candidate.id} (${candidate.format.name}) with 0ms contract...',
+    );
+    FlutterAds.show(
+      candidate,
+      onDismissed: _navigateToOnboarding,
+    );
   }
 
   void _navigateToOnboarding() {
     if (!mounted) return;
+    FlutterAds.resumeAppOpen();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, _, _) => const OnboardingScreen(),
@@ -66,88 +130,187 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _navTimer?.cancel();
-    _animController.dispose();
+    FlutterAds.resumeAppOpen();
+    _heroController.dispose();
+    _beaconController.dispose();
     super.dispose();
+  }
+
+  Widget _buildHeroBrand({required bool reduceMotion}) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Brand Monogram: 20px radius, accentPrimary, white icon, subtle border
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: TaskColors.accentPrimary,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: TaskColors.accentPrimary.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.token_rounded,
+            color: Colors.white,
+            size: 40,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'TaskFlow Pro',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: TaskColors.textInkPrimary,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Architectural Clarity for High-Agency Builders',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -0.1,
+            color: TaskColors.textSlateMedium,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+
+    if (reduceMotion) {
+      return content;
+    }
+
+    return FadeTransition(
+      opacity: _heroFadeAnim,
+      child: ScaleTransition(
+        scale: _heroScaleAnim,
+        child: content,
+      ),
+    );
+  }
+
+  Widget _buildBeacon({required bool reduceMotion}) {
+    final beaconDot = Container(
+      width: 8,
+      height: 8,
+      decoration: const BoxDecoration(
+        color: TaskColors.emeraldText,
+        shape: BoxShape.circle,
+      ),
+    );
+
+    if (reduceMotion) {
+      return beaconDot;
+    }
+
+    return FadeTransition(
+      opacity: _beaconAnim,
+      child: beaconDot,
+    );
+  }
+
+  Widget _buildStatusTelemetry({required bool reduceMotion}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: TaskColors.surfaceCard,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: TaskColors.borderSubtle),
+        boxShadow: TaskColors.cardShadow,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildBeacon(reduceMotion: reduceMotion),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text(
+                'INITIALIZING PRODUCTION ENGINE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: TaskColors.textSlateMedium,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'v2.4.0 • 0ms Mutex Ready',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: TaskColors.textInkPrimary,
+                  fontFamily: 'monospace',
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomAdContainer() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: TaskColors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: TaskColors.borderSubtle),
+          boxShadow: TaskColors.cardShadow,
+        ),
+        child: const AdNativeView(
+          placement: SampleAds.splashBigNative,
+          height: 280,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F14),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(),
-            FadeTransition(
-              opacity: _fadeAnim,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF9333EA)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 48),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'TaskFlow Pro',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Smart Orchestration & Focus',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
+    final bool reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-            // Splash Inline Ad: Immediate-Display Priority Handshake
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                children: [
-                  Text(
-                    'INITIALIZING PRODUCTION ENGINE...',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: Colors.white.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const AdBannerView(
-                    placement: SampleAds.splashBanner,
-                  ),
-                ],
-              ),
-            ),
-          ],
+    return Scaffold(
+      backgroundColor: TaskColors.canvasGround,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              _buildHeroBrand(reduceMotion: reduceMotion),
+              const SizedBox(height: 20),
+              _buildStatusTelemetry(reduceMotion: reduceMotion),
+              const SizedBox(height: 24),
+              _buildBottomAdContainer(),
+            ],
+          ),
         ),
       ),
     );

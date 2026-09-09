@@ -1,0 +1,18 @@
+# Verbatim content slots for Analytics Tab
+
+header.title: "Productivity Velocity"
+header.subtitle: "Quantitative completion momentum across active initiatives."
+velocity.title: "Completion Velocity"
+velocity.stats_suffix: "tasks completed"
+stat.streak.label: "Current Streak"
+stat.streak.value: "5 Days"
+stat.pending.label: "Pending Tasks"
+stat.done.label: "Completed Tasks"
+export.badge: "REWARDED EXPORT"
+export.title: "Executive Accomplishment Report"
+export.desc: "Generate a structured PDF summarizing task completion velocity and workspace distribution."
+action.export_free: "Watch Ad to Export PDF"
+action.export_vip: "Export PDF (VIP Instant)"
+dialog.success.title: "Report Compiled"
+dialog.success.desc: "Your executive accomplishment PDF report has been compiled successfully."
+dialog.success.action: "Done"

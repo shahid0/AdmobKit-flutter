@@ -74,8 +74,9 @@ class FlutterAdsPlugin :
         const val LIST_TILES_FACTORY_ID = "listTiles"
         const val SMALL_NATIVE_FACTORY_ID = "smallNativeAd"
 
-        fun registerNativeAdFactories(flutterEngine: FlutterEngine, context: Context) {
-            try {
+        fun registerNativeAdFactories(flutterEngine: FlutterEngine, context: Context): Boolean {
+            return try {
+                unregisterNativeAdFactories(flutterEngine)
                 val bigFactory = BigNativeAdFactory(context)
                 val mediumFactory = MediumNativeAdFactory(context)
                 val smallFactory = SmallNativeAdFactory(context)
@@ -105,8 +106,10 @@ class FlutterAdsPlugin :
                     SMALL_NATIVE_FACTORY_ID,
                     smallFactory
                 )
+                true
             } catch (ignored: Throwable) {
                 // If GoogleMobileAdsPlugin is not yet attached to engine in test harness
+                false
             }
         }
 

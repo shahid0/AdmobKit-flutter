@@ -150,11 +150,11 @@ class BannerPlacement extends InlinePlacement {
     required super.iosId,
     AdPriority? priority,
     super.isSplash = false,
+    super.loadOnce = false,
   }) : super(
           id: id ?? androidId,
           format: AdFormat.banner,
           priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.medium),
-          loadOnce: false,
         );
 }
 
@@ -174,11 +174,11 @@ class NativePlacement extends InlinePlacement {
     this.template,
     AdPriority? priority,
     super.isSplash = false,
+    super.loadOnce = false,
   }) : super(
           id: id ?? androidId,
           format: AdFormat.native,
           priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.medium),
-          loadOnce: false,
         );
 
   /// Convenience constructor for the Big Native Ad template (`bigNativeAd`).
@@ -188,6 +188,7 @@ class NativePlacement extends InlinePlacement {
     required String iosId,
     AdPriority? priority,
     bool isSplash = false,
+    bool loadOnce = false,
   }) : this(
           id: id,
           androidId: androidId,
@@ -196,6 +197,7 @@ class NativePlacement extends InlinePlacement {
           template: NativeAdTemplate.big,
           priority: priority,
           isSplash: isSplash,
+          loadOnce: loadOnce,
         );
 
   /// Convenience constructor for the Medium Native Ad template (`listTileMedium`).
@@ -205,6 +207,7 @@ class NativePlacement extends InlinePlacement {
     required String iosId,
     AdPriority? priority,
     bool isSplash = false,
+    bool loadOnce = false,
   }) : this(
           id: id,
           androidId: androidId,
@@ -213,6 +216,7 @@ class NativePlacement extends InlinePlacement {
           template: NativeAdTemplate.medium,
           priority: priority,
           isSplash: isSplash,
+          loadOnce: loadOnce,
         );
 
   /// Convenience constructor for the Small Native Ad template (`smallNativeAd`).
@@ -222,6 +226,7 @@ class NativePlacement extends InlinePlacement {
     required String iosId,
     AdPriority? priority,
     bool isSplash = false,
+    bool loadOnce = false,
   }) : this(
           id: id,
           androidId: androidId,
@@ -230,5 +235,6 @@ class NativePlacement extends InlinePlacement {
           template: NativeAdTemplate.small,
           priority: priority,
           isSplash: isSplash,
+          loadOnce: loadOnce,
         );
 }

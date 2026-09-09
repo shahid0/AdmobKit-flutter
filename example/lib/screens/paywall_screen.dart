@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ads/flutter_ads.dart';
 import '../config/sample_ads.dart';
 import '../state/task_store.dart';
+import '../theme/task_theme.dart';
 import 'main_tabs_screen.dart';
+
+enum PaywallTier { annual, monthly }
 
 class PaywallScreen extends StatefulWidget {
   final bool isFromOnboarding;
@@ -17,6 +20,9 @@ class PaywallScreen extends StatefulWidget {
 }
 
 class _PaywallScreenState extends State<PaywallScreen> {
+  PaywallTier _selectedTier = PaywallTier.annual;
+  bool _isPurchased = false;
+
   void _dismissPaywall() {
     if (!mounted) return;
     if (widget.isFromOnboarding) {
@@ -24,20 +30,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
         MaterialPageRoute(builder: (_) => const MainTabsScreen()),
       );
     } else {
-      Navigator.of(context).pop();
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent) {
+        Navigator.of(context).removeRoute(route);
+      } else {
+        Navigator.of(context).pop();
+      }
     }
   }
 
   void _onPurchaseSuccess() {
-    // Rule: Completed purchase immediately dismisses the view without presenting any ad!
+    setState(() {
+      _isPurchased = true;
+    });
     TaskStore.instance.togglePremium(true);
-    TaskStore.instance.appendLog('🎉 VIP Purchase completed! Ad-free mode active.');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('👑 Welcome to TaskFlow Pro! All ads removed.'),
-        backgroundColor: Color(0xFF6366F1),
-      ),
-    );
     _dismissPaywall();
   }
 
@@ -46,201 +52,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return AdPaywallGuard(
       placement: SampleAds.mainInterstitial,
       onDismiss: _dismissPaywall,
+      isPurchased: _isPurchased,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D0D12),
+        backgroundColor: TaskColors.canvasGround,
         body: SafeArea(
           child: Column(
             children: [
-              // Top Close Button Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const SizedBox(width: 40),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF6366F1)),
-                      ),
-                      child: const Text(
-                        'LIMITED OFFER',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF818CF8),
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      tooltip: 'Close Paywall (Guarded by Ad)',
-                      onPressed: () {
-                        // Triggers the AdPaywallGuard close protocol
-                        Navigator.of(context).maybePop();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Hero Banner
+              _buildTopBar(),
               Expanded(
                 child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
                       const SizedBox(height: 12),
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                              blurRadius: 20,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 40),
-                      ),
+                      _buildHero(),
+                      const SizedBox(height: 24),
+                      _buildFeatures(),
+                      const SizedBox(height: 20),
+                      _buildTiers(),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Upgrade to Pro',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Experience the cleanest, ad-free productivity workflow with high-velocity focus.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white60,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Feature comparison
-                      _buildFeatureRow(
-                        icon: Icons.block_flipped,
-                        title: '100% Ad-Free Experience',
-                        subtitle: 'Zero banners, zero interstitials, zero waiting.',
-                      ),
-                      _buildFeatureRow(
-                        icon: Icons.all_inclusive_rounded,
-                        title: 'Unlimited Tasks & Projects',
-                        subtitle: 'Organize unlimited personal and professional workflows.',
-                      ),
-                      _buildFeatureRow(
-                        icon: Icons.palette_outlined,
-                        title: 'Pro Dark & Cyberpunk Themes',
-                        subtitle: 'Hand-crafted aesthetic themes for late night coding sessions.',
-                      ),
-                      _buildFeatureRow(
-                        icon: Icons.picture_as_pdf_outlined,
-                        title: 'Instant PDF Productivity Export',
-                        subtitle: 'Export weekly task accomplishment reports without ads.',
-                      ),
                     ],
                   ),
                 ),
               ),
-
-              // Bottom Pricing & CTA
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1B1B24),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF6366F1)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF6366F1), size: 22),
-                          const SizedBox(width: 12),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Annual Pro Membership',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                '3 days free trial, then \$29.99/year',
-                                style: TextStyle(color: Colors.white60, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'SAVE 50%',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF34D399),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6366F1),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: _onPurchaseSuccess,
-                        child: const Text(
-                          'Start 3-Day Free Trial',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'No commitment. Cancel anytime in App Store or Google Play.',
-                      style: TextStyle(fontSize: 11, color: Colors.white38),
-                    ),
-                  ],
-                ),
-              ),
+              _buildBottomBar(),
             ],
           ),
         ),
@@ -248,25 +84,133 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
-  Widget _buildFeatureRow({
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const SizedBox(width: 48),
+          const StatusBadge(
+            label: 'LIMITED ACCESS',
+            textColor: TaskColors.accentPrimary,
+            surfaceColor: TaskColors.accentSubtle,
+            borderColor: TaskColors.borderSubtle,
+          ),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: IconButton(
+              icon: const Icon(
+                Icons.close_rounded,
+                color: TaskColors.textSlateMedium,
+                size: 22,
+              ),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHero() {
+    return Column(
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: TaskColors.accentSubtle,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: TaskColors.borderSubtle),
+            boxShadow: TaskColors.cardShadow,
+          ),
+          child: const Icon(
+            Icons.workspace_premium_rounded,
+            color: TaskColors.accentPrimary,
+            size: 30,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'TaskFlow Pro VIP',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: TaskColors.textInkPrimary,
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Architectural focus without interruptions. Pure execution.',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: TaskColors.textSlateMedium,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatures() {
+    return Column(
+      children: [
+        _buildFeatureCard(
+          icon: Icons.block_rounded,
+          title: '100% Ad-Free Ecosystem',
+          desc: 'Zero interstitials, banners, or video delays across all 15 workspaces.',
+        ),
+        const SizedBox(height: 10),
+        _buildFeatureCard(
+          icon: Icons.workspaces_outlined,
+          title: 'Unlimited Deep Workspaces',
+          desc: 'Structure unbounded project hierarchies with instant filtering.',
+        ),
+        const SizedBox(height: 10),
+        _buildFeatureCard(
+          icon: Icons.picture_as_pdf_outlined,
+          title: 'Automated Accomplishment Reports',
+          desc: 'Instant one-tap PDF exports without watching rewarded ads.',
+        ),
+        const SizedBox(height: 10),
+        _buildFeatureCard(
+          icon: Icons.bolt_rounded,
+          title: '0ms Priority Engine',
+          desc: 'All executive features primed in memory with zero latency.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard({
     required IconData icon,
     required String title,
-    required String subtitle,
+    required String desc,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+    return TaskCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF222230),
-              borderRadius: BorderRadius.circular(10),
+              color: TaskColors.emeraldSurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: TaskColors.emeraldBorder),
             ),
-            child: Icon(icon, color: const Color(0xFF818CF8), size: 20),
+            child: Icon(icon, color: TaskColors.accentPrimary, size: 18),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,17 +218,22 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 Text(
                   title,
                   style: const TextStyle(
+                    color: TaskColors.textInkPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  subtitle,
+                  desc,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
+                    color: TaskColors.textSlateMedium,
                     fontSize: 12,
-                    color: Colors.white54,
+                    fontWeight: FontWeight.w400,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -292,6 +241,147 @@ class _PaywallScreenState extends State<PaywallScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTiers() {
+    return Column(
+      children: [
+        _buildTierCard(
+          tier: PaywallTier.annual,
+          title: 'Annual Membership',
+          price: '3-Day Free Trial, then \$29.99/year',
+          badge: StatusBadge.emerald('SAVE 50%'),
+        ),
+        const SizedBox(height: 12),
+        _buildTierCard(
+          tier: PaywallTier.monthly,
+          title: 'Monthly Membership',
+          price: '\$4.99/month',
+          badge: null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTierCard({
+    required PaywallTier tier,
+    required String title,
+    required String price,
+    Widget? badge,
+  }) {
+    final isSelected = _selectedTier == tier;
+
+    return _buildTactileWrapper(
+      onTap: () => setState(() => _selectedTier = tier),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: TaskColors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? TaskColors.accentPrimary : TaskColors.borderSubtle,
+            width: 2,
+          ),
+          boxShadow: TaskColors.cardShadow,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? TaskColors.accentPrimary : TaskColors.borderStrong,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: TaskColors.textInkPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: TaskColors.textSlateMedium,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ?badge,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTactileWrapper(
+            onTap: _onPurchaseSuccess,
+            child: Container(
+              width: double.infinity,
+              height: 52,
+              decoration: BoxDecoration(
+                color: TaskColors.accentPrimary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Start 3-Day Free Trial',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'No commitment. Cancel anytime in App Store or Google Play.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: TaskColors.textMutedCaption,
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTactileWrapper({
+    required Widget child,
+    required VoidCallback onTap,
+  }) {
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (disableAnimations) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: child,
+      );
+    }
+    return TactileButton(
+      onTap: onTap,
+      child: child,
     );
   }
 }

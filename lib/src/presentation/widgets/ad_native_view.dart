@@ -101,25 +101,30 @@ class _AdNativeViewState extends State<AdNativeView> {
       child: _nativeAd != null
           ? AdWidget(ad: _nativeAd!)
           : (_isLoading && widget.showPlaceholder
-              ? (widget.placeholder ?? _buildDefaultPlaceholder())
+              ? (widget.placeholder ?? _buildDefaultPlaceholder(context))
               : const SizedBox.shrink()),
     );
   }
 
-  Widget _buildDefaultPlaceholder() {
+  Widget _buildDefaultPlaceholder(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: isDark ? const Color(0xFF141416) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x28FFFFFF)),
+        border: Border.all(
+          color: isDark ? const Color(0x28FFFFFF) : const Color(0xFFE2E8F0),
+        ),
       ),
       alignment: Alignment.center,
-      child: const SizedBox(
+      child: SizedBox(
         width: 20,
         height: 20,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF9185E9)),
+          valueColor: AlwaysStoppedAnimation<Color>(
+            isDark ? const Color(0xFF9185E9) : const Color(0xFF4338CA),
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter_ads/flutter_ads.dart';
 import 'config/sample_ads.dart';
 import 'screens/splash_screen.dart';
 import 'state/task_store.dart';
+import 'theme/task_theme.dart';
 
 export 'config/sample_ads.dart';
 
@@ -109,22 +110,9 @@ class TaskFlowApp extends StatelessWidget {
     return MaterialApp(
       title: 'TaskFlow Pro',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F0F14),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF6366F1),
-          secondary: Color(0xFFEC4899),
-          surface: Color(0xFF14141A),
-        ),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          backgroundColor: Color(0xFF14141A),
-          foregroundColor: Colors.white,
-        ),
-        useMaterial3: true,
-      ),
+      theme: TaskTheme.lightTheme,
+      themeMode: ThemeMode.light,
+      navigatorObservers: [FlutterAds.routeObserver],
       home: const SplashScreen(),
     );
   }

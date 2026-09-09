@@ -1,0 +1,15 @@
+# Verbatim content slots for Focus Tab
+
+hero.title: "Deep Work Engine"
+hero.subtitle: "Interval focus sessions calibrated for peak cognitive output."
+timer.mode: "POMODORO BLOCK"
+timer.display: "25:00"
+timer.status: "Ready for Deep Work"
+action.start: "Start Focus Session"
+action.pause: "Pause Session"
+action.reset: "Reset Timer"
+booster.badge: "REWARDED BOOST"
+booster.title: "AI Flow State Booster"
+booster.desc: "Unlock extended 45-min flow state with AI ambient frequency audio."
+action.unlock_booster: "Unlock Booster (Free Ad)"
+booster.active: "Flow State Booster Active (+45m)"

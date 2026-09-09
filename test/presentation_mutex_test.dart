@@ -40,7 +40,7 @@ void main() {
       expect(mutex.lastAdDismissedAt, isNotNull);
     });
 
-    test('Tracks isResumingFromAd and post-ad cooldown', () {
+    test('Tracks isResumingFromAd and resets cleanly on consume', () {
       final mutex = PresentationMutex();
       expect(mutex.isResumingFromAd, false);
 
@@ -49,9 +49,9 @@ void main() {
 
       mutex.release('interstitial_flow');
       expect(mutex.isResumingFromAd, true);
-      expect(mutex.isWithinCooldown(const Duration(seconds: 2)), true);
+      expect(mutex.lastAdDismissedAt, isNotNull);
 
-      // Consume resume flag
+      // Consume resume flag (0ms delay, deterministic absorption)
       mutex.consumeResumeFromAd();
       expect(mutex.isResumingFromAd, false);
     });

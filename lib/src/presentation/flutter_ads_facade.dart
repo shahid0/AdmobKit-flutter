@@ -11,6 +11,7 @@ import '../infrastructure/network/connectivity_network_info.dart';
 import '../infrastructure/pool/eager_ad_pool.dart';
 import 'config/flutter_ads_config.dart';
 import 'lifecycle/app_resume_ad_listener.dart';
+import 'lifecycle/flutter_ads_route_observer.dart';
 
 /// Unified developer-facing facade for the FlutterAds plugin.
 ///
@@ -19,6 +20,9 @@ import 'lifecycle/app_resume_ad_listener.dart';
 /// - [show]
 /// - Inline widgets ([AdBannerView], [AdNativeView], [AdPaywallGuard])
 abstract final class FlutterAds {
+  /// Global route observer tracking active screens for lifecycle-aware ad triggers.
+  static final FlutterAdsRouteObserver routeObserver = FlutterAdsRouteObserver();
+
   static EagerAdPool? _pool;
   static ConsentCoordinator? _consent;
   static PlatformAdLogger? _logger;
@@ -85,6 +89,7 @@ abstract final class FlutterAds {
         placement: appOpenPlacement,
         pool: _pool!,
         logger: _logger,
+        routeObserver: routeObserver,
       );
       _resumeListener!.attach();
     }

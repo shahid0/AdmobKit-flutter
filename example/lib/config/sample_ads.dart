@@ -6,7 +6,16 @@ abstract final class SampleAds {
     id: 'splash_banner',
     androidId: AdMobTestIds.bannerAndroid,
     iosId: AdMobTestIds.bannerIos,
+    isSplash: false,
+    priority: AdPriority.medium,
+  );
+
+  static const splashBigNative = NativePlacement.big(
+    id: 'splash_big_native',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
     isSplash: true,
+    priority: AdPriority.immediate,
   );
 
   static const splashInterstitial = InterstitialPlacement(
@@ -14,6 +23,15 @@ abstract final class SampleAds {
     androidId: AdMobTestIds.interstitialAndroid,
     iosId: AdMobTestIds.interstitialIos,
     isSplash: true,
+    loadOnce: true,
+  );
+
+  // --- Onboarding Placements ---
+  static const onboardingBigNative = NativePlacement.big(
+    id: 'onboarding_big_native',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+    priority: AdPriority.high,
     loadOnce: true,
   );
 
@@ -28,6 +46,12 @@ abstract final class SampleAds {
     id: 'rewarded_bonus',
     androidId: AdMobTestIds.rewardedAndroid,
     iosId: AdMobTestIds.rewardedIos,
+  );
+
+  static const rewardedInterstitial = RewardedInterstitialPlacement(
+    id: 'rewarded_interstitial',
+    androidId: AdMobTestIds.rewardedInterstitialAndroid,
+    iosId: AdMobTestIds.rewardedInterstitialIos,
   );
 
   static const appOpen = AppOpenPlacement(
@@ -56,8 +80,10 @@ abstract final class SampleAds {
   );
 
   static const allPlacements = [
+    splashBigNative,
     splashBanner,
     splashInterstitial,
+    onboardingBigNative,
     mainInterstitial,
     rewardedBonus,
     appOpen,

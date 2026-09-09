@@ -7,9 +7,7 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_margin="4dp"
-        android:background="@drawable/native_media_background">
+        android:layout_height="120dp">
 
         <FrameLayout
             android:id="@+id/ad_media_container"
@@ -103,7 +101,7 @@
                 android:textColor="@color/gnt_white"
                 android:textSize="11sp" />
 
-            <Button
+            <TextView
                 android:id="@+id/ad_call_to_action"
                 android:layout_width="match_parent"
                 android:layout_height="37dp"
@@ -111,11 +109,14 @@
                 android:layout_marginEnd="8dp"
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/ad_primary_button_background"
+                android:gravity="center"
                 android:text="Learn More"
                 android:textAllCaps="false"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="false" />
 
         </RelativeLayout>
     </RelativeLayout>

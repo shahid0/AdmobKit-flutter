@@ -31,6 +31,7 @@ object NativeAdViewBinder {
         )
         bindAdChoices(adView, R.id.ad_choices_view)
         adView.setNativeAd(nativeAd)
+        wireContainerClick(adView, R.id.ad_call_to_action)
     }
 
     fun bindMedium(adView: NativeAdView, nativeAd: NativeAd) {
@@ -51,6 +52,7 @@ object NativeAdViewBinder {
         )
         bindAdChoices(adView, R.id.ad_choices_view)
         adView.setNativeAd(nativeAd)
+        wireContainerClick(adView, R.id.ad_call_to_action)
     }
 
     fun bindBig(adView: NativeAdView, nativeAd: NativeAd) {
@@ -78,6 +80,7 @@ object NativeAdViewBinder {
         )
         bindAdChoices(adView, R.id.ad_choices_view)
         adView.setNativeAd(nativeAd)
+        wireContainerClick(adView, R.id.ad_call_to_action)
     }
 
     private fun bindHeadline(adView: NativeAdView, nativeAd: NativeAd, viewId: Int) {
@@ -199,11 +202,23 @@ object NativeAdViewBinder {
         fallbackText: String,
         uppercase: Boolean = false
     ) {
-        val ctaView = adView.findViewById<Button>(viewId) ?: return
+        val ctaView = adView.findViewById<TextView>(viewId) ?: return
         val cta = nativeAd.callToAction?.takeIf { it.isNotBlank() } ?: fallbackText
         ctaView.text = if (uppercase) cta.uppercase() else cta
         ctaView.visibility = if (cta.isBlank()) View.GONE else View.VISIBLE
+        ctaView.isClickable = true
+        ctaView.isFocusable = false
         adView.callToActionView = ctaView
+    }
+
+    private fun wireContainerClick(adView: NativeAdView, ctaViewId: Int) {
+        val ctaView = adView.findViewById<TextView>(ctaViewId) ?: return
+        val container = adView.getChildAt(0)
+        container?.isClickable = true
+        container?.isFocusable = false
+        container?.setOnClickListener {
+            ctaView.performClick()
+        }
     }
 
     private fun bindAdChoices(adView: NativeAdView, viewId: Int) {

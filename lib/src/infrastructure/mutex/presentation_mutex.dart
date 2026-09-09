@@ -31,12 +31,6 @@ class PresentationMutex {
     }
   }
 
-  /// Returns true if the last ad was dismissed within the given [duration].
-  bool isWithinCooldown(Duration duration) {
-    if (_lastAdDismissedAt == null) return false;
-    return DateTime.now().difference(_lastAdDismissedAt!) < duration;
-  }
-
   /// Attempts to acquire the presentation lock for [holderId].
   ///
   /// Returns `true` if lock was successfully acquired.

@@ -63,11 +63,11 @@ class TieredAdQueue {
   // Holding timers for tasks in exponential backoff
   final Map<String, Timer> _activeRetryTimers = {};
 
-  // Active in-flight task (Strict Concurrency = 1)
-  AdLoadTask? _inFlightTask;
+  // Maximum concurrent in-flight ad downloads (Skill requirement: max 1-2)
+  static const int maxConcurrency = 2;
 
-  // Tracks active splash inline tasks to enforce handshake gate
-  int _pendingSplashInlineCount = 0;
+  // Active in-flight tasks (Concurrency <= 2)
+  final Set<AdLoadTask> _inFlightTasks = {};
 
   // Telco TCP black-hole defense counter
   int _consecutiveCellularTimeouts = 0;
@@ -111,9 +111,11 @@ class TieredAdQueue {
     final priority = overridePriority ?? placement.priority;
 
     // Avoid duplicate queuing if already in-flight or queued for the same placement
-    if (_inFlightTask?.placement.id == placement.id) {
-      _logger?.debug('[Queue] Placement "${placement.id}" is already in-flight.');
-      return _inFlightTask!.completer.future;
+    for (final task in _inFlightTasks) {
+      if (task.placement.id == placement.id) {
+        _logger?.debug('[Queue] Placement "${placement.id}" is already in-flight.');
+        return task.completer.future;
+      }
     }
 
     for (final queue in _buckets.values) {
@@ -129,11 +131,6 @@ class TieredAdQueue {
       placement: placement,
       priority: priority,
     );
-
-    if (placement.isSplash && placement.format.isInline) {
-      _pendingSplashInlineCount++;
-      _logger?.debug('[Queue] Splash inline registered. Pending inline count: $_pendingSplashInlineCount');
-    }
 
     _buckets[priority]!.addLast(task);
     _logger?.info('[Queue] Enqueued "${placement.id}" in [${priority.name}] tier. Total pending: $totalPending');
@@ -156,24 +153,26 @@ class TieredAdQueue {
   /// Total number of pending tasks across all tiers.
   int get totalPending => _buckets.values.fold(0, (sum, q) => sum + q.length);
 
-  /// Returns the next eligible task adhering to the Splash Handshake Gate.
+  /// Returns the next eligible task across priority tiers.
   AdLoadTask? _pollNextTask() {
+    // Top Priority Pairing: If splash fullscreen task is pending and none is currently in-flight,
+    // dispatch it concurrently with immediate splash inline to ensure both preload simultaneously.
+    final hasInFlightSplashFullscreen = _inFlightTasks.any(
+      (t) => t.priority == AdPriority.splashFullscreen,
+    );
+    if (!hasInFlightSplashFullscreen &&
+        _buckets[AdPriority.splashFullscreen]!.isNotEmpty) {
+      return _buckets[AdPriority.splashFullscreen]!.removeFirst();
+    }
+
     // 1. Immediate Tier (Always first)
     if (_buckets[AdPriority.immediate]!.isNotEmpty) {
       return _buckets[AdPriority.immediate]!.removeFirst();
     }
 
-    // 2. Splash Fullscreen Tier
-    // HANDSHAKE GATE: If any splash inline ads are still pending or running, hold splash fullscreen!
+    // 2. Splash Fullscreen Tier (Top priority alongside immediate splash inline)
     if (_buckets[AdPriority.splashFullscreen]!.isNotEmpty) {
-      if (_pendingSplashInlineCount > 0) {
-        _logger?.debug(
-          '[Queue] ⏳ Splash Handshake: Holding splash fullscreen until $_pendingSplashInlineCount splash inline ad(s) resolve.',
-        );
-      } else {
-        // Gate open: Jumps to #1 top priority!
-        return _buckets[AdPriority.splashFullscreen]!.removeFirst();
-      }
+      return _buckets[AdPriority.splashFullscreen]!.removeFirst();
     }
 
     // 3. High Tier
@@ -194,21 +193,26 @@ class TieredAdQueue {
     return null;
   }
 
-  /// Dispatches the next task in queue with single concurrency.
-  Future<void> _dispatchNext() async {
-    if (_isPaused || _inFlightTask != null) return;
+  /// Dispatches pending tasks up to the concurrency limit.
+  void _dispatchNext() {
+    if (_isPaused) return;
 
-    final task = _pollNextTask();
-    if (task == null) return;
+    while (_inFlightTasks.length < maxConcurrency) {
+      final task = _pollNextTask();
+      if (task == null) break;
+      _runTask(task);
+    }
+  }
 
-    _inFlightTask = task;
+  Future<void> _runTask(AdLoadTask task) async {
+    _inFlightTasks.add(task);
     final placement = task.placement;
     final network = await _networkInfo.getNetworkType();
     final timeout = _timeoutConfig.resolve(format: placement.format, network: network);
 
     _logger?.info(
       '[Queue] 🚀 Dispatching "${placement.id}" (Tier: ${task.priority.name}, '
-      'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: 1/1)',
+      'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: ${_inFlightTasks.length}/$maxConcurrency)',
     );
 
     _diagnostics?.onDiagnosticReport(
@@ -244,8 +248,7 @@ class TieredAdQueue {
         ),
       );
 
-      _onSplashInlineResolved(placement);
-      _inFlightTask = null;
+      _inFlightTasks.remove(task);
       if (!task.completer.isCompleted) {
         task.completer.complete(adInstance);
       }
@@ -287,8 +290,7 @@ class TieredAdQueue {
         ),
       );
 
-      _onSplashInlineResolved(placement);
-      _inFlightTask = null;
+      _inFlightTasks.remove(task);
       _handleFailure(task, isTimeout: true);
     } catch (error) {
       stopwatch.stop();
@@ -317,22 +319,12 @@ class TieredAdQueue {
         ),
       );
 
-      _onSplashInlineResolved(placement);
-      _inFlightTask = null;
+      _inFlightTasks.remove(task);
       _handleFailure(task, errorCode: errorCode, error: error);
     }
 
     // Continue queue execution
     _dispatchNext();
-  }
-
-  void _onSplashInlineResolved(AdPlacement placement) {
-    if (placement.isSplash && placement.format.isInline) {
-      _pendingSplashInlineCount = (_pendingSplashInlineCount - 1).clamp(0, 999);
-      _logger?.debug(
-        '[Queue] Splash inline resolved for "${placement.id}". Remaining pending: $_pendingSplashInlineCount',
-      );
-    }
   }
 
   void _handleFailure(
@@ -408,5 +400,6 @@ class TieredAdQueue {
     for (final bucket in _buckets.values) {
       bucket.clear();
     }
+    _inFlightTasks.clear();
   }
 }

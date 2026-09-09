@@ -17,6 +17,6 @@ void main() {
 
     // Verify main splash components render
     expect(find.text('TaskFlow Pro'), findsOneWidget);
-    expect(find.text('Smart Orchestration & Focus'), findsOneWidget);
+    expect(find.text('Architectural Clarity for High-Agency Builders'), findsOneWidget);
   });
 }

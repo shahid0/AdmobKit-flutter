@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ads/flutter_ads.dart';
 import '../state/task_store.dart';
+import '../theme/task_theme.dart';
 
 class AppDrawerConsole extends StatefulWidget {
   const AppDrawerConsole({super.key});
@@ -10,7 +11,7 @@ class AppDrawerConsole extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF141418),
+      backgroundColor: TaskColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -43,7 +44,7 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: TaskColors.borderStrong,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -53,21 +54,22 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
-                  const Icon(Icons.terminal_rounded, color: Color(0xFF6366F1), size: 20),
+                  const Icon(Icons.terminal_rounded, color: TaskColors.accentPrimary, size: 20),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Ads Console',
+                      'Live Diagnostic HUD',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: TaskColors.textInkPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.bug_report_outlined, size: 20, color: Color(0xFFF59E0B)),
+                    icon: const Icon(Icons.bug_report_outlined, size: 20, color: TaskColors.amberText),
                     tooltip: 'Open AdMob Inspector',
                     onPressed: () {
                       FlutterAds.openAdInspector((error) {
@@ -80,7 +82,7 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_sweep_outlined, size: 20, color: Colors.white54),
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 20, color: TaskColors.textMutedCaption),
                     tooltip: 'Clear Logs',
                     onPressed: () {
                       store.liveLogs.value = [];
@@ -93,18 +95,21 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
             // Filter Chips
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Row(
-                children: [
-                  _buildFilterChip('ALL'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('ANALYTICS'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('DIAGNOSTICS'),
-                ],
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterChip('ALL'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('ANALYTICS'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('DIAGNOSTICS'),
+                  ],
+                ),
               ),
             ),
 
-            const Divider(color: Colors.white12, height: 1),
+            const Divider(color: TaskColors.borderSubtle, height: 1),
 
             // Log List
             Expanded(
@@ -122,7 +127,7 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                       child: Text(
                         'No events recorded yet.\nInteract with the app to test ads.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                        style: TextStyle(color: TaskColors.textMutedCaption, fontSize: 13),
                       ),
                     );
                   }
@@ -134,15 +139,24 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                     separatorBuilder: (context, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final line = filtered[index];
-                      Color textColor = const Color(0xFFB0B0C0);
-                      if (line.contains('[Analytics]')) {
-                        textColor = const Color(0xFF67E8F9); // cyan
-                      } else if (line.contains('Paid Event')) {
-                        textColor = const Color(0xFF4ADE80); // green
-                      } else if (line.contains('[Diagnostics]')) {
-                        textColor = const Color(0xFFFDE047); // yellow
+                      Color textColor = TaskColors.textSlateMedium;
+                      Color bgColor = TaskColors.surfaceSubtle;
+                      Color borderColor = TaskColors.borderSubtle;
+
+                      if (line.contains('Paid Event') || line.contains('Granted')) {
+                        textColor = TaskColors.emeraldText;
+                        bgColor = TaskColors.emeraldSurface;
+                        borderColor = TaskColors.emeraldBorder;
                       } else if (line.contains('Failed') || line.contains('Error') || line.contains('❌')) {
-                        textColor = const Color(0xFFF87171); // red
+                        textColor = TaskColors.roseText;
+                        bgColor = TaskColors.roseSurface;
+                        borderColor = TaskColors.roseBorder;
+                      } else if (line.contains('[Diagnostics]') || line.contains('Inspector')) {
+                        textColor = TaskColors.amberText;
+                        bgColor = TaskColors.amberSurface;
+                        borderColor = TaskColors.amberBorder;
+                      } else if (line.contains('[Analytics]')) {
+                        textColor = TaskColors.accentPrimary;
                       }
 
                       return InkWell(
@@ -156,17 +170,18 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                           );
                         },
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E26),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white10),
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor),
                           ),
                           child: Text(
                             line,
                             style: TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 11,
+                              fontWeight: FontWeight.w500,
                               color: textColor,
                               height: 1.4,
                             ),
@@ -187,10 +202,20 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
   Widget _buildFilterChip(String label) {
     final isSelected = _filter == label;
     return ChoiceChip(
-      label: Text(label, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : Colors.white60)),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: isSelected ? Colors.white : TaskColors.textSlateMedium,
+        ),
+      ),
       selected: isSelected,
-      selectedColor: const Color(0xFF6366F1),
-      backgroundColor: const Color(0xFF242430),
+      selectedColor: TaskColors.accentPrimary,
+      backgroundColor: TaskColors.surfaceSubtle,
+      side: BorderSide(
+        color: isSelected ? TaskColors.accentPrimary : TaskColors.borderSubtle,
+      ),
       onSelected: (_) => setState(() => _filter = label),
     );
   }

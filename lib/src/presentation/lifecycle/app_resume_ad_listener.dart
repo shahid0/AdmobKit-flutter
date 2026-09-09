@@ -2,21 +2,23 @@ import 'package:flutter/widgets.dart';
 import '../../domain/models/ad_placement.dart';
 import '../../infrastructure/logging/platform_ad_logger.dart';
 import '../../infrastructure/pool/eager_ad_pool.dart';
+import 'flutter_ads_route_observer.dart';
 
 /// Observes app lifecycle transitions and presents primed App Open ads on resume.
 class AppResumeAdListener with WidgetsBindingObserver {
   final AppOpenPlacement placement;
   final EagerAdPool pool;
   final PlatformAdLogger? logger;
-  final Duration cooldown;
+  final FlutterAdsRouteObserver? routeObserver;
   bool _isAttached = false;
   bool _isPaused = false;
+  bool _appWasBackgroundedBySystem = false;
 
   AppResumeAdListener({
     required this.placement,
     required this.pool,
     this.logger,
-    this.cooldown = const Duration(seconds: 4),
+    this.routeObserver,
   });
 
   /// Attaches the lifecycle observer to [WidgetsBinding.instance].
@@ -52,27 +54,56 @@ class AppResumeAdListener with WidgetsBindingObserver {
   /// Whether App Open ads are currently paused.
   bool get isPaused => _isPaused;
 
+  /// Visible for testing: whether the system background flag is currently armed.
+  @visibleForTesting
+  bool get isBackgroundArmed => _appWasBackgroundedBySystem;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // Arms only if the transition to background occurred without an active full-screen ad
+      if (!pool.mutex.isLocked) {
+        _appWasBackgroundedBySystem = true;
+        logger?.debug(
+          '[Resume] App entered ${state.name} while free of fullscreen ads. Background flag armed.',
+        );
+      } else {
+        logger?.debug(
+          '[Resume] App entered ${state.name} while fullscreen ad "${pool.mutex.currentHolderId}" is active. '
+          'Background flag NOT armed.',
+        );
+      }
+    } else if (state == AppLifecycleState.resumed) {
       _handleAppResume();
     }
   }
 
   void _handleAppResume() {
-    // 1. Developer Pause Guard
+    // 1. True Background Guard: Only trigger if the app genuinely went to background
+    if (!_appWasBackgroundedBySystem) {
+      logger?.debug(
+        '[Resume] App resumed without prior system backgrounding (ad dismissal, modal transition, or boot). '
+        'Suppressing App Open ad.',
+      );
+      return;
+    }
+
+    // Reset flag immediately to guarantee 1-to-1 consumption
+    _appWasBackgroundedBySystem = false;
+
+    // 2. Developer Pause Guard
     if (_isPaused) {
       logger?.debug('[Resume] App Open is paused. Skipping display.');
       return;
     }
 
-    // 2. Premium Guard
+    // 3. Premium Guard
     if (pool.isUserPremium) {
       logger?.debug('[Resume] User is premium. Skipping App Open ad.');
       return;
     }
 
-    // 3. Presentation Lock Guard (Never show on top of an active ad!)
+    // 4. Presentation Lock Guard (Never show on top of an active ad!)
     if (pool.mutex.isLocked) {
       logger?.warning(
         '[Resume] Presentation lock is active ("${pool.mutex.currentHolderId}"). '
@@ -81,23 +112,11 @@ class AppResumeAdListener with WidgetsBindingObserver {
       return;
     }
 
-    // 4. Post-Fullscreen-Ad Dismissal Guard
-    // When an interstitial or rewarded ad closes, Android/iOS resumes the app.
-    // We MUST suppress the App Open ad that would otherwise collide.
-    if (pool.mutex.isResumingFromAd) {
-      pool.mutex.consumeResumeFromAd();
+    // 5. Route-Aware View Lifecycle Guard
+    if (routeObserver != null && !routeObserver!.isResumeAdAllowed) {
       logger?.info(
-        '[Resume] App resumed directly from a dismissed fullscreen ad. '
-        'Suppressing App Open ad to prevent collision.',
-      );
-      return;
-    }
-
-    // 5. Cooldown Guard
-    if (pool.mutex.isWithinCooldown(cooldown)) {
-      logger?.info(
-        '[Resume] Within post-ad dismissal cooldown window. '
-        'Suppressing App Open ad.',
+        '[Resume] Active route "${routeObserver?.currentRouteName ?? 'modal'}" does not permit App Open ads. '
+        'Suppressing to prevent flow disruption.',
       );
       return;
     }

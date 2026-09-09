@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ads/flutter_ads.dart';
 import '../config/sample_ads.dart';
 import '../state/task_store.dart';
+import '../theme/task_theme.dart';
 import '../widgets/app_drawer_console.dart';
 import 'tabs/tasks_list_tab.dart';
 import 'tabs/categories_tab.dart';
+import 'tabs/focus_tab.dart';
 import 'tabs/analytics_tab.dart';
 import 'tabs/settings_tab.dart';
 
@@ -21,6 +23,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   final List<Widget> _tabs = const [
     TasksListTab(),
     CategoriesTab(),
+    FocusTab(),
     AnalyticsTab(),
     SettingsTab(),
   ];
@@ -28,7 +31,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   @override
   void initState() {
     super.initState();
-    // Rule: Funnel-Tied Priming. Resume App Open ads are only active once the user enters the main tabs!
+    // Rule: Funnel-Tied Priming. Resume App Open ads are active once the user enters the main tabs!
     FlutterAds.resumeAppOpen();
     TaskStore.instance.appendLog('🏠 User entered Main Tabs container. App Open resume ads enabled.');
   }
@@ -41,33 +44,73 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
       listenable: store,
       builder: (context, _) {
         return Scaffold(
-          backgroundColor: const Color(0xFF0F0F14),
+          backgroundColor: TaskColors.canvasGround,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF14141A),
+            backgroundColor: TaskColors.canvasGround,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
             title: Row(
               children: [
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF9333EA)]),
-                    borderRadius: BorderRadius.circular(8),
+                    color: TaskColors.accentPrimary,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: TaskColors.accentPrimary.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                  child: const Icon(Icons.token_rounded, color: Colors.white, size: 18),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 const Text(
                   'TaskFlow',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                    color: TaskColors.textInkPrimary,
+                  ),
                 ),
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.terminal_rounded, color: Color(0xFF67E8F9)),
-                tooltip: 'Live Ad Console',
-                onPressed: () => AppDrawerConsole.show(context),
+              TactileButton(
+                onTap: () => AppDrawerConsole.show(context),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: TaskColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: TaskColors.borderSubtle),
+                    boxShadow: TaskColors.cardShadow,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.terminal_rounded, color: TaskColors.accentPrimary, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Live Diagnostic HUD',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: TaskColors.textInkPrimary,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -78,42 +121,83 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Bottom Sticky Banner Ad (Collapses cleanly with zero shift for VIP!)
+              // Bottom Sticky Banner Ad (Framed architectural container; collapses with zero shift for VIP!)
               if (!store.isPremium)
-                const AdBannerView(
-                  placement: SampleAds.splashBanner,
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: TaskColors.surfaceCard,
+                    border: Border(
+                      top: BorderSide(color: TaskColors.borderSubtle),
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  alignment: Alignment.center,
+                  child: const AdBannerView(
+                    placement: SampleAds.splashBanner,
+                  ),
                 ),
 
-              // Bottom Navigation Bar
-              NavigationBar(
-                selectedIndex: _currentIndex,
-                backgroundColor: const Color(0xFF14141A),
-                indicatorColor: const Color(0xFF6366F1).withValues(alpha: 0.25),
-                onDestinationSelected: (index) {
-                  setState(() => _currentIndex = index);
-                },
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.check_circle_outline_rounded, color: Colors.white60),
-                    selectedIcon: Icon(Icons.check_circle_rounded, color: Color(0xFF818CF8)),
-                    label: 'Tasks',
+              // Bottom 5-Hub Architectural Navigation Bar
+              Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: TaskColors.borderSubtle),
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.folder_outlined, color: Colors.white60),
-                    selectedIcon: Icon(Icons.folder_rounded, color: Color(0xFF818CF8)),
-                    label: 'Categories',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.insights_rounded, color: Colors.white60),
-                    selectedIcon: Icon(Icons.insights_rounded, color: Color(0xFF818CF8)),
-                    label: 'Analytics',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.settings_outlined, color: Colors.white60),
-                    selectedIcon: Icon(Icons.settings_rounded, color: Color(0xFF818CF8)),
-                    label: 'Settings',
-                  ),
-                ],
+                ),
+                child: NavigationBar(
+                  selectedIndex: _currentIndex,
+                  backgroundColor: TaskColors.surfaceCard,
+                  elevation: 0,
+                  indicatorColor: TaskColors.accentSubtle,
+                  height: 64,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                  onDestinationSelected: (index) {
+                    if (_currentIndex == index) return;
+                    setState(() => _currentIndex = index);
+
+                    if (FlutterAds.recordActionAndCheckInterval('tab_navigation', interval: 3)) {
+                      TaskStore.instance.appendLog(
+                        '🧭 [Navigation] Tab navigation threshold reached. Triggering Interstitial...',
+                      );
+                      FlutterAds.show(
+                        SampleAds.mainInterstitial,
+                        onDismissed: () {
+                          TaskStore.instance.appendLog(
+                            '✅ [Navigation] Interstitial dismissed. Tab flow uninterrupted.',
+                          );
+                        },
+                      );
+                    }
+                  },
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.check_circle_outline_rounded, color: TaskColors.textSlateMedium),
+                      selectedIcon: Icon(Icons.check_circle_rounded, color: TaskColors.accentPrimary),
+                      label: 'Tasks',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.folder_outlined, color: TaskColors.textSlateMedium),
+                      selectedIcon: Icon(Icons.folder_rounded, color: TaskColors.accentPrimary),
+                      label: 'Projects',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.timer_outlined, color: TaskColors.textSlateMedium),
+                      selectedIcon: Icon(Icons.timer_rounded, color: TaskColors.accentPrimary),
+                      label: 'Focus',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.insights_rounded, color: TaskColors.textSlateMedium),
+                      selectedIcon: Icon(Icons.insights_rounded, color: TaskColors.accentPrimary),
+                      label: 'Analytics',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.settings_outlined, color: TaskColors.textSlateMedium),
+                      selectedIcon: Icon(Icons.settings_rounded, color: TaskColors.accentPrimary),
+                      label: 'Settings',
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

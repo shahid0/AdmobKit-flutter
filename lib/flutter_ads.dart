@@ -23,7 +23,8 @@ export 'src/domain/contracts/ad_network_info.dart';
 // Consent Infrastructure
 export 'src/infrastructure/consent/consent_coordinator.dart' show ConsentTestConfig;
 
-// Presentation Widgets
+// Presentation Widgets & Lifecycle
 export 'src/presentation/widgets/ad_banner_view.dart';
 export 'src/presentation/widgets/ad_native_view.dart';
 export 'src/presentation/widgets/ad_paywall_guard.dart';
+export 'src/presentation/lifecycle/flutter_ads_route_observer.dart';

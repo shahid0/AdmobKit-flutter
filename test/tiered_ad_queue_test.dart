@@ -38,15 +38,17 @@ void main() {
       diagnostics = FakeDiagnosticsTracker();
     });
 
-    test('Strict Concurrency = 1: Only 1 task executes at a time', () async {
+    test('Concurrency Limit <= 2: Up to 2 tasks execute concurrently, never exceeding 2', () async {
       int activeCount = 0;
       int maxConcurrent = 0;
 
       final queue = TieredAdQueue(
         executor: (placement) async {
           activeCount++;
-          if (activeCount > maxConcurrent) maxConcurrent = activeCount;
-          await Future.delayed(const Duration(milliseconds: 20));
+          if (activeCount > maxConcurrent) {
+            maxConcurrent = activeCount;
+          }
+          await Future.delayed(const Duration(milliseconds: 30));
           activeCount--;
           return Object();
         },
@@ -57,16 +59,18 @@ void main() {
       const p1 = BannerPlacement(androidId: '1', iosId: '1');
       const p2 = BannerPlacement(androidId: '2', iosId: '2');
       const p3 = BannerPlacement(androidId: '3', iosId: '3');
+      const p4 = BannerPlacement(androidId: '4', iosId: '4');
 
       final futures = [
         queue.enqueue(p1),
         queue.enqueue(p2),
         queue.enqueue(p3),
+        queue.enqueue(p4),
       ];
 
       await Future.wait(futures);
 
-      expect(maxConcurrent, 1, reason: 'Strict single concurrency must never exceed 1');
+      expect(maxConcurrent, 2, reason: 'Concurrency limit must cap at 2');
       queue.dispose();
     });
 
@@ -99,7 +103,7 @@ void main() {
       queue.dispose();
     });
 
-    test('Splash Handshake Gate: Splash Fullscreen waits until Splash Inline resolves', () async {
+    test('Concurrent Priority 1 Dispatch: Splash Inline and Splash Fullscreen load concurrently', () async {
       final executionOrder = <String>[];
       final completerMap = <String, Completer<void>>{};
 
@@ -128,24 +132,18 @@ void main() {
         isSplash: true,
       );
 
-      // Enqueue splash fullscreen first, then splash inline
+      // Enqueue both Priority 1 placements
       queue.enqueue(splashFullscreen);
       queue.enqueue(splashInline);
 
       // Give event loop a tick
       await Future.delayed(const Duration(milliseconds: 10));
 
-      // Handshake gate check: splash_inline should execute first!
+      // Under concurrency = 2, both Priority 1 placements start concurrently!
       expect(executionOrder, contains('splash_inline'));
-      expect(executionOrder, isNot(contains('splash_fullscreen')));
-
-      // Now resolve splash_inline
-      completerMap['splash_inline']!.complete();
-      await Future.delayed(const Duration(milliseconds: 10));
-
-      // Now splash_fullscreen should unlock and execute!
       expect(executionOrder, contains('splash_fullscreen'));
 
+      completerMap['splash_inline']!.complete();
       completerMap['splash_fullscreen']!.complete();
       queue.dispose();
     });
