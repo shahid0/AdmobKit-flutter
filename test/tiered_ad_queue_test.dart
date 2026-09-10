@@ -74,7 +74,7 @@ void main() {
       queue.dispose();
     });
 
-    test('Queue drain order: Immediate drains before Medium and Low', () async {
+    test('Queue drain order: Splash drains before Immediate, Medium, and Low', () async {
       final executionOrder = <String>[];
 
       final queue = TieredAdQueue(
@@ -86,24 +86,26 @@ void main() {
         diagnostics: diagnostics,
       );
 
-      const low = BannerPlacement(id: 'low', androidId: '3', iosId: '3', priority: AdPriority.low);
-      const medium = BannerPlacement(id: 'medium', androidId: '2', iosId: '2', priority: AdPriority.medium);
-      const immediate = BannerPlacement(id: 'immediate', androidId: '1', iosId: '1', priority: AdPriority.immediate);
+      const low = BannerPlacement(id: 'low', androidId: '4', iosId: '4', priority: AdPriority.low);
+      const medium = BannerPlacement(id: 'medium', androidId: '3', iosId: '3', priority: AdPriority.medium);
+      const immediate = BannerPlacement(id: 'immediate', androidId: '2', iosId: '2', priority: AdPriority.immediate);
+      const splash = BannerPlacement(id: 'splash', androidId: '1', iosId: '1', priority: AdPriority.splash);
 
       // Enqueue in reverse priority
       final f1 = queue.enqueue(low);
       final f2 = queue.enqueue(medium);
       final f3 = queue.enqueue(immediate);
+      final f4 = queue.enqueue(splash);
 
-      await Future.wait([f1, f2, f3]);
+      await Future.wait([f1, f2, f3, f4]);
 
-      // Immediate drains first, then medium, then low
-      expect(executionOrder, ['immediate', 'medium', 'low']);
+      // Splash drains first, then immediate, then medium, then low
+      expect(executionOrder, ['splash', 'immediate', 'medium', 'low']);
 
       queue.dispose();
     });
 
-    test('Concurrent Priority 1 Dispatch: Splash Inline and Splash Fullscreen load concurrently', () async {
+    test('Concurrent Priority 0 Dispatch: Splash Inline and Splash Fullscreen load concurrently', () async {
       final executionOrder = <String>[];
       final completerMap = <String, Completer<void>>{};
 

@@ -104,8 +104,50 @@ void main() async {
   runApp(const TaskFlowApp());
 }
 
-class TaskFlowApp extends StatelessWidget {
+class TaskFlowApp extends StatefulWidget {
   const TaskFlowApp({super.key});
+
+  @override
+  State<TaskFlowApp> createState() => _TaskFlowAppState();
+}
+
+class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
+  bool _wasInBackground = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // Only record as genuine background if an ad is NOT currently being shown
+      if (!FlutterAds.isShowingAd) {
+        _wasInBackground = true;
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_wasInBackground) return;
+      _wasInBackground = false;
+
+      // Do not trigger App Open ad during initial splash sequence
+      if (SplashScreen.isSplashActive) return;
+
+      // If an ad is currently displaying, do not overlap
+      if (FlutterAds.isShowingAd) return;
+
+      // App returned from background to foreground: present App Open ad with 0ms contract
+      TaskStore.instance.appendLog('📱 [Lifecycle] App resumed from background. Showing App Open ad...');
+      FlutterAds.show(SampleAds.appOpen);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

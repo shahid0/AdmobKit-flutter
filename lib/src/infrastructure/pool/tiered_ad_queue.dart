@@ -52,8 +52,9 @@ class TieredAdQueue {
   final PlatformAdLogger? _logger;
   final AdDiagnosticsTracker? _diagnostics;
 
-  // 4 Tier Buckets
+  // 5 Tier Buckets
   final Map<AdPriority, ListQueue<AdLoadTask>> _buckets = {
+    AdPriority.splash: ListQueue<AdLoadTask>(),
     AdPriority.immediate: ListQueue<AdLoadTask>(),
     AdPriority.high: ListQueue<AdLoadTask>(),
     AdPriority.medium: ListQueue<AdLoadTask>(),
@@ -161,7 +162,22 @@ class TieredAdQueue {
 
   /// Returns the next eligible task across priority tiers.
   AdLoadTask? _pollNextTask() {
-    // 1. Immediate Tier: Prioritize inline placements first, then fullscreen placements
+    // 1. Splash Tier (Highest Order: Cold Start / First Screen Placements)
+    // The screen that acts as splash only has at most 1 inline (banner/native) and 1 fullscreen ad.
+    // Inline loads before fullscreen, filling concurrency slots 1 & 2 concurrently at boot.
+    if (_buckets[AdPriority.splash]!.isNotEmpty) {
+      final splashQueue = _buckets[AdPriority.splash]!;
+      for (final task in splashQueue) {
+        if (task.placement is InlinePlacement) {
+          splashQueue.remove(task);
+          return task;
+        }
+      }
+      return splashQueue.removeFirst();
+    }
+
+    // 2. Immediate Tier (Active visible screen / Onboarding placements)
+    // Inline loads before fullscreen within immediate tier as well.
     if (_buckets[AdPriority.immediate]!.isNotEmpty) {
       final immediateQueue = _buckets[AdPriority.immediate]!;
       for (final task in immediateQueue) {

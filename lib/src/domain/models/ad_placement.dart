@@ -92,7 +92,7 @@ class InterstitialPlacement extends FullscreenPlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.interstitial,
-          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.high),
+          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
         );
 }
 
@@ -138,7 +138,7 @@ class AppOpenPlacement extends FullscreenPlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.appOpen,
-          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.high),
+          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
         );
 }
 
@@ -154,7 +154,7 @@ class BannerPlacement extends InlinePlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.banner,
-          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.medium),
+          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
         );
 }
 
@@ -178,7 +178,7 @@ class NativePlacement extends InlinePlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.native,
-          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.medium),
+          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
         );
 
   /// Convenience constructor for the Big Native Ad template (`bigNativeAd`).

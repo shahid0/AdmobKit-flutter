@@ -10,7 +10,6 @@ class TaskStore extends ChangeNotifier {
   // --- State Variables ---
   bool _isPremium = false;
   bool _isProThemeUnlocked = false;
-  int _completedActionsCount = 0;
 
   final List<TaskItem> _tasks = [];
   final ValueNotifier<List<String>> liveLogs = ValueNotifier<List<String>>([]);

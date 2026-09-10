@@ -15,7 +15,7 @@ abstract final class SampleAds {
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
     isSplash: true,
-    priority: AdPriority.immediate,
+    loadOnce: true,
   );
 
   static const splashInterstitial = InterstitialPlacement(
@@ -23,7 +23,6 @@ abstract final class SampleAds {
     androidId: AdMobTestIds.interstitialAndroid,
     iosId: AdMobTestIds.interstitialIos,
     isSplash: true,
-    priority: AdPriority.immediate,
     loadOnce: true,
   );
 

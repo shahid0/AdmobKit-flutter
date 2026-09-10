@@ -7,6 +7,8 @@ import '../theme/task_theme.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
+  static bool isSplashActive = true;
+
   const SplashScreen({super.key});
 
   @override
@@ -21,12 +23,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late final AnimationController _beaconController;
   late final Animation<double> _beaconAnim;
 
-  Timer? _navTimer;
   bool _hasNavigated = false;
 
   @override
   void initState() {
     super.initState();
+    SplashScreen.isSplashActive = true;
 
     // 1. Composited Mount animation for Hero Monogram: 600ms ease-out
     _heroController = AnimationController(
@@ -58,36 +60,23 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _beaconController.repeat(reverse: true);
 
-    // 3. Start splash sequence: minimum 2.5s brand intro, then present 0ms splash interstitial
+    // 3. Start splash sequence: 2s brand intro, then present 0ms splash interstitial
     _startSplashSequence();
   }
 
   Timer? _splashTimer;
 
   void _startSplashSequence() {
-    _splashTimer = Timer(const Duration(milliseconds: 2500), () async {
+    _splashTimer = Timer(const Duration(milliseconds: 2800), () {
       if (!mounted || _hasNavigated) return;
-
-      // If splash interstitial isn't ready yet, give queue up to 1.5s more via watchState
-      if (!FlutterAds.isReady(SampleAds.splashInterstitial)) {
-        try {
-          await FlutterAds.watchState(SampleAds.splashInterstitial)
-              .firstWhere((s) => s == AdPlacementState.ready)
-              .timeout(const Duration(milliseconds: 1500));
-        } catch (_) {
-          // Timeout reached, proceed with 0ms non-blocking contract
-        }
-      }
-
-      if (mounted && !_hasNavigated) {
-        _proceedToNextScreen();
-      }
+      _proceedToNextScreen();
     });
   }
 
   void _proceedToNextScreen() {
     if (_hasNavigated || !mounted) return;
     _hasNavigated = true;
+    SplashScreen.isSplashActive = false;
 
     // Transition beacon to static emerald as per State Matrix
     _beaconController.stop();

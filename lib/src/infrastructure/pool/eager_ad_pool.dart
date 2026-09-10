@@ -26,6 +26,7 @@ class EagerAdPool {
   final Duration _adTtl;
 
   final Map<String, AdCacheEntry> _cache = {};
+  final Set<String> _consumedLoadOnceIds = {};
 
   EagerAdPool({
     required GoogleMobileAdsDriver driver,
@@ -79,6 +80,12 @@ class EagerAdPool {
   /// Triggers a background preload for [placement].
   Future<void> preload(AdPlacement placement) async {
     if (isUserPremium) return;
+
+    // Placements configured as loadOnce (e.g. splash, onboarding) are never re-preloaded
+    if (placement.loadOnce && _consumedLoadOnceIds.contains(placement.id)) {
+      _logger?.info('[Pool] Placement "${placement.id}" is loadOnce: true and already consumed. Preload skipped.');
+      return;
+    }
 
     // Check if valid cached ad already exists
     final cached = _cache[placement.id];
@@ -175,7 +182,7 @@ class EagerAdPool {
       if (cached != null && cached.isStale) {
         _evict(placement.id, isStale: true);
       }
-      _mutex.release(placement.id);
+      _mutex.release(placement.id, wasDisplayed: false);
       _logger?.info(
         '[Show] 0ms Cache Miss for "${placement.id}". Continuing user flow without delay.',
       );
@@ -203,6 +210,7 @@ class EagerAdPool {
           _logger?.info('[Pool] Auto-replenishing recurring placement "${placement.id}" in background.');
           preload(placement);
         } else {
+          _consumedLoadOnceIds.add(placement.id);
           _logger?.info('[Pool] Placement "${placement.id}" is loadOnce: true. Replenishment skipped.');
         }
       },
@@ -222,12 +230,20 @@ class EagerAdPool {
       if (cached != null && cached.isStale) {
         _evict(placement.id, isStale: true);
       }
-      preload(placement);
+      if (!placement.loadOnce || !_consumedLoadOnceIds.contains(placement.id)) {
+        preload(placement);
+      }
       return null;
     }
 
-    // Trigger replenishment for future renders
-    preload(placement);
+    // Trigger replenishment for future renders unless marked as loadOnce funnel
+    if (placement.loadOnce) {
+      _consumedLoadOnceIds.add(placement.id);
+      _logger?.info('[Pool] Inline placement "${placement.id}" is loadOnce: true. Replenishment skipped.');
+    } else {
+      _logger?.info('[Pool] Auto-replenishing recurring inline placement "${placement.id}".');
+      preload(placement);
+    }
     return cached.adInstance;
   }
 

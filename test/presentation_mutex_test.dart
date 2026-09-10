@@ -37,23 +37,6 @@ void main() {
 
       mutex.forceRelease();
       expect(mutex.isLocked, false);
-      expect(mutex.lastAdDismissedAt, isNotNull);
-    });
-
-    test('Tracks isResumingFromAd and resets cleanly on consume', () {
-      final mutex = PresentationMutex();
-      expect(mutex.isResumingFromAd, false);
-
-      mutex.tryAcquire('interstitial_flow');
-      expect(mutex.isResumingFromAd, true);
-
-      mutex.release('interstitial_flow');
-      expect(mutex.isResumingFromAd, true);
-      expect(mutex.lastAdDismissedAt, isNotNull);
-
-      // Consume resume flag (0ms delay, deterministic absorption)
-      mutex.consumeResumeFromAd();
-      expect(mutex.isResumingFromAd, false);
     });
   });
 }

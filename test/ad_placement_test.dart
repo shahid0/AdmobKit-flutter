@@ -3,7 +3,7 @@ import 'package:flutter_ads/flutter_ads.dart';
 
 void main() {
   group('AdPlacement Hierarchy & Priority Inference Tests', () {
-    test('Splash inline placement defaults to immediate priority', () {
+    test('Splash inline placement defaults to splash priority', () {
       const banner = BannerPlacement(
         androidId: 'android_banner',
         iosId: 'ios_banner',
@@ -11,13 +11,13 @@ void main() {
       );
 
       expect(banner.isSplash, true);
-      expect(banner.priority, AdPriority.immediate);
+      expect(banner.priority, AdPriority.splash);
       expect(banner.format, AdFormat.banner);
       expect(banner.getUnitId(isAndroid: true), 'android_banner');
       expect(banner.getUnitId(isAndroid: false), 'ios_banner');
     });
 
-    test('Splash fullscreen placement defaults to splashFullscreen priority', () {
+    test('Splash fullscreen placement defaults to splash priority', () {
       const interstitial = InterstitialPlacement(
         androidId: 'android_inter',
         iosId: 'ios_inter',
@@ -26,7 +26,7 @@ void main() {
       );
 
       expect(interstitial.isSplash, true);
-      expect(interstitial.priority, AdPriority.immediate);
+      expect(interstitial.priority, AdPriority.splash);
       expect(interstitial.loadOnce, true);
       expect(interstitial.format, AdFormat.interstitial);
     });
@@ -86,7 +86,7 @@ void main() {
       expect(small.template?.height, 74.0);
       expect(small.template?.width, double.infinity);
       expect(small.template?.defaultHeight, 74.0);
-      expect(small.priority, AdPriority.immediate);
+      expect(small.priority, AdPriority.splash);
     });
 
     test('Format getters distinguish fullscreen vs inline', () {

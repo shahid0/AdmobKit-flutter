@@ -172,6 +172,9 @@ abstract final class FlutterAds {
   /// Returns true if the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _pool?.isUserPremium ?? false;
 
+  /// Returns true if a full-screen ad is currently active on screen.
+  static bool get isShowingAd => _mutex?.isLocked ?? false;
+
   /// Returns true if valid consent has been gathered to request ads.
   static bool get canRequestAds => _canRequestAds;
 

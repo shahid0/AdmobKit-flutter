@@ -147,5 +147,41 @@ void main() {
 
       pool.dispose();
     });
+
+    test('Inline loadOnce: leaseInlineAd consumes placement and skips replenishment', () async {
+      final pool = EagerAdPool(
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+      );
+
+      const oneOffNative = NativePlacement.big(
+        id: 'splash_native',
+        androidId: '3',
+        iosId: '3',
+        loadOnce: true,
+      );
+
+      // Preload inline ad
+      await pool.preload(oneOffNative);
+      expect(driver.loadCalls, 1);
+      expect(pool.isReady(oneOffNative), true);
+
+      // Lease inline ad
+      final leased = pool.leaseInlineAd(oneOffNative);
+      expect(leased, isNotNull);
+      expect(pool.isReady(oneOffNative), false);
+
+      // Wait for any async queue
+      await Future.delayed(const Duration(milliseconds: 20));
+      // driver.loadCalls should still be 1 (no replenishment!)
+      expect(driver.loadCalls, 1, reason: 'Inline loadOnce must not trigger replenishment on lease');
+
+      // Subsequent manual preload should be completely ignored
+      await pool.preload(oneOffNative);
+      expect(driver.loadCalls, 1, reason: 'Consumed loadOnce placement must ignore subsequent preloads');
+
+      pool.dispose();
+    });
   });
 }
