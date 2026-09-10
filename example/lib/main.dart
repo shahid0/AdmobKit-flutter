@@ -86,10 +86,9 @@ class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize FlutterAds at boot with full DI utilization
+  // Stage 1: Initialize FlutterAds at boot (UMP Consent + GMA SDK init)
   await FlutterAds.initialize(
     config: FlutterAdsConfig(
-      placements: SampleAds.allPlacements,
       requestConsent: false, // Set to true for GDPR/UMP in production
       timeouts: AdTimeoutConfig.standard,
       isPremium: () => TaskStore.instance.isPremium,
@@ -98,6 +97,9 @@ void main() async {
       testDeviceIds: const ['5836268AE16674B51B1B19E62E1B3401'],
     ),
   );
+
+  // Stage 2: Register placements to prime eager preload queue
+  FlutterAds.registerPlacements(SampleAds.allPlacements);
 
   runApp(const TaskFlowApp());
 }
@@ -112,7 +114,6 @@ class TaskFlowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: TaskTheme.lightTheme,
       themeMode: ThemeMode.light,
-      navigatorObservers: [FlutterAds.routeObserver],
       home: const SplashScreen(),
     );
   }

@@ -23,6 +23,7 @@ abstract final class SampleAds {
     androidId: AdMobTestIds.interstitialAndroid,
     iosId: AdMobTestIds.interstitialIos,
     isSplash: true,
+    priority: AdPriority.immediate,
     loadOnce: true,
   );
 
@@ -31,7 +32,7 @@ abstract final class SampleAds {
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
-    priority: AdPriority.high,
+    priority: AdPriority.immediate,
     loadOnce: true,
   );
 

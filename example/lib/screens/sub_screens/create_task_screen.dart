@@ -26,20 +26,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   TaskPriority _selectedPriority = TaskPriority.medium;
 
   @override
-  void initState() {
-    super.initState();
-    // Route guarding: suppress App Open ads during focused composition
-    FlutterAds.pauseAppOpen();
-    FlutterAds.routeObserver.disallowResumeOn([CreateTaskScreen.routeName]);
-    TaskStore.instance.appendLog('🛡️ [RouteGuard] CreateTaskScreen active: App Open ads suppressed.');
-  }
-
-  @override
   void dispose() {
-    // Route guarding: restore App Open ads once composition modal is dismissed
-    FlutterAds.resumeAppOpen();
-    FlutterAds.routeObserver.allowResumeOn([CreateTaskScreen.routeName]);
-    TaskStore.instance.appendLog('🛡️ [RouteGuard] CreateTaskScreen dismissed: App Open ads restored.');
     _titleController.dispose();
     _descController.dispose();
     super.dispose();
@@ -77,7 +64,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     );
 
     TaskStore.instance.addTask(newTask);
-    if (FlutterAds.recordActionAndCheckInterval('task_create', interval: 2)) {
+    if (TaskStore.instance.checkInterval('task_create', interval: 2)) {
       TaskStore.instance.appendLog('📝 [Action] Task creation threshold reached. Triggering Interstitial...');
       FlutterAds.show(
         SampleAds.mainInterstitial,

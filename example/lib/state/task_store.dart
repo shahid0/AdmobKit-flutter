@@ -70,15 +70,24 @@ class TaskStore extends ChangeNotifier {
     }
   }
 
-  /// Increments action counter and returns true if threshold (e.g. 3) is reached.
-  bool incrementActionAndCheckInterval({int interval = 3}) {
+  final Map<String, int> _actionCounters = {};
+
+  /// Checks and increments a named counter (e.g. 'task_clicks', 'navigation').
+  /// Returns true when [interval] is reached and resets that counter.
+  bool checkInterval(String key, {int interval = 3}) {
     if (_isPremium) return false;
-    _completedActionsCount++;
-    if (_completedActionsCount >= interval) {
-      _completedActionsCount = 0;
+    final current = (_actionCounters[key] ?? 0) + 1;
+    if (current >= interval) {
+      _actionCounters[key] = 0;
       return true;
     }
+    _actionCounters[key] = current;
     return false;
+  }
+
+  /// Increments default action counter and returns true if threshold is reached.
+  bool incrementActionAndCheckInterval({int interval = 3}) {
+    return checkInterval('default', interval: interval);
   }
 
   void appendLog(String message) {

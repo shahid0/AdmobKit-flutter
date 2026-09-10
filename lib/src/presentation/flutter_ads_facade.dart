@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../domain/models/ad_placement.dart';
+import '../domain/models/ad_placement_state.dart';
 import '../infrastructure/consent/consent_coordinator.dart';
 import '../infrastructure/drivers/google_mobile_ads_driver.dart';
 import '../infrastructure/logging/platform_ad_logger.dart';
@@ -10,30 +11,40 @@ import '../infrastructure/mutex/presentation_mutex.dart';
 import '../infrastructure/network/connectivity_network_info.dart';
 import '../infrastructure/pool/eager_ad_pool.dart';
 import 'config/flutter_ads_config.dart';
-import 'lifecycle/app_resume_ad_listener.dart';
-import 'lifecycle/flutter_ads_route_observer.dart';
 
 /// Unified developer-facing facade for the FlutterAds plugin.
 ///
-/// Provides a zero-boilerplate "dumb front API" where 95% of use-cases require only:
-/// - [initialize]
-/// - [show]
-/// - Inline widgets ([AdBannerView], [AdNativeView], [AdPaywallGuard])
+/// Features a pure "dumb front API":
+/// - [initialize]: Boots consent (UMP) & AdMob SDK immediately at app launch.
+/// - [registerPlacements]: Primes the eager pool once placements are known (e.g. from Remote Config).
+/// - [show]: 0ms non-blocking full-screen display contract.
+/// - [isReady], [isLoading], [getState], [watchState]: Transparent placement state queries.
+/// - Inline widgets: [AdBannerView], [AdNativeView], [AdPaywallGuard].
 abstract final class FlutterAds {
-  /// Global route observer tracking active screens for lifecycle-aware ad triggers.
-  static final FlutterAdsRouteObserver routeObserver = FlutterAdsRouteObserver();
-
   static EagerAdPool? _pool;
   static ConsentCoordinator? _consent;
   static PlatformAdLogger? _logger;
   static PresentationMutex? _mutex;
-  static AppResumeAdListener? _resumeListener;
   static bool _canRequestAds = false;
 
-  /// Initializes the FlutterAds SDK, executes consent (if enabled),
-  /// initializes Google Mobile Ads, and primes the startup priority queue.
+  /// Optional driver override for testing environments.
+  @visibleForTesting
+  static GoogleMobileAdsDriver? driverForTesting;
+
+  /// Sets the internal eager pool for testing purposes.
+  @visibleForTesting
+  static void setPoolForTesting(EagerAdPool? pool) {
+    _pool = pool;
+    _canRequestAds = true;
+  }
+
+  /// Stage 1: Initializes consent (Google UMP + Apple ATT), initializes Google Mobile Ads SDK,
+  /// registers native ad factories, and prepares the internal eager ad pool.
+  ///
+  /// Can be called immediately at boot (`main()`) before Remote Config or network placements resolve.
+  /// If [config.placements] is provided, they are primed immediately.
   static Future<void> initialize({
-    required FlutterAdsConfig config,
+    FlutterAdsConfig config = const FlutterAdsConfig(),
   }) async {
     _logger = PlatformAdLogger(level: config.logLevel);
     _mutex = PresentationMutex(_logger);
@@ -51,10 +62,11 @@ abstract final class FlutterAds {
     }
 
     // 2. Initialize Google Mobile Ads SDK
-    final driver = GoogleMobileAdsDriver(
-      logger: _logger,
-      analytics: config.analytics,
-    );
+    final driver = driverForTesting ??
+        GoogleMobileAdsDriver(
+          logger: _logger,
+          analytics: config.analytics,
+        );
 
     if (_canRequestAds && config.initializeNativeGma) {
       await driver.initialize(testDeviceIds: config.testDeviceIds);
@@ -82,21 +94,27 @@ abstract final class FlutterAds {
       adTtl: config.adTtl,
     );
 
-    // 4. Attach App Resume Listener if any AppOpenPlacement is registered
-    final appOpenPlacement = config.placements.whereType<AppOpenPlacement>().firstOrNull;
-    if (appOpenPlacement != null) {
-      _resumeListener = AppResumeAdListener(
-        placement: appOpenPlacement,
-        pool: _pool!,
-        logger: _logger,
-        routeObserver: routeObserver,
-      );
-      _resumeListener!.attach();
+    // 4. Prime initial placements if provided at init time
+    if (_canRequestAds && config.placements != null && config.placements!.isNotEmpty) {
+      _pool!.primeAll(config.placements!);
+    }
+  }
+
+  /// Stage 2: Registers and primes placements in the eager preloading pool.
+  ///
+  /// Call this as soon as your ad configuration is ready (e.g. after Firebase Remote Config
+  /// or backend API has loaded). Can be called multiple times to register new placements.
+  static void registerPlacements(Iterable<AdPlacement> placements) {
+    final pool = _pool;
+    if (pool == null) {
+      _logger?.warning('[FlutterAds] registerPlacements called before initialize().');
+      return;
     }
 
-    // 5. Prime startup placements
     if (_canRequestAds) {
-      _pool!.primeAll(config.placements);
+      pool.primeAll(placements);
+    } else {
+      _logger?.warning('[FlutterAds] Consent disallowed ads. Skipping placement priming.');
     }
   }
 
@@ -107,14 +125,14 @@ abstract final class FlutterAds {
   /// - Passing an inline placement (Banner/Native) is prevented at compile time.
   static void show(
     FullscreenPlacement placement, {
-    required VoidCallback onDismissed,
+    VoidCallback? onDismissed,
     void Function(num amount, String type)? onRewardGranted,
     VoidCallback? onDisplayed,
   }) {
     final pool = _pool;
     if (pool == null) {
       _logger?.warning('[FlutterAds] show() called before initialize(). Proceeding.');
-      onDismissed();
+      onDismissed?.call();
       return;
     }
 
@@ -126,47 +144,33 @@ abstract final class FlutterAds {
     );
   }
 
-  /// Returns true if an ad is primed, fresh, and ready for 0ms display.
+  /// Returns true if an ad is primed, fresh, and ready for instant 0ms display.
   static bool isReady(AdPlacement placement) {
     return _pool?.isReady(placement) ?? false;
   }
 
+  /// Returns true if an ad is currently in-flight downloading in the priority queue.
+  static bool isLoading(AdPlacement placement) {
+    return _pool?.isLoading(placement) ?? false;
+  }
+
+  /// Returns the current lifecycle state of [placement].
+  static AdPlacementState getState(AdPlacement placement) {
+    return _pool?.getState(placement) ?? AdPlacementState.unloaded;
+  }
+
+  /// Observes state transitions for [placement] (e.g. for reactive splash waiting).
+  static Stream<AdPlacementState> watchState(AdPlacement placement) {
+    return _pool?.watchState(placement) ?? const Stream.empty();
+  }
+
+  /// Manually requests an on-demand preload for a specific placement.
+  static void preload(AdPlacement placement) {
+    _pool?.preload(placement);
+  }
+
   /// Returns true if the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _pool?.isUserPremium ?? false;
-
-  /// Pauses automatic presentation of App Open ads on resume
-  /// (e.g. while camera/gallery picker is active, or during sensitive user flows).
-  static void pauseAppOpen() {
-    _resumeListener?.pause();
-  }
-
-  /// Resumes automatic presentation of App Open ads on resume.
-  static void resumeAppOpen() {
-    _resumeListener?.resume();
-  }
-
-  /// Internal map tracking action counts for interval-based ad triggers.
-  static final Map<String, int> _actionCounters = {};
-
-  /// Increments an action counter for [actionKey] and returns `true` if it reaches [interval].
-  ///
-  /// Resets the counter to 0 upon reaching the threshold.
-  /// Example:
-  /// ```dart
-  /// if (FlutterAds.recordActionAndCheckInterval('task_completed', interval: 3)) {
-  ///   FlutterAds.show(SampleAds.interstitial, onDismissed: () {});
-  /// }
-  /// ```
-  static bool recordActionAndCheckInterval(String actionKey, {int interval = 3}) {
-    if (isUserPremium) return false;
-    final current = (_actionCounters[actionKey] ?? 0) + 1;
-    if (current >= interval) {
-      _actionCounters[actionKey] = 0;
-      return true;
-    }
-    _actionCounters[actionKey] = current;
-    return false;
-  }
 
   /// Returns true if valid consent has been gathered to request ads.
   static bool get canRequestAds => _canRequestAds;

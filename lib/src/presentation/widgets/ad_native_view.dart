@@ -1,37 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../../domain/models/ad_native_template.dart';
 import '../../domain/models/ad_placement.dart';
 import '../flutter_ads_facade.dart';
 
 /// Zero-CLS (Cumulative Layout Shift) container for Native ads.
 ///
 /// Automatically collapses to [SizedBox.shrink] if the user is premium.
-/// Pre-reserves layout bounds based on the specified [NativePlacement.template]
-/// or custom [height] to prevent visual jumping when the ad loads.
+/// Layout dimensions and native view factory bindings are governed by the
+/// [NativeAdTemplate] enum ([.big], [.medium], [.small]).
 class AdNativeView extends StatefulWidget {
   /// Type-safe native placement descriptor.
   final NativePlacement placement;
 
-  /// Reserved height for the native ad layout.
-  /// If null, resolves automatically from [NativePlacement.template]
-  /// (e.g. 300.0 for Big, 130.0 for Medium, 74.0 for Small).
+  /// Optional template override ([.big], [.medium], [.small]).
+  /// Defaults to [placement.template] or [NativeAdTemplate.medium].
+  final NativeAdTemplate? template;
+
+  /// Optional height override. Defaults to [template.height].
   final double? height;
 
-  /// Reserved width for the native ad layout (defaults to double.infinity).
-  final double width;
+  /// Optional width override. Defaults to [template.width].
+  final double? width;
 
   /// Optional custom placeholder rendered while the ad buffer is filling.
   final Widget? placeholder;
 
-  /// Whether to render a styled dark placeholder while the ad is loading.
+  /// Whether to render a styled placeholder while the ad is loading.
   /// Defaults to true.
   final bool showPlaceholder;
 
   const AdNativeView({
     super.key,
     required this.placement,
+    this.template,
     this.height,
-    this.width = double.infinity,
+    this.width,
     this.placeholder,
     this.showPlaceholder = true,
   });
@@ -86,8 +90,8 @@ class _AdNativeViewState extends State<AdNativeView> {
     super.dispose();
   }
 
-  double get _effectiveHeight =>
-      widget.height ?? widget.placement.template?.defaultHeight ?? 300.0;
+  NativeAdTemplate get _effectiveTemplate =>
+      widget.template ?? widget.placement.template ?? NativeAdTemplate.medium;
 
   @override
   Widget build(BuildContext context) {
@@ -96,8 +100,8 @@ class _AdNativeViewState extends State<AdNativeView> {
     }
 
     return SizedBox(
-      height: _effectiveHeight,
-      width: widget.width,
+      height: widget.height ?? _effectiveTemplate.height,
+      width: widget.width ?? _effectiveTemplate.width,
       child: _nativeAd != null
           ? AdWidget(ad: _nativeAd!)
           : (_isLoading && widget.showPlaceholder

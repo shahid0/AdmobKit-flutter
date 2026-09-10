@@ -7,10 +7,11 @@ enum NativeAdTemplate {
   /// body, and a prominent call-to-action button.
   ///
   /// Factory ID: `'bigNativeAd'`
-  /// Recommended height: `300.0` (or dynamic `screenHeight * 0.36`).
+  /// Height: `300.0`. Width: `double.infinity`.
   big(
     factoryId: 'bigNativeAd',
-    defaultHeight: 300.0,
+    height: 300.0,
+    width: double.infinity,
     minHeight: 250.0,
   ),
 
@@ -18,10 +19,11 @@ enum NativeAdTemplate {
   /// ad badge, headline, advertiser, body, and CTA button.
   ///
   /// Factory ID: `'listTileMedium'` (also aliased to `'listTile'`, `'listTiles'`)
-  /// Recommended height: `130.0`.
+  /// Height: `130.0`. Width: `double.infinity`.
   medium(
     factoryId: 'listTileMedium',
-    defaultHeight: 130.0,
+    height: 130.0,
+    width: double.infinity,
     minHeight: 120.0,
   ),
 
@@ -29,20 +31,33 @@ enum NativeAdTemplate {
   /// body text, and CTA button.
   ///
   /// Factory ID: `'smallNativeAd'`
-  /// Recommended height: `74.0`.
+  /// Height: `74.0`. Width: `double.infinity`.
   small(
     factoryId: 'smallNativeAd',
-    defaultHeight: 74.0,
+    height: 74.0,
+    width: double.infinity,
     minHeight: 64.0,
   );
 
+  /// Native platform factory identifier registered in Android/iOS.
   final String factoryId;
-  final double defaultHeight;
+
+  /// Standard template height in density-independent pixels.
+  final double height;
+
+  /// Standard template width (defaults to [double.infinity] to fill available horizontal width).
+  final double width;
+
+  /// Minimum acceptable height threshold before layout warnings or truncation.
   final double minHeight;
+
+  /// Backwards-compatible alias for [height].
+  double get defaultHeight => height;
 
   const NativeAdTemplate({
     required this.factoryId,
-    required this.defaultHeight,
+    required this.height,
+    this.width = double.infinity,
     required this.minHeight,
   });
 }

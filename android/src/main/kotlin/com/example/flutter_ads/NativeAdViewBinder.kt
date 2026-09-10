@@ -223,7 +223,7 @@ object NativeAdViewBinder {
 
     private fun bindAdChoices(adView: NativeAdView, viewId: Int) {
         val adChoicesView = adView.findViewById<AdChoicesView>(viewId) ?: return
-        adChoicesView.visibility = View.GONE
+        adChoicesView.visibility = View.VISIBLE
         adView.adChoicesView = adChoicesView
     }
 

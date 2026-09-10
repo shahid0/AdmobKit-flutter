@@ -1,21 +1,17 @@
 /// Priority tiers used by the ad preloading queue.
 enum AdPriority {
-  /// Immediate tier for visible inline ads (splash banner/native, active screen).
-  /// Drained first with 100% bandwidth.
+  /// Immediate tier for cold-boot/first-screen placements (both inline and fullscreen)
+  /// and active visible screens. Drained first with top priority.
   immediate(0),
 
-  /// Splash fullscreen ad (interstitial or app open).
-  /// Held until splash inline ads resolve, then jumps to top priority.
-  splashFullscreen(1),
-
   /// High-priority placements needed early in the session.
-  high(2),
+  high(1),
 
-  /// Medium-priority placements (recurring game over rewards, primary triggers).
-  medium(3),
+  /// Medium-priority placements (recurring triggers, standard in-app placements).
+  medium(2),
 
   /// Low-priority background preloads.
-  low(4);
+  low(3);
 
   final int rank;
   const AdPriority(this.rank);

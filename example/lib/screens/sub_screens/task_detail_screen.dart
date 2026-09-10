@@ -58,7 +58,7 @@ class TaskDetailScreen extends StatelessWidget {
                 tooltip: 'Delete Task',
                 onPressed: () {
                   store.deleteTask(task.id);
-                  if (FlutterAds.recordActionAndCheckInterval('task_delete', interval: 3)) {
+                  if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
                     TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
                     FlutterAds.show(
                       SampleAds.mainInterstitial,
@@ -286,9 +286,10 @@ class TaskDetailScreen extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: AdNativeView(
                       placement: SampleAds.bigNative,
-                      height: 300,
+                      template: NativeAdTemplate.big,
                       placeholder: Container(
-                        height: 300,
+                        height: NativeAdTemplate.big.height,
+                        width: NativeAdTemplate.big.width,
                         decoration: BoxDecoration(
                           color: TaskColors.surfaceSubtle,
                           borderRadius: BorderRadius.circular(10),

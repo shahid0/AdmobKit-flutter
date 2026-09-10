@@ -37,7 +37,7 @@ class GoogleMobileAdsDriver {
     }
     try {
       final status = await MobileAds.instance.initialize().timeout(
-        const Duration(seconds: 2),
+        const Duration(seconds: 8),
         onTimeout: () => InitializationStatus(const {}),
       );
       _logger?.info('[GMA] Google Mobile Ads SDK initialized.');

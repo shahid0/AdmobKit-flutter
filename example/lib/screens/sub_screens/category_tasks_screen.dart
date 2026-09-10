@@ -125,7 +125,7 @@ class CategoryTasksScreen extends StatelessWidget {
                                 }
                               }
 
-                              if (FlutterAds.recordActionAndCheckInterval('task_detail_navigation', interval: 4)) {
+                              if (TaskStore.instance.checkInterval('task_detail_navigation', interval: 4)) {
                                 TaskStore.instance.appendLog('🔍 [Action] Task detail navigation threshold reached. Triggering Interstitial...');
                                 FlutterAds.show(
                                   SampleAds.mainInterstitial,
@@ -137,7 +137,7 @@ class CategoryTasksScreen extends StatelessWidget {
                             },
                             onDelete: () {
                               store.deleteTask(task.id);
-                              if (FlutterAds.recordActionAndCheckInterval('task_delete', interval: 3)) {
+                              if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
                                 TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
                                 FlutterAds.show(
                                   SampleAds.mainInterstitial,

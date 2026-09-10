@@ -57,7 +57,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.mediumNative,
-                                      height: 130,
+                                      height: NativeAdTemplate.medium.height,
                                     );
                                   }
 
@@ -68,7 +68,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.bigNative,
-                                      height: 300,
+                                      height: NativeAdTemplate.big.height,
                                     );
                                   }
 
@@ -104,7 +104,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                       }
                                     },
                                     onTap: () {
-                                      if (FlutterAds.recordActionAndCheckInterval('task_detail_navigation', interval: 4)) {
+                                      if (store.checkInterval('task_detail_navigation', interval: 4)) {
                                         FlutterAds.show(
                                           SampleAds.mainInterstitial,
                                           onDismissed: () {
@@ -125,7 +125,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     },
                                     onDelete: () {
                                       store.deleteTask(task.id);
-                                      if (FlutterAds.recordActionAndCheckInterval('task_delete', interval: 3)) {
+                                      if (store.checkInterval('task_delete', interval: 3)) {
                                         store.appendLog(
                                           '🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...',
                                         );

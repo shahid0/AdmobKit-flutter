@@ -51,7 +51,6 @@ void main() {
           home: Scaffold(
             body: AdNativeView(
               placement: native,
-              height: 100,
             ),
           ),
         ),

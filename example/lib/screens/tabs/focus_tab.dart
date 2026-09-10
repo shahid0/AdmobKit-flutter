@@ -49,7 +49,7 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
       _secondsRemaining = _isBoosterActive ? _boosterSeconds : _defaultSeconds;
       _totalSeconds = _isBoosterActive ? _boosterSeconds : _defaultSeconds;
     });
-    if (FlutterAds.recordActionAndCheckInterval('focus_reset', interval: 3)) {
+    if (TaskStore.instance.checkInterval('focus_reset', interval: 3)) {
       TaskStore.instance.appendLog('⏱️ [Action] Focus reset threshold reached. Triggering Interstitial...');
       FlutterAds.show(
         SampleAds.mainInterstitial,

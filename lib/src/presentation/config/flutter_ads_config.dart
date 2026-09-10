@@ -8,8 +8,11 @@ import '../../infrastructure/pool/retry_scheduler.dart';
 
 /// Configuration passed to [FlutterAds.initialize] at application startup.
 class FlutterAdsConfig {
-  /// Catalog of ad placements to register and prime in the eager pool.
-  final List<AdPlacement> placements;
+  /// Optional initial catalog of ad placements to register.
+  /// If provided, placements are primed during [FlutterAds.initialize].
+  /// Alternatively, placements can be registered later via [FlutterAds.registerPlacements]
+  /// once remote configs are loaded.
+  final List<AdPlacement>? placements;
 
   /// If true, automatically executes Google UMP and Apple ATT consent before priming ads.
   final bool requestConsent;
@@ -47,7 +50,7 @@ class FlutterAdsConfig {
   final Duration adTtl;
 
   const FlutterAdsConfig({
-    required this.placements,
+    this.placements,
     this.requestConsent = true,
     this.consentTestConfig,
     this.isPremium,

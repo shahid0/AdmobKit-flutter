@@ -237,18 +237,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: AdNativeView(
-                    placement: SampleAds.onboardingBigNative,
-                    height: 280,
-                    placeholder: Container(
-                      height: 280,
-                      decoration: BoxDecoration(
-                        color: TaskColors.surfaceSubtle,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: TaskColors.borderSubtle),
-                      ),
+                AdNativeView(
+                  placement: SampleAds.onboardingBigNative,
+                  template: NativeAdTemplate.big,
+                  placeholder: Container(
+                    height: NativeAdTemplate.big.height,
+                    width: NativeAdTemplate.big.width,
+                    decoration: BoxDecoration(
+                      color: TaskColors.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: TaskColors.borderSubtle),
                     ),
                   ),
                 ),

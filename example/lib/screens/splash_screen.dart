@@ -27,10 +27,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    // 1. Pause App Open ads during Splash to prevent collisions
-    FlutterAds.pauseAppOpen();
 
-    // 2. Composited Mount animation for Hero Monogram: 600ms ease-out
+    // 1. Composited Mount animation for Hero Monogram: 600ms ease-out
     _heroController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -47,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _heroController.forward();
 
-    // 3. Ambient Telemetry Beacon pulsing animation: 1200ms ease-in-out
+    // 2. Ambient Telemetry Beacon pulsing animation: 1200ms ease-in-out
     _beaconController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -60,32 +58,28 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _beaconController.repeat(reverse: true);
 
-    // 4. Start responsive splash loading sequence (min 2.5s brand intro, max 4.5s ad readiness window)
+    // 3. Start splash sequence: minimum 2.5s brand intro, then present 0ms splash interstitial
     _startSplashSequence();
   }
 
+  Timer? _splashTimer;
+
   void _startSplashSequence() {
-    const minSplashDuration = Duration(milliseconds: 2500);
-    const maxSplashDuration = Duration(milliseconds: 4500);
-    const pollInterval = Duration(milliseconds: 150);
+    _splashTimer = Timer(const Duration(milliseconds: 2500), () async {
+      if (!mounted || _hasNavigated) return;
 
-    final startTime = DateTime.now();
-
-    _navTimer = Timer.periodic(pollInterval, (timer) {
-      if (!mounted || _hasNavigated) {
-        timer.cancel();
-        return;
+      // If splash interstitial isn't ready yet, give queue up to 1.5s more via watchState
+      if (!FlutterAds.isReady(SampleAds.splashInterstitial)) {
+        try {
+          await FlutterAds.watchState(SampleAds.splashInterstitial)
+              .firstWhere((s) => s == AdPlacementState.ready)
+              .timeout(const Duration(milliseconds: 1500));
+        } catch (_) {
+          // Timeout reached, proceed with 0ms non-blocking contract
+        }
       }
 
-      final elapsed = DateTime.now().difference(startTime);
-      final hasReachedMinTime = elapsed >= minSplashDuration;
-      final hasReachedMaxTime = elapsed >= maxSplashDuration;
-
-      final isInterstitialReady = FlutterAds.isReady(SampleAds.splashInterstitial);
-      final isAppOpenReady = FlutterAds.isReady(SampleAds.appOpen);
-
-      if (hasReachedMaxTime || (hasReachedMinTime && (isInterstitialReady || isAppOpenReady))) {
-        timer.cancel();
+      if (mounted && !_hasNavigated) {
         _proceedToNextScreen();
       }
     });
@@ -99,25 +93,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _beaconController.stop();
     _beaconController.value = 1.0;
 
-    // Splash presentation: prefer splash interstitial, fallback to primed app open
-    final FullscreenPlacement candidate = FlutterAds.isReady(SampleAds.splashInterstitial)
-        ? SampleAds.splashInterstitial
-        : (FlutterAds.isReady(SampleAds.appOpen)
-            ? SampleAds.appOpen
-            : SampleAds.splashInterstitial);
-
     TaskStore.instance.appendLog(
-      '🚀 [Splash] Presenting ${candidate.id} (${candidate.format.name}) with 0ms contract...',
+      '🚀 [Splash] Presenting ${SampleAds.splashInterstitial.id} with 0ms contract...',
     );
     FlutterAds.show(
-      candidate,
+      SampleAds.splashInterstitial,
       onDismissed: _navigateToOnboarding,
     );
   }
 
   void _navigateToOnboarding() {
     if (!mounted) return;
-    FlutterAds.resumeAppOpen();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, _, _) => const OnboardingScreen(),
@@ -129,8 +115,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
-    _navTimer?.cancel();
-    FlutterAds.resumeAppOpen();
+    _splashTimer?.cancel();
     _heroController.dispose();
     _beaconController.dispose();
     super.dispose();
@@ -274,19 +259,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Widget _buildBottomAdContainer() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: TaskColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: TaskColors.borderSubtle),
-          boxShadow: TaskColors.cardShadow,
-        ),
-        child: const AdNativeView(
-          placement: SampleAds.splashBigNative,
-          height: 280,
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: TaskColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TaskColors.borderSubtle),
+        boxShadow: TaskColors.cardShadow,
+      ),
+      child: const AdNativeView(
+        placement: SampleAds.splashBigNative,
+        template: NativeAdTemplate.big,
       ),
     );
   }

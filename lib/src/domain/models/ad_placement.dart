@@ -92,7 +92,7 @@ class InterstitialPlacement extends FullscreenPlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.interstitial,
-          priority: priority ?? (isSplash ? AdPriority.splashFullscreen : AdPriority.high),
+          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.high),
         );
 }
 
@@ -138,7 +138,7 @@ class AppOpenPlacement extends FullscreenPlacement {
   }) : super(
           id: id ?? androidId,
           format: AdFormat.appOpen,
-          priority: priority ?? (isSplash ? AdPriority.splashFullscreen : AdPriority.high),
+          priority: priority ?? (isSplash ? AdPriority.immediate : AdPriority.high),
         );
 }
 

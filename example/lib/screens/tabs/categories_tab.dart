@@ -94,7 +94,7 @@ class CategoriesTab extends StatelessWidget {
           }
         }
 
-        if (FlutterAds.recordActionAndCheckInterval('category_navigation', interval: 3)) {
+        if (TaskStore.instance.checkInterval('category_navigation', interval: 3)) {
           TaskStore.instance.appendLog('📂 [Action] Category navigation threshold reached. Triggering Interstitial...');
           FlutterAds.show(
             SampleAds.mainInterstitial,

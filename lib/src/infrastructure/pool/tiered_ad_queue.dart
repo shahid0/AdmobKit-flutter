@@ -4,6 +4,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../domain/contracts/ad_diagnostics_tracker.dart';
 import '../../domain/contracts/ad_network_info.dart';
 import '../../domain/models/ad_placement.dart';
+import '../../domain/models/ad_placement_state.dart';
 import '../../domain/models/ad_priority.dart';
 import '../../domain/models/ad_timeout_config.dart';
 import '../../domain/models/diagnostic_report.dart';
@@ -41,8 +42,8 @@ class AdLoadTask {
   }
 }
 
-/// The 4-Tier FIFO Queue Dispatcher enforcing concurrency = 1,
-/// network-adaptive timeouts, splash priority handshakes, and black-hole defense.
+/// The 4-Tier FIFO Queue Dispatcher enforcing concurrency = 2,
+/// network-adaptive timeouts, inline-first immediate priority, and black-hole defense.
 class TieredAdQueue {
   final Future<dynamic> Function(AdPlacement placement) _executor;
   final AdNetworkInfo _networkInfo;
@@ -54,11 +55,15 @@ class TieredAdQueue {
   // 4 Tier Buckets
   final Map<AdPriority, ListQueue<AdLoadTask>> _buckets = {
     AdPriority.immediate: ListQueue<AdLoadTask>(),
-    AdPriority.splashFullscreen: ListQueue<AdLoadTask>(),
     AdPriority.high: ListQueue<AdLoadTask>(),
     AdPriority.medium: ListQueue<AdLoadTask>(),
     AdPriority.low: ListQueue<AdLoadTask>(),
   };
+
+  // State tracking per placement
+  final Map<String, AdPlacementState> _placementStates = {};
+  final StreamController<({String placementId, AdPlacementState state})> _stateController =
+      StreamController<({String placementId, AdPlacementState state})>.broadcast();
 
   // Holding timers for tasks in exponential backoff
   final Map<String, Timer> _activeRetryTimers = {};
@@ -133,6 +138,7 @@ class TieredAdQueue {
     );
 
     _buckets[priority]!.addLast(task);
+    _updateState(placement.id, AdPlacementState.loading);
     _logger?.info('[Queue] Enqueued "${placement.id}" in [${priority.name}] tier. Total pending: $totalPending');
 
     _scheduleDispatch();
@@ -155,42 +161,69 @@ class TieredAdQueue {
 
   /// Returns the next eligible task across priority tiers.
   AdLoadTask? _pollNextTask() {
-    // Top Priority Pairing: If splash fullscreen task is pending and none is currently in-flight,
-    // dispatch it concurrently with immediate splash inline to ensure both preload simultaneously.
-    final hasInFlightSplashFullscreen = _inFlightTasks.any(
-      (t) => t.priority == AdPriority.splashFullscreen,
-    );
-    if (!hasInFlightSplashFullscreen &&
-        _buckets[AdPriority.splashFullscreen]!.isNotEmpty) {
-      return _buckets[AdPriority.splashFullscreen]!.removeFirst();
-    }
-
-    // 1. Immediate Tier (Always first)
+    // 1. Immediate Tier: Prioritize inline placements first, then fullscreen placements
     if (_buckets[AdPriority.immediate]!.isNotEmpty) {
-      return _buckets[AdPriority.immediate]!.removeFirst();
+      final immediateQueue = _buckets[AdPriority.immediate]!;
+      for (final task in immediateQueue) {
+        if (task.placement is InlinePlacement) {
+          immediateQueue.remove(task);
+          return task;
+        }
+      }
+      return immediateQueue.removeFirst();
     }
 
-    // 2. Splash Fullscreen Tier (Top priority alongside immediate splash inline)
-    if (_buckets[AdPriority.splashFullscreen]!.isNotEmpty) {
-      return _buckets[AdPriority.splashFullscreen]!.removeFirst();
-    }
-
-    // 3. High Tier
+    // 2. High Tier
     if (_buckets[AdPriority.high]!.isNotEmpty) {
       return _buckets[AdPriority.high]!.removeFirst();
     }
 
-    // 4. Medium Tier
+    // 3. Medium Tier
     if (_buckets[AdPriority.medium]!.isNotEmpty) {
       return _buckets[AdPriority.medium]!.removeFirst();
     }
 
-    // 5. Low Tier
+    // 4. Low Tier
     if (_buckets[AdPriority.low]!.isNotEmpty) {
       return _buckets[AdPriority.low]!.removeFirst();
     }
 
     return null;
+  }
+
+  void _updateState(String placementId, AdPlacementState state) {
+    if (_placementStates[placementId] == state) return;
+    _placementStates[placementId] = state;
+    if (!_stateController.isClosed) {
+      _stateController.add((placementId: placementId, state: state));
+    }
+  }
+
+  /// Returns the current lifecycle state for [placementId].
+  AdPlacementState getState(String placementId) {
+    return _placementStates[placementId] ?? AdPlacementState.unloaded;
+  }
+
+  /// Returns true if [placementId] is currently in-flight downloading.
+  bool isLoading(String placementId) {
+    return getState(placementId) == AdPlacementState.loading;
+  }
+
+  /// Observes state transitions for [placementId].
+  Stream<AdPlacementState> watchState(String placementId) {
+    return _stateController.stream
+        .where((e) => e.placementId == placementId)
+        .map((e) => e.state);
+  }
+
+  /// Called when an ad is evicted or consumed from cache.
+  void notifyEvicted(String placementId) {
+    _updateState(placementId, AdPlacementState.unloaded);
+  }
+
+  /// Called when an ad is confirmed ready in cache.
+  void notifyReady(String placementId) {
+    _updateState(placementId, AdPlacementState.ready);
   }
 
   /// Dispatches pending tasks up to the concurrency limit.
@@ -334,6 +367,7 @@ class TieredAdQueue {
     Object? error,
   }) {
     final placement = task.placement;
+    _updateState(placement.id, AdPlacementState.error);
 
     if (_retryScheduler.shouldRetry(attempt: task.retryAttempt, errorCode: errorCode)) {
       final nextAttempt = task.retryAttempt + 1;
@@ -392,6 +426,7 @@ class TieredAdQueue {
 
   /// Cancels all pending timers and subscriptions.
   void dispose() {
+    _stateController.close();
     _networkSub?.cancel();
     for (final timer in _activeRetryTimers.values) {
       timer.cancel();

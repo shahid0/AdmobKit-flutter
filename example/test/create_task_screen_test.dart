@@ -162,49 +162,4 @@ void main() {
     expect(find.text('Create New Task'), findsOneWidget);
     expect(find.text('Save Task'), findsOneWidget);
   });
-
-  testWidgets('Route guarding suppresses App Open ads on mount and restores on unmount', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => ElevatedButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                settings: const RouteSettings(name: CreateTaskScreen.routeName),
-                builder: (_) => const CreateTaskScreen(),
-              ),
-            ),
-            child: const Text('Open'),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-
-    // Verify suppressed log added
-    expect(
-      TaskStore.instance.liveLogs.value.any((l) => l.contains('CreateTaskScreen active: App Open ads suppressed')),
-      isTrue,
-    );
-
-    // Tap back button
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
-
-    // Verify restored log added
-    expect(
-      TaskStore.instance.liveLogs.value.any((l) => l.contains('CreateTaskScreen dismissed: App Open ads restored')),
-      isTrue,
-    );
-  });
 }

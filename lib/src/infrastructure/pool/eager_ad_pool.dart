@@ -3,6 +3,7 @@ import '../../domain/contracts/ad_analytics_tracker.dart';
 import '../../domain/contracts/ad_diagnostics_tracker.dart';
 import '../../domain/contracts/ad_network_info.dart';
 import '../../domain/models/ad_placement.dart';
+import '../../domain/models/ad_placement_state.dart';
 import '../../domain/models/ad_timeout_config.dart';
 import '../../domain/models/diagnostic_report.dart';
 import '../drivers/google_mobile_ads_driver.dart';
@@ -60,7 +61,7 @@ class EagerAdPool {
   PresentationMutex get mutex => _mutex;
 
   /// Primes a list of placements at app startup according to their priority tiers.
-  void primeAll(List<AdPlacement> placements) {
+  void primeAll(Iterable<AdPlacement> placements) {
     if (isUserPremium) {
       _logger?.info('[Pool] User is premium. Skipping initial ad preloading.');
       return;
@@ -100,6 +101,7 @@ class EagerAdPool {
         adInstance: adInstance,
         ttl: _adTtl,
       );
+      _queue.notifyReady(placement.id);
       _logger?.info('[Pool] Buffer filled for "${placement.id}". Ready for instant display.');
     } catch (_) {
       // Failure logging and retries are managed within TieredAdQueue
@@ -123,6 +125,22 @@ class EagerAdPool {
     return true;
   }
 
+  /// Checks whether [placement] is currently in-flight downloading.
+  bool isLoading(AdPlacement placement) {
+    return _queue.isLoading(placement.id);
+  }
+
+  /// Returns the current lifecycle state of [placement].
+  AdPlacementState getState(AdPlacement placement) {
+    if (isReady(placement)) return AdPlacementState.ready;
+    return _queue.getState(placement.id);
+  }
+
+  /// Observes state transitions for [placement].
+  Stream<AdPlacementState> watchState(AdPlacement placement) {
+    return _queue.watchState(placement.id);
+  }
+
   /// Shows a full-screen ad following the 0ms Non-Blocking Dumb View Contract.
   ///
   /// - If ready: presents immediately with zero perceived user wait.
@@ -130,26 +148,29 @@ class EagerAdPool {
   /// - Upon dismissal: releases lock and auto-replenishes unless [placement.loadOnce] is true.
   void show(
     FullscreenPlacement placement, {
-    required VoidCallback onDismissed,
+    VoidCallback? onDismissed,
     void Function(num amount, String type)? onRewardGranted,
     VoidCallback? onDisplayed,
   }) {
     // 1. Premium Guard
     if (isUserPremium) {
       _logger?.info('[Show] User is premium. Bypassing ad display for "${placement.id}".');
-      onDismissed();
+      onDismissed?.call();
       return;
     }
 
     // 2. Mutual Exclusion (Presentation Mutex)
     if (!_mutex.tryAcquire(placement.id)) {
       _logger?.warning('[Show] Presentation lock active. Dropping show request for "${placement.id}".');
-      onDismissed();
+      onDismissed?.call();
       return;
     }
 
     // 3. Freshness & Cache Check
     final cached = _cache.remove(placement.id);
+    if (cached != null) {
+      _queue.notifyEvicted(placement.id);
+    }
     if (cached == null || cached.isStale) {
       if (cached != null && cached.isStale) {
         _evict(placement.id, isStale: true);
@@ -160,7 +181,7 @@ class EagerAdPool {
       );
       // Trigger background reload so it's primed next time
       preload(placement);
-      onDismissed();
+      onDismissed?.call();
       return;
     }
 
@@ -175,7 +196,7 @@ class EagerAdPool {
       },
       onDismissed: () {
         _mutex.release(placement.id);
-        onDismissed();
+        onDismissed?.call();
 
         // 5. Replenish unless marked as loadOnce funnel
         if (!placement.loadOnce) {
@@ -194,6 +215,9 @@ class EagerAdPool {
     if (isUserPremium) return null;
 
     final cached = _cache.remove(placement.id);
+    if (cached != null) {
+      _queue.notifyEvicted(placement.id);
+    }
     if (cached == null || cached.isStale) {
       if (cached != null && cached.isStale) {
         _evict(placement.id, isStale: true);
@@ -209,6 +233,7 @@ class EagerAdPool {
 
   void _evict(String placementId, {bool isStale = false}) {
     final entry = _cache.remove(placementId);
+    _queue.notifyEvicted(placementId);
     if (entry != null) {
       if (isStale) {
         _diagnostics?.onDiagnosticReport(

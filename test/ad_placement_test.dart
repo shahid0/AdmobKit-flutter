@@ -26,7 +26,7 @@ void main() {
       );
 
       expect(interstitial.isSplash, true);
-      expect(interstitial.priority, AdPriority.splashFullscreen);
+      expect(interstitial.priority, AdPriority.immediate);
       expect(interstitial.loadOnce, true);
       expect(interstitial.format, AdFormat.interstitial);
     });
@@ -61,6 +61,8 @@ void main() {
       );
       expect(big.factoryId, 'bigNativeAd');
       expect(big.template, NativeAdTemplate.big);
+      expect(big.template?.height, 300.0);
+      expect(big.template?.width, double.infinity);
       expect(big.template?.defaultHeight, 300.0);
       expect(big.priority, AdPriority.medium);
 
@@ -70,6 +72,8 @@ void main() {
       );
       expect(medium.factoryId, 'listTileMedium');
       expect(medium.template, NativeAdTemplate.medium);
+      expect(medium.template?.height, 130.0);
+      expect(medium.template?.width, double.infinity);
       expect(medium.template?.defaultHeight, 130.0);
 
       const small = NativePlacement.small(
@@ -79,6 +83,8 @@ void main() {
       );
       expect(small.factoryId, 'smallNativeAd');
       expect(small.template, NativeAdTemplate.small);
+      expect(small.template?.height, 74.0);
+      expect(small.template?.width, double.infinity);
       expect(small.template?.defaultHeight, 74.0);
       expect(small.priority, AdPriority.immediate);
     });

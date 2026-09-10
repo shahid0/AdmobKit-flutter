@@ -28,13 +28,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     SettingsTab(),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    // Rule: Funnel-Tied Priming. Resume App Open ads are active once the user enters the main tabs!
-    FlutterAds.resumeAppOpen();
-    TaskStore.instance.appendLog('🏠 User entered Main Tabs container. App Open resume ads enabled.');
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +150,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                     if (_currentIndex == index) return;
                     setState(() => _currentIndex = index);
 
-                    if (FlutterAds.recordActionAndCheckInterval('tab_navigation', interval: 3)) {
+                    if (TaskStore.instance.checkInterval('tab_navigation', interval: 3)) {
                       TaskStore.instance.appendLog(
                         '🧭 [Navigation] Tab navigation threshold reached. Triggering Interstitial...',
                       );
