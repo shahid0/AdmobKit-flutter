@@ -114,14 +114,12 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Single growth region: Form body
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: Task Title
                     const Text(
                       'TASK TITLE',
                       style: TextStyle(
@@ -169,7 +167,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Section 2: Description & Notes
                     const Text(
                       'DESCRIPTION & NOTES',
                       style: TextStyle(
@@ -218,7 +215,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Section 3: Category Chips
                     const Text(
                       'CATEGORY',
                       style: TextStyle(
@@ -264,7 +260,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Section 4: Priority Selector
                     const Text(
                       'PRIORITY LEVEL',
                       style: TextStyle(
@@ -339,7 +334,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               ),
             ),
 
-            // Pinned Below: Save Action Button
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               decoration: const BoxDecoration(

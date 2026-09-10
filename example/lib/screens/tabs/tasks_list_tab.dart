@@ -50,7 +50,6 @@ class _TasksListTabState extends State<TasksListTab> {
                                       ? 2
                                       : (filteredTasks.isNotEmpty ? 1 : 0);
 
-                                  // Insert Medium Native Ad at index 1
                                   if (index == 1) {
                                     if (store.isPremium) {
                                       return const SizedBox.shrink();
@@ -61,7 +60,6 @@ class _TasksListTabState extends State<TasksListTab> {
                                     );
                                   }
 
-                                  // Insert Big Native Ad at index 4
                                   if (index == 4 && adCount == 2) {
                                     if (store.isPremium) {
                                       return const SizedBox.shrink();
@@ -72,7 +70,6 @@ class _TasksListTabState extends State<TasksListTab> {
                                     );
                                   }
 
-                                  // Resolve task index accounting for injected ads
                                   int taskIndex = index;
                                   if (index > 4 && adCount == 2) {
                                     taskIndex -= 2;

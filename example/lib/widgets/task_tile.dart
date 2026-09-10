@@ -54,7 +54,6 @@ class TaskTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Tactile Architectural Checkbox
               GestureDetector(
                 onTap: onToggle,
                 child: AnimatedContainer(
@@ -77,7 +76,6 @@ class TaskTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Task Details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,7 +105,6 @@ class TaskTile extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        // Category tag
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
@@ -133,7 +130,6 @@ class TaskTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
 
-                        // Priority indicator
                         Container(
                           width: 6,
                           height: 6,

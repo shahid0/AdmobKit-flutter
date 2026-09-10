@@ -55,7 +55,6 @@ class _AdBannerViewState extends State<AdBannerView> {
         _isLoading = false;
       });
     } else {
-      // Trigger preload and listen
       FlutterAds.pool?.preload(widget.placement).then((_) {
         if (!mounted) return;
         final newlyLoaded = FlutterAds.leaseInlineAd(widget.placement);

@@ -78,7 +78,6 @@ class TaskDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hero Task Specification Card
                 TaskCard(
                   padding: const EdgeInsets.all(16),
                   borderRadius: 16,
@@ -203,7 +202,6 @@ class TaskDetailScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // Execution Checklist Section
                 const Text(
                   'EXECUTION CHECKLIST',
                   style: TextStyle(
@@ -262,7 +260,6 @@ class TaskDetailScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Deep Sub-Screen Embedded Big Native Ad
                 if (!store.isPremium) ...[
                   const SizedBox(height: 20),
                   const Text(

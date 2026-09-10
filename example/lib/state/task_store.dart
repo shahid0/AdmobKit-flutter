@@ -7,14 +7,12 @@ class TaskStore extends ChangeNotifier {
     _initSampleTasks();
   }
 
-  // --- State Variables ---
   bool _isPremium = false;
   bool _isProThemeUnlocked = false;
 
   final List<TaskItem> _tasks = [];
   final ValueNotifier<List<String>> liveLogs = ValueNotifier<List<String>>([]);
 
-  // --- Getters ---
   bool get isPremium => _isPremium;
   bool get isProThemeUnlocked => _isProThemeUnlocked;
   List<TaskItem> get tasks => List.unmodifiable(_tasks);

@@ -91,13 +91,11 @@ class EagerAdPool {
   Future<void> preload(AdPlacement placement) async {
     if (isUserPremium) return;
 
-    // Placements configured as loadOnce (e.g. splash, onboarding) are never re-preloaded
     if (placement.loadOnce && _consumedLoadOnceIds.contains(placement.id)) {
       _logger?.info('[Pool] Placement "${placement.id}" is loadOnce: true and already consumed. Preload skipped.');
       return;
     }
 
-    // Check if valid cached ad already exists
     final cached = _cache[placement.id];
     if (cached != null) {
       if (!cached.isStale) {
@@ -223,21 +221,18 @@ class EagerAdPool {
     void Function(num amount, String type)? onRewardGranted,
     VoidCallback? onDisplayed,
   }) {
-    // 1. Premium Guard
     if (isUserPremium) {
       _logger?.info('[Show] User is premium. Bypassing ad display for "${placement.id}".');
       onDismissed?.call();
       return;
     }
 
-    // 2. Mutual Exclusion (Presentation Mutex)
     if (!_mutex.tryAcquire(placement.id)) {
       _logger?.warning('[Show] Presentation lock active. Dropping show request for "${placement.id}".');
       onDismissed?.call();
       return;
     }
 
-    // 3. Freshness & Cache Check
     final cached = _cache.remove(placement.id);
     if (cached != null) {
       _queue.notifyEvicted(placement.id);
@@ -248,7 +243,6 @@ class EagerAdPool {
       }
       _mutex.release(placement.id, wasDisplayed: false);
 
-      // Deterministic splash settlement: if splash placement is in-flight loading, await settlement
       if (placement.isSplash && isLoading(placement)) {
         _logger?.info(
           '[Show] Splash placement "${placement.id}" is in-flight loading. '
@@ -266,7 +260,6 @@ class EagerAdPool {
       _logger?.info(
         '[Show] 0ms Cache Miss for "${placement.id}". Continuing user flow without delay.',
       );
-      // Trigger background reload so it's primed next time
       preload(placement);
       onDismissed?.call();
       return;
@@ -274,7 +267,6 @@ class EagerAdPool {
 
     _logger?.info('[Show] 🎯 0ms Cache Hit for "${placement.id}". Displaying ad.');
 
-    // 4. Present via Driver
     _driver.showFullscreenAd(
       placement: placement,
       adInstance: cached.adInstance,
@@ -285,7 +277,6 @@ class EagerAdPool {
         _mutex.release(placement.id);
         onDismissed?.call();
 
-        // 5. Replenish unless marked as loadOnce funnel
         if (!placement.loadOnce) {
           _logger?.info('[Pool] Auto-replenishing recurring placement "${placement.id}" in background.');
           preload(placement);
@@ -316,7 +307,6 @@ class EagerAdPool {
       return null;
     }
 
-    // Trigger replenishment for future renders unless marked as loadOnce funnel
     if (placement.loadOnce) {
       _consumedLoadOnceIds.add(placement.id);
       _logger?.info('[Pool] Inline placement "${placement.id}" is loadOnce: true. Replenishment skipped.');

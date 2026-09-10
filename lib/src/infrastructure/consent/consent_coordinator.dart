@@ -32,7 +32,6 @@ class ConsentCoordinator {
     _logger?.info('[Consent] 🛡️ Starting consent gathering pipeline...');
 
     try {
-      // 1. Google UMP Consent Update
       final completer = Completer<void>();
       final params = ConsentRequestParameters(
         consentDebugSettings: testConfig != null
@@ -47,7 +46,6 @@ class ConsentCoordinator {
         params,
         () async {
           _logger?.debug('[Consent] UMP consent info updated successfully.');
-          // Load and show form if required
           ConsentForm.loadAndShowConsentFormIfRequired((formError) {
             if (formError != null) {
               _logger?.warning(
@@ -77,7 +75,6 @@ class ConsentCoordinator {
       _logger?.error('[Consent] Unexpected error during UMP consent', e, st);
     }
 
-    // 2. Apple App Tracking Transparency (ATT) on iOS
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final status = await AppTrackingTransparency.trackingAuthorizationStatus;
@@ -93,7 +90,6 @@ class ConsentCoordinator {
       }
     }
 
-    // 3. Final verification: Can we request ads?
     final canRequest = await ConsentInformation.instance.canRequestAds();
     _logger?.info('[Consent] Final consent resolution: canRequestAds = $canRequest');
     return canRequest;

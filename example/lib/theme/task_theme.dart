@@ -2,24 +2,20 @@ import 'package:flutter/material.dart';
 
 /// Architectural Light Theme design tokens for TaskFlow Pro.
 abstract final class TaskColors {
-  // Canvas & Surfaces
-  static const Color canvasGround = Color(0xFFF8F9FA); // Architectural Chalk (Never flat #FFFFFF)
-  static const Color surfaceCard = Color(0xFFFFFFFF); // Elevated Pure White Card
-  static const Color surfaceSubtle = Color(0xFFF1F5F9); // Recessed Well / Track / Input fill
-  static const Color borderSubtle = Color(0xFFE2E8F0); // 1px Hairline Slate Border
-  static const Color borderStrong = Color(0xFFCBD5E1); // Focused / Active Border
+  static const Color canvasGround = Color(0xFFF8F9FA);
+  static const Color surfaceCard = Color(0xFFFFFFFF);
+  static const Color surfaceSubtle = Color(0xFFF1F5F9);
+  static const Color borderSubtle = Color(0xFFE2E8F0);
+  static const Color borderStrong = Color(0xFFCBD5E1);
 
-  // Ink & Typography
-  static const Color textInkPrimary = Color(0xFF0F172A); // Slate 900 Display Ink
-  static const Color textSlateMedium = Color(0xFF475569); // Slate 600 Body
-  static const Color textMutedCaption = Color(0xFF94A3B8); // Slate 400 Microcopy / Monospace labels
+  static const Color textInkPrimary = Color(0xFF0F172A);
+  static const Color textSlateMedium = Color(0xFF475569);
+  static const Color textMutedCaption = Color(0xFF94A3B8);
 
-  // Brand & Interactive Accents
-  static const Color accentPrimary = Color(0xFF4338CA); // Royal Indigo 700 (High contrast action)
-  static const Color accentHover = Color(0xFF4F46E5); // Indigo 600
-  static const Color accentSubtle = Color(0xFFEEF2FF); // Indigo 50 Fill wash
+  static const Color accentPrimary = Color(0xFF4338CA);
+  static const Color accentHover = Color(0xFF4F46E5);
+  static const Color accentSubtle = Color(0xFFEEF2FF);
 
-  // Semantic Badges & Telemetry
   static const Color emeraldText = Color(0xFF047857);
   static const Color emeraldSurface = Color(0xFFECFDF5);
   static const Color emeraldBorder = Color(0xFFA7F3D0);
@@ -36,7 +32,6 @@ abstract final class TaskColors {
   static const Color slateSurface = Color(0xFFF1F5F9);
   static const Color slateBorder = Color(0xFFCBD5E1);
 
-  // Shadows
   static const List<BoxShadow> cardShadow = [
     BoxShadow(
       color: Color(0x0A0F172A),

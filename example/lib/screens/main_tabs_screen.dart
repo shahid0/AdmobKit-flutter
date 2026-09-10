@@ -115,7 +115,6 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Bottom Sticky Banner Ad (Framed architectural container; collapses with zero shift for VIP!)
               if (!store.isPremium)
                 Container(
                   width: double.infinity,
@@ -132,7 +131,6 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                   ),
                 ),
 
-              // Bottom 5-Hub Architectural Navigation Bar
               Container(
                 decoration: const BoxDecoration(
                   border: Border(

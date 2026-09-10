@@ -1,7 +1,6 @@
 import 'package:flutter_ads/flutter_ads.dart';
 
 abstract final class SampleAds {
-  // --- Splash Placements ---
   static const splashBanner = BannerPlacement(
     id: 'splash_banner',
     androidId: AdMobTestIds.bannerAndroid,
@@ -26,7 +25,6 @@ abstract final class SampleAds {
     loadOnce: true,
   );
 
-  // --- Onboarding Placements ---
   static const onboardingBigNative = NativePlacement.big(
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
@@ -35,7 +33,6 @@ abstract final class SampleAds {
     loadOnce: true,
   );
 
-  // --- Fullscreen Placements ---
   static const mainInterstitial = InterstitialPlacement(
     id: 'main_interstitial',
     androidId: AdMobTestIds.interstitialAndroid,
@@ -60,7 +57,6 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.appOpenIos,
   );
 
-  // --- Custom Native Ad Templates ---
   static const bigNative = NativePlacement.big(
     id: 'native_big_showcase',
     androidId: AdMobTestIds.nativeAndroid,

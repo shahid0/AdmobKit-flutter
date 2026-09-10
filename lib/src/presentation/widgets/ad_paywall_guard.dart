@@ -32,7 +32,6 @@ class AdPaywallGuard extends StatelessWidget {
       return;
     }
 
-    // 0ms Non-Blocking presentation contract
     FlutterAds.show(
       placement,
       onDismissed: onDismiss,

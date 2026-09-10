@@ -13,8 +13,8 @@ class FocusTab extends StatefulWidget {
 }
 
 class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
-  static const int _defaultSeconds = 25 * 60; // 25 minutes
-  static const int _boosterSeconds = 45 * 60; // 45 minutes
+  static const int _defaultSeconds = 25 * 60;
+  static const int _boosterSeconds = 45 * 60;
 
   int _totalSeconds = _defaultSeconds;
   int _secondsRemaining = _defaultSeconds;
@@ -106,7 +106,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             const Text(
               'Deep Work Engine',
               style: TextStyle(
@@ -127,7 +126,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 24),
 
-            // Circular Countdown Card
             TaskCard(
               padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
               borderRadius: 20,
@@ -135,7 +133,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Mode Chip
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -158,7 +155,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 24),
 
-                    // Ring Meter
                     SizedBox(
                       width: 200,
                       height: 200,
@@ -211,7 +207,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 28),
 
-                    // Controls
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -299,7 +294,6 @@ class _FocusTabState extends State<FocusTab> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 20),
 
-            // Rewarded Booster Card
             TaskCard(
               padding: const EdgeInsets.all(18),
               borderRadius: 16,

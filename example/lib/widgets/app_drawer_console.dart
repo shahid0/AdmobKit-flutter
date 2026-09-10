@@ -38,7 +38,6 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.symmetric(vertical: 10),
               width: 40,
@@ -49,7 +48,6 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
               ),
             ),
 
-            // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
@@ -92,7 +90,6 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
               ),
             ),
 
-            // Filter Chips
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: SingleChildScrollView(
@@ -111,7 +108,6 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
 
             const Divider(color: TaskColors.borderSubtle, height: 1),
 
-            // Log List
             Expanded(
               child: ValueListenableBuilder<List<String>>(
                 valueListenable: store.liveLogs,

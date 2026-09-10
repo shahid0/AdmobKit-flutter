@@ -42,8 +42,8 @@ class AdLoadTask {
   }
 }
 
-/// The 4-Tier FIFO Queue Dispatcher enforcing concurrency = 2,
-/// network-adaptive timeouts, inline-first immediate priority, and black-hole defense.
+/// Priority FIFO queue dispatcher enforcing configurable concurrency,
+/// network-adaptive timeouts, inline-first ordering, and black-hole defense.
 class TieredAdQueue {
   final Future<dynamic> Function(AdPlacement placement) _executor;
   final AdNetworkInfo _networkInfo;
@@ -52,7 +52,6 @@ class TieredAdQueue {
   final PlatformAdLogger? _logger;
   final AdDiagnosticsTracker? _diagnostics;
 
-  // 5 Tier Buckets
   final Map<AdPriority, ListQueue<AdLoadTask>> _buckets = {
     AdPriority.splash: ListQueue<AdLoadTask>(),
     AdPriority.immediate: ListQueue<AdLoadTask>(),
@@ -61,12 +60,10 @@ class TieredAdQueue {
     AdPriority.low: ListQueue<AdLoadTask>(),
   };
 
-  // State tracking per placement
   final Map<String, AdPlacementState> _placementStates = {};
   final StreamController<({String placementId, AdPlacementState state})> _stateController =
       StreamController<({String placementId, AdPlacementState state})>.broadcast();
 
-  // Holding timers for tasks in exponential backoff
   final Map<String, Timer> _activeRetryTimers = {};
 
   /// Concurrency limit during initial app startup / initial placement preloading (defaults to 1).
@@ -75,10 +72,8 @@ class TieredAdQueue {
   /// Concurrency limit for subsequent ad preloads and replenishments (defaults to 1).
   final int subsequentConcurrency;
 
-  // Active in-flight tasks
   final Set<AdLoadTask> _inFlightTasks = {};
 
-  // Initial batch tracking
   final Set<String> _pendingInitialPlacementIds = {};
   bool _isInitialBatchActive = false;
 
@@ -94,7 +89,6 @@ class TieredAdQueue {
   /// The active concurrency limit based on whether the initial startup batch is running.
   int get activeConcurrency => _isInitialBatchActive ? initialConcurrency : subsequentConcurrency;
 
-  // Telco TCP black-hole defense counter
   int _consecutiveCellularTimeouts = 0;
 
   bool _isPaused = false;
@@ -137,7 +131,6 @@ class TieredAdQueue {
   Future<dynamic> enqueue(AdPlacement placement, {AdPriority? overridePriority}) {
     final priority = overridePriority ?? placement.priority;
 
-    // Avoid duplicate queuing if already in-flight or queued for the same placement
     for (final task in _inFlightTasks) {
       if (task.placement.id == placement.id) {
         _logger?.debug('[Queue] Placement "${placement.id}" is already in-flight.');
@@ -183,9 +176,6 @@ class TieredAdQueue {
 
   /// Returns the next eligible task across priority tiers.
   AdLoadTask? _pollNextTask() {
-    // 1. Splash Tier (Highest Order: Cold Start / First Screen Placements)
-    // The screen that acts as splash only has at most 1 inline (banner/native) and 1 fullscreen ad.
-    // Inline loads before fullscreen, filling concurrency slots 1 & 2 concurrently at boot.
     if (_buckets[AdPriority.splash]!.isNotEmpty) {
       final splashQueue = _buckets[AdPriority.splash]!;
       for (final task in splashQueue) {
@@ -197,8 +187,6 @@ class TieredAdQueue {
       return splashQueue.removeFirst();
     }
 
-    // 2. Immediate Tier (Active visible screen / Onboarding placements)
-    // Inline loads before fullscreen within immediate tier as well.
     if (_buckets[AdPriority.immediate]!.isNotEmpty) {
       final immediateQueue = _buckets[AdPriority.immediate]!;
       for (final task in immediateQueue) {
@@ -210,17 +198,14 @@ class TieredAdQueue {
       return immediateQueue.removeFirst();
     }
 
-    // 2. High Tier
     if (_buckets[AdPriority.high]!.isNotEmpty) {
       return _buckets[AdPriority.high]!.removeFirst();
     }
 
-    // 3. Medium Tier
     if (_buckets[AdPriority.medium]!.isNotEmpty) {
       return _buckets[AdPriority.medium]!.removeFirst();
     }
 
-    // 4. Low Tier
     if (_buckets[AdPriority.low]!.isNotEmpty) {
       return _buckets[AdPriority.low]!.removeFirst();
     }
@@ -306,7 +291,7 @@ class TieredAdQueue {
       final adInstance = await _executor(placement).timeout(timeout);
       stopwatch.stop();
 
-      _consecutiveCellularTimeouts = 0; // Reset black-hole detector on success
+      _consecutiveCellularTimeouts = 0;
       _logger?.info(
         '[Queue] ✅ Loaded "${placement.id}" in ${stopwatch.elapsedMilliseconds}ms.',
       );
@@ -397,7 +382,6 @@ class TieredAdQueue {
       _handleFailure(task, errorCode: errorCode, error: error);
     }
 
-    // Track initial batch settlement
     if (_isInitialBatchActive) {
       _pendingInitialPlacementIds.remove(placement.id);
       if (_pendingInitialPlacementIds.isEmpty) {
@@ -408,7 +392,6 @@ class TieredAdQueue {
       }
     }
 
-    // Continue queue execution
     _dispatchNext();
   }
 

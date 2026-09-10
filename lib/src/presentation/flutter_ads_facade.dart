@@ -52,7 +52,6 @@ abstract final class FlutterAds {
 
     _logger?.info('[FlutterAds] Initializing package...');
 
-    // 1. Consent Flow (Google UMP + Apple ATT)
     if (config.requestConsent) {
       _canRequestAds = await _consent!.gatherConsent(
         testConfig: config.consentTestConfig,
@@ -61,7 +60,6 @@ abstract final class FlutterAds {
       _canRequestAds = true;
     }
 
-    // 2. Initialize Google Mobile Ads SDK
     final driver = driverForTesting ??
         GoogleMobileAdsDriver(
           logger: _logger,
@@ -79,7 +77,6 @@ abstract final class FlutterAds {
       _logger?.warning('[FlutterAds] Consent disallowed ads. Skipping GMA init.');
     }
 
-    // 3. Initialize Eager Pool
     final networkInfo = ConnectivityNetworkInfo();
     _pool = EagerAdPool(
       driver: driver,
@@ -96,7 +93,6 @@ abstract final class FlutterAds {
       subsequentConcurrency: config.subsequentConcurrency,
     );
 
-    // 4. Prime initial placements if provided at init time
     if (_canRequestAds && config.placements != null && config.placements!.isNotEmpty) {
       _pool!.primeAll(config.placements!);
     }

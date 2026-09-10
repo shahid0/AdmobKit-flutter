@@ -31,17 +31,16 @@ class RetryScheduler {
   }) {
     // Code 3: ERROR_CODE_NO_FILL (Inventory unavailable - wait moderate intervals)
     if (errorCode == 3) {
-      final baseSeconds = 10 * (attempt + 1); // 10s, 20s, 30s...
-      final jitter = _random.nextDouble() * 3.0; // 0-3s jitter
+      final baseSeconds = 10 * (attempt + 1);
+      final jitter = _random.nextDouble() * 3.0;
       final totalSeconds = min(baseSeconds + jitter, maxBackoff.inSeconds.toDouble());
       return Duration(milliseconds: (totalSeconds * 1000).toInt());
     }
 
     // Code 2 (NETWORK_ERROR), Timeout, or Unknown: Exponential backoff
-    // 2^k + jitter (e.g. attempt 0 -> 2s, attempt 1 -> 4s, attempt 2 -> 8s, attempt 3 -> 16s)
     final exponent = min(attempt + 1, 6);
     final baseSeconds = pow(2, exponent).toDouble();
-    final jitter = _random.nextDouble() * 2.0; // 0-2s jitter
+    final jitter = _random.nextDouble() * 2.0;
     final totalSeconds = min(baseSeconds + jitter, maxBackoff.inSeconds.toDouble());
 
     return Duration(milliseconds: (totalSeconds * 1000).toInt());

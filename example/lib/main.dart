@@ -7,10 +7,6 @@ import 'theme/task_theme.dart';
 
 export 'config/sample_ads.dart';
 
-// ============================================================================
-// 1. Production Analytics DI Implementation (Console + Live UI Stream)
-// ============================================================================
-
 class PrintingAnalyticsTracker implements AdAnalyticsTracker {
   final void Function(String log)? onLog;
 
@@ -58,10 +54,6 @@ class PrintingAnalyticsTracker implements AdAnalyticsTracker {
   }
 }
 
-// ============================================================================
-// 2. Production Diagnostics DI Implementation (Console + Live UI Stream)
-// ============================================================================
-
 class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
   final void Function(String log)? onLog;
 
@@ -79,17 +71,12 @@ class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
   }
 }
 
-// ============================================================================
-// 3. App Entry Point & SDK Initialization
-// ============================================================================
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Stage 1: Initialize FlutterAds at boot (UMP Consent + GMA SDK init)
   await FlutterAds.initialize(
     config: FlutterAdsConfig(
-      requestConsent: false, // Set to true for GDPR/UMP in production
+      requestConsent: false,
       timeouts: AdTimeoutConfig.standard,
       isPremium: () => TaskStore.instance.isPremium,
       analytics: PrintingAnalyticsTracker(onLog: TaskStore.instance.appendLog),
@@ -98,7 +85,6 @@ void main() async {
     ),
   );
 
-  // Stage 2: Register placements to prime eager preload queue
   FlutterAds.registerPlacements(SampleAds.allPlacements);
 
   runApp(const TaskFlowApp());
@@ -129,7 +115,6 @@ class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      // Only record as genuine background if an ad is NOT currently being shown
       if (!FlutterAds.isShowingAd) {
         _wasInBackground = true;
       }
@@ -137,13 +122,9 @@ class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
       if (!_wasInBackground) return;
       _wasInBackground = false;
 
-      // Do not trigger App Open ad during initial splash sequence
       if (SplashScreen.isSplashActive) return;
-
-      // If an ad is currently displaying, do not overlap
       if (FlutterAds.isShowingAd) return;
 
-      // App returned from background to foreground: present App Open ad with 0ms contract
       TaskStore.instance.appendLog('📱 [Lifecycle] App resumed from background. Showing App Open ad...');
       FlutterAds.show(SampleAds.appOpen);
     }

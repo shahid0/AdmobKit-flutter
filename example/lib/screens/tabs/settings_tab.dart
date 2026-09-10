@@ -26,20 +26,15 @@ class SettingsTab extends StatelessWidget {
             cacheExtent: 1500,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              // 1. Header Section
               _buildHeader(),
               const SizedBox(height: 16),
 
-              // 2. VIP Switcher Card
               _buildVipCard(store),
               const SizedBox(height: 24),
 
-              // 3. Section Label
               _buildSectionHeader(),
               const SizedBox(height: 12),
 
-              // 4. Seven Tool Action Tiles
-              // Tile 1: View Paywall Screen
               _buildActionTile(
                 icon: Icons.payments_outlined,
                 title: 'View Paywall Screen',
@@ -61,7 +56,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 2: Test Interstitial Ad
               _buildActionTile(
                 icon: Icons.fullscreen_rounded,
                 title: 'Test Interstitial Ad',
@@ -87,7 +81,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 3: Watch Ad: Unlock Executive Theme
               _buildActionTile(
                 icon: Icons.palette_outlined,
                 title: 'Watch Ad: Unlock Executive Theme',
@@ -135,7 +128,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 4: Show App Open Ad Directly
               _buildActionTile(
                 icon: Icons.splitscreen_rounded,
                 title: 'Show App Open Ad Directly',
@@ -161,7 +153,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 5: Open AdMob Inspector
               _buildActionTile(
                 icon: Icons.bug_report_outlined,
                 title: 'Open AdMob Inspector',
@@ -188,7 +179,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 6: Privacy & GDPR Consent Options
               _buildActionTile(
                 icon: Icons.privacy_tip_outlined,
                 title: 'Privacy & GDPR Consent Options',
@@ -210,7 +200,6 @@ class SettingsTab extends StatelessWidget {
                 },
               ),
 
-              // Tile 7: Live Ad Console & Event Feed
               _buildActionTile(
                 icon: Icons.terminal_rounded,
                 title: 'Live Ad Console & Event Feed',

@@ -29,7 +29,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.initState();
     SplashScreen.isSplashActive = true;
 
-    // 1. Composited Mount animation for Hero Monogram: 600ms ease-out
     _heroController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -46,7 +45,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _heroController.forward();
 
-    // 2. Ambient Telemetry Beacon pulsing animation: 1200ms ease-in-out
     _beaconController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -59,7 +57,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _beaconController.repeat(reverse: true);
 
-    // 3. Start splash sequence: present splash interstitial deterministically
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _startSplashSequence();
@@ -82,7 +79,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _hasNavigated = true;
     SplashScreen.isSplashActive = false;
 
-    // Transition beacon to static emerald as per State Matrix
     _beaconController.stop();
     _beaconController.value = 1.0;
 
@@ -111,7 +107,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Brand Monogram: 20px radius, accentPrimary, white icon, subtle border
         Container(
           width: 80,
           height: 80,
