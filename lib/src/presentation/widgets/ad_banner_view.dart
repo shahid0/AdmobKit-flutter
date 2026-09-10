@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../domain/models/ad_placement.dart';
-import '../flutter_ads_facade.dart';
+import '../admob_kit_facade.dart';
 
 /// Zero-CLS (Cumulative Layout Shift) banner container.
 ///
 /// Automatically collapses to [SizedBox.shrink] if the user is premium.
 /// Pre-reserves layout bounds to prevent visual jumping when the ad renders.
 class AdBannerView extends StatefulWidget {
-  /// Type-safe banner placement descriptor.
+  /// The type-safe banner placement descriptor.
   final BannerPlacement placement;
 
-  /// Reserved height for the banner ad (defaults to 50.0 for standard banner).
+  /// The reserved height for the banner ad (defaults to 50.0 for standard banner).
   final double height;
 
-  /// Reserved width for the banner ad (defaults to 320.0).
+  /// The reserved width for the banner ad (defaults to 320.0).
   final double width;
 
-  /// Optional placeholder rendered while the ad buffer is filling.
+  /// The optional placeholder rendered while the ad buffer is filling.
   final Widget? placeholder;
 
+  /// Creates an [AdBannerView] for a given [placement].
   const AdBannerView({
     super.key,
     required this.placement,
@@ -43,26 +44,28 @@ class _AdBannerViewState extends State<AdBannerView> {
   }
 
   void _loadBanner() {
-    if (FlutterAds.isUserPremium) {
+    if (AdmobKit.isUserPremium) {
       setState(() => _isLoading = false);
       return;
     }
 
-    final cached = FlutterAds.leaseInlineAd(widget.placement);
+    final cached = AdmobKit.leaseInlineAd(widget.placement);
     if (cached is BannerAd) {
       setState(() {
         _bannerAd = cached;
         _isLoading = false;
       });
     } else {
-      FlutterAds.pool?.preload(widget.placement).then((_) {
+      AdmobKit.pool?.preload(widget.placement).then((_) {
         if (!mounted) return;
-        final newlyLoaded = FlutterAds.leaseInlineAd(widget.placement);
+        final newlyLoaded = AdmobKit.leaseInlineAd(widget.placement);
         if (newlyLoaded is BannerAd) {
           setState(() {
             _bannerAd = newlyLoaded;
             _isLoading = false;
           });
+        } else {
+          setState(() => _isLoading = false);
         }
       }).catchError((_) {
         if (mounted) setState(() => _isLoading = false);
@@ -72,7 +75,7 @@ class _AdBannerViewState extends State<AdBannerView> {
 
   @override
   Widget build(BuildContext context) {
-    if (FlutterAds.isUserPremium) {
+    if (AdmobKit.isUserPremium) {
       return const SizedBox.shrink();
     }
 

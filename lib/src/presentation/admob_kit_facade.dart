@@ -10,17 +10,18 @@ import '../infrastructure/logging/platform_ad_logger.dart';
 import '../infrastructure/mutex/presentation_mutex.dart';
 import '../infrastructure/network/connectivity_network_info.dart';
 import '../infrastructure/pool/eager_ad_pool.dart';
-import 'config/flutter_ads_config.dart';
+import 'config/admob_kit_config.dart';
 
-/// Unified developer-facing facade for the FlutterAds plugin.
+/// Unified developer-facing facade for the AdmobKit plugin.
 ///
-/// Features a pure "dumb front API":
+/// Features a pure 0ms non-blocking API:
 /// - [initialize]: Boots consent (UMP) & AdMob SDK immediately at app launch.
 /// - [registerPlacements]: Primes the eager pool once placements are known (e.g. from Remote Config).
 /// - [show]: 0ms non-blocking full-screen display contract.
 /// - [isReady], [isLoading], [getState], [watchState]: Transparent placement state queries.
-/// - Inline widgets: [AdBannerView], [AdNativeView], [AdPaywallGuard].
-abstract final class FlutterAds {
+/// - [waitFor]: Deterministic splash settlement without blind timers.
+/// - Inline widgets: `AdBannerView`, `AdNativeView`, `AdPaywallGuard`.
+abstract final class AdmobKit {
   static EagerAdPool? _pool;
   static ConsentCoordinator? _consent;
   static PlatformAdLogger? _logger;
@@ -38,13 +39,13 @@ abstract final class FlutterAds {
     _canRequestAds = true;
   }
 
-  /// Stage 1: Initializes consent (Google UMP + Apple ATT), initializes Google Mobile Ads SDK,
+  /// Initializes consent (Google UMP + Apple ATT), native Google Mobile Ads SDK,
   /// registers native ad factories, and prepares the internal eager ad pool.
   ///
   /// Can be called immediately at boot (`main()`) before Remote Config or network placements resolve.
-  /// If [config.placements] is provided, they are primed immediately.
+  /// If [AdmobKitConfig.placements] is provided, they are primed immediately.
   static Future<void> initialize({
-    FlutterAdsConfig config = const FlutterAdsConfig(),
+    AdmobKitConfig config = const AdmobKitConfig(),
   }) async {
     _logger = PlatformAdLogger(level: config.logLevel);
     _mutex = PresentationMutex(_logger);
@@ -142,12 +143,12 @@ abstract final class FlutterAds {
     );
   }
 
-  /// Returns true if an ad is primed, fresh, and ready for instant 0ms display.
+  /// Whether an ad is primed, fresh, and ready for instant 0ms display.
   static bool isReady(AdPlacement placement) {
     return _pool?.isReady(placement) ?? false;
   }
 
-  /// Returns true if an ad is currently in-flight downloading in the priority queue.
+  /// Whether an ad is currently in-flight downloading in the priority queue.
   static bool isLoading(AdPlacement placement) {
     return _pool?.isLoading(placement) ?? false;
   }
@@ -176,13 +177,13 @@ abstract final class FlutterAds {
     _pool?.preload(placement);
   }
 
-  /// Returns true if the user is currently entitled to an ad-free experience.
+  /// Whether the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _pool?.isUserPremium ?? false;
 
-  /// Returns true if a full-screen ad is currently active on screen.
+  /// Whether a full-screen ad is currently active on screen.
   static bool get isShowingAd => _mutex?.isLocked ?? false;
 
-  /// Returns true if valid consent has been gathered to request ads.
+  /// Whether valid consent has been gathered to request ads.
   static bool get canRequestAds => _canRequestAds;
 
   /// Presents the Google UMP privacy options form so users can update consent in settings.
@@ -215,3 +216,7 @@ abstract final class FlutterAds {
   @internal
   static EagerAdPool? get pool => _pool;
 }
+
+/// Backwards-compatible alias for [AdmobKit].
+typedef FlutterAds = AdmobKit;
+

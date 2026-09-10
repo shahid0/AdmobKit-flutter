@@ -1,4 +1,4 @@
-/// Standard Native Ad layout templates supported out-of-the-box by [FlutterAds].
+/// Standard Native Ad layout templates supported out-of-the-box by [AdmobKit].
 ///
 /// Pre-wired with dark-themed production layouts across Android (XML/Kotlin)
 /// and iOS (Auto Layout/Swift).
@@ -39,21 +39,22 @@ enum NativeAdTemplate {
     minHeight: 64.0,
   );
 
-  /// Native platform factory identifier registered in Android/iOS.
+  /// The native platform factory identifier registered in Android/iOS.
   final String factoryId;
 
-  /// Standard template height in density-independent pixels.
+  /// The standard template height in density-independent pixels.
   final double height;
 
-  /// Standard template width (defaults to [double.infinity] to fill available horizontal width).
+  /// The standard template width (defaults to [double.infinity] to fill available horizontal width).
   final double width;
 
-  /// Minimum acceptable height threshold before layout warnings or truncation.
+  /// The minimum acceptable height threshold before layout warnings or truncation.
   final double minHeight;
 
   /// Backwards-compatible alias for [height].
   double get defaultHeight => height;
 
+  /// Creates a [NativeAdTemplate] with the specified layout properties.
   const NativeAdTemplate({
     required this.factoryId,
     required this.height,

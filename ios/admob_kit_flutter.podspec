@@ -3,15 +3,15 @@
 # Run `pod lib lint flutter_ads.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'flutter_ads'
+  s.name             = 'admob_kit_flutter'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.summary          = 'Production-grade Google AdMob plugin for Flutter with instant 0ms display.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+Production-grade Google AdMob plugin for Flutter with instant 0ms display, UMP GDPR consent, zero-CLS native ad templates, banners, interstitials, and rewarded ads.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/shahid0/AdmobKit-flutter'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'Shahid' => 'https://github.com/shahid0' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'

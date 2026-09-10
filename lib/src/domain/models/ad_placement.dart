@@ -6,27 +6,28 @@ import 'ad_priority.dart';
 /// Base class representing a type-safe ad placement configuration.
 @immutable
 sealed class AdPlacement {
-  /// Unique placement identifier.
+  /// The unique placement identifier.
   final String id;
 
-  /// AdMob Ad Unit ID for Android.
+  /// The AdMob Ad Unit ID for Android.
   final String androidId;
 
-  /// AdMob Ad Unit ID for iOS.
+  /// The AdMob Ad Unit ID for iOS.
   final String iosId;
 
-  /// Ad format (interstitial, rewarded, banner, native, app open).
+  /// The ad format (interstitial, rewarded, banner, native, app open).
   final AdFormat format;
 
-  /// Initial priority tier for queue dispatching.
+  /// The initial priority tier for queue dispatching.
   final AdPriority priority;
 
-  /// If true, this ad is only loaded once and never replenished post-dismissal.
+  /// Whether this ad is only loaded once and never replenished post-dismissal.
   final bool loadOnce;
 
-  /// If true, this placement is part of the splash screen loading sequence.
+  /// Whether this placement is part of the splash screen loading sequence.
   final bool isSplash;
 
+  /// Creates a base [AdPlacement] configuration.
   const AdPlacement({
     required this.id,
     required this.androidId,
@@ -37,7 +38,7 @@ sealed class AdPlacement {
     this.isSplash = false,
   });
 
-  /// Resolves unit ID for the target platform.
+  /// Resolves the unit ID for the target platform.
   String getUnitId({required bool isAndroid}) => isAndroid ? androidId : iosId;
 
   @override
@@ -56,6 +57,7 @@ sealed class AdPlacement {
 
 /// Base sealed class for full-screen placements (Interstitial, Rewarded, AppOpen).
 sealed class FullscreenPlacement extends AdPlacement {
+  /// Creates a [FullscreenPlacement] configuration.
   const FullscreenPlacement({
     required super.id,
     required super.androidId,
@@ -69,6 +71,7 @@ sealed class FullscreenPlacement extends AdPlacement {
 
 /// Base sealed class for inline layout placements (Banner, Native).
 sealed class InlinePlacement extends AdPlacement {
+  /// Creates an [InlinePlacement] configuration.
   const InlinePlacement({
     required super.id,
     required super.androidId,
@@ -82,6 +85,7 @@ sealed class InlinePlacement extends AdPlacement {
 
 /// Type-safe placement descriptor for Interstitial ads.
 class InterstitialPlacement extends FullscreenPlacement {
+  /// Creates an [InterstitialPlacement] with the specified unit IDs and options.
   const InterstitialPlacement({
     String? id,
     required super.androidId,
@@ -98,6 +102,7 @@ class InterstitialPlacement extends FullscreenPlacement {
 
 /// Type-safe placement descriptor for Rewarded ads.
 class RewardedPlacement extends FullscreenPlacement {
+  /// Creates a [RewardedPlacement] with the specified unit IDs and options.
   const RewardedPlacement({
     String? id,
     required super.androidId,
@@ -113,6 +118,7 @@ class RewardedPlacement extends FullscreenPlacement {
 
 /// Type-safe placement descriptor for Rewarded Interstitial ads.
 class RewardedInterstitialPlacement extends FullscreenPlacement {
+  /// Creates a [RewardedInterstitialPlacement] with the specified unit IDs and options.
   const RewardedInterstitialPlacement({
     String? id,
     required super.androidId,
@@ -128,6 +134,7 @@ class RewardedInterstitialPlacement extends FullscreenPlacement {
 
 /// Type-safe placement descriptor for App Open ads.
 class AppOpenPlacement extends FullscreenPlacement {
+  /// Creates an [AppOpenPlacement] with the specified unit IDs and options.
   const AppOpenPlacement({
     String? id,
     required super.androidId,
@@ -144,6 +151,7 @@ class AppOpenPlacement extends FullscreenPlacement {
 
 /// Type-safe placement descriptor for Banner ads.
 class BannerPlacement extends InlinePlacement {
+  /// Creates a [BannerPlacement] with the specified unit IDs and options.
   const BannerPlacement({
     String? id,
     required super.androidId,
@@ -160,12 +168,13 @@ class BannerPlacement extends InlinePlacement {
 
 /// Type-safe placement descriptor for Native ads.
 class NativePlacement extends InlinePlacement {
-  /// Optional native ad factory ID registered on Android / iOS.
+  /// The optional native ad factory ID registered on Android / iOS.
   final String? factoryId;
 
-  /// Associated template type if using standard templates.
+  /// The associated template type if using standard templates.
   final NativeAdTemplate? template;
 
+  /// Creates a [NativePlacement] with the specified unit IDs, template, or custom factory.
   const NativePlacement({
     String? id,
     required super.androidId,

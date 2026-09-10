@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
 import 'package:flutter_ads_example/screens/onboarding_screen.dart';
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 

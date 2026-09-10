@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
 import 'package:flutter_ads_example/models/category_item.dart';
 import 'package:flutter_ads_example/models/task_item.dart';
 import 'package:flutter_ads_example/screens/sub_screens/category_tasks_screen.dart';

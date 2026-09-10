@@ -5,6 +5,6 @@ import '../models/diagnostic_report.dart';
 /// Use this interface to stream low-level network errors, timeouts, and no-fill chains
 /// to error-tracking services (e.g. Sentry, Crashlytics, Datadog).
 abstract interface class AdDiagnosticsTracker {
-  /// Emitted on every load attempt outcome, timeout watchdog trigger, or pool eviction.
+  /// Handles diagnostic telemetry reports emitted on load attempt outcomes, timeouts, or evictions.
   void onDiagnosticReport(AdDiagnosticReport report);
 }

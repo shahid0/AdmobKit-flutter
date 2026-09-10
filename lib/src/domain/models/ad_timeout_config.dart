@@ -5,11 +5,19 @@ import 'ad_format.dart';
 /// Network-specific timeout policy.
 @immutable
 class AdTimeoutPolicy {
+  /// The timeout duration on Wi-Fi connections.
   final Duration wifiTimeout;
+
+  /// The timeout duration on cellular / metered connections.
   final Duration cellularTimeout;
+
+  /// The timeout duration on Ethernet connections.
   final Duration ethernetTimeout;
+
+  /// The timeout duration on other or unknown network conditions.
   final Duration otherTimeout;
 
+  /// Creates an [AdTimeoutPolicy] with network-specific durations.
   const AdTimeoutPolicy({
     this.wifiTimeout = const Duration(seconds: 12),
     this.cellularTimeout = const Duration(seconds: 22),
@@ -53,15 +61,16 @@ class AdTimeoutPolicy {
 /// Adaptive timeout configuration separating fullscreen and inline ad formats.
 @immutable
 class AdTimeoutConfig {
-  /// Timeout policy applied to fullscreen formats (Interstitial, Rewarded, AppOpen).
+  /// The timeout policy applied to fullscreen formats (Interstitial, Rewarded, AppOpen).
   final AdTimeoutPolicy fullscreen;
 
-  /// Timeout policy applied to inline formats (Banner, Native).
+  /// The timeout policy applied to inline formats (Banner, Native).
   final AdTimeoutPolicy inline;
 
-  /// Timeout policy applied to first-screen / splash placements.
+  /// The timeout policy applied to first-screen / splash placements.
   final AdTimeoutPolicy splash;
 
+  /// Creates an [AdTimeoutConfig] with format-specific policies.
   const AdTimeoutConfig({
     this.fullscreen = const AdTimeoutPolicy(
       wifiTimeout: Duration(seconds: 15),

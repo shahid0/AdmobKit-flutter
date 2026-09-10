@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/flutter_ads.dart';
-import 'package:flutter_ads/src/infrastructure/drivers/google_mobile_ads_driver.dart';
-import 'package:flutter_ads/src/infrastructure/mutex/presentation_mutex.dart';
-import 'package:flutter_ads/src/infrastructure/pool/eager_ad_pool.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
+import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
+import 'package:admob_kit_flutter/src/infrastructure/pool/eager_ad_pool.dart';
 
 class FakeDriver extends GoogleMobileAdsDriver {
   int loadCalls = 0;

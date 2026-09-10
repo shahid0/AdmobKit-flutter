@@ -6,9 +6,13 @@ import '../logging/platform_ad_logger.dart';
 
 /// Configuration for consent testing (e.g. simulating EEA geography or test devices).
 class ConsentTestConfig {
+  /// The simulated debug geography for testing GDPR/EEA regulations.
   final DebugGeography debugGeography;
+
+  /// The list of test device identifiers for consent testing.
   final List<String> testIdentifiers;
 
+  /// Creates a [ConsentTestConfig] with optional debug geography and test device IDs.
   const ConsentTestConfig({
     this.debugGeography = DebugGeography.debugGeographyDisabled,
     this.testIdentifiers = const [],

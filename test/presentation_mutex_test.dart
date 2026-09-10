@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/src/infrastructure/mutex/presentation_mutex.dart';
+import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
 
 void main() {
   group('PresentationMutex Tests', () {

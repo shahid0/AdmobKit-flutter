@@ -2,24 +2,32 @@ import 'package:flutter/foundation.dart';
 
 /// Precision of the revenue value reported by AdMob.
 enum AdRevenuePrecision {
+  /// The revenue precision is unknown or unspecified.
   unknown,
+
+  /// The revenue value is estimated by the ad network.
   estimated,
+
+  /// The revenue value is provided by the publisher.
   publisherProvided,
+
+  /// The revenue value is exact and verified by the ad network.
   precise,
 }
 
 /// Domain value object representing impression-level revenue (ILRD/LTV).
 @immutable
 class AdRevenueValue {
-  /// Revenue amount in micro-units (e.g. 1,000,000 micros = $1.00).
+  /// The revenue amount in micro-units (e.g. 1,000,000 micros = $1.00).
   final int micros;
 
-  /// ISO 4217 currency code (e.g. 'USD', 'EUR').
+  /// The ISO 4217 currency code (e.g. 'USD', 'EUR').
   final String currencyCode;
 
-  /// Precision type of the reported value.
+  /// The precision type of the reported value.
   final AdRevenuePrecision precision;
 
+  /// Creates an [AdRevenueValue] instance.
   const AdRevenueValue({
     required this.micros,
     required this.currencyCode,

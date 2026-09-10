@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'config/sample_ads.dart';
 import 'screens/splash_screen.dart';
 import 'state/task_store.dart';
@@ -74,8 +74,8 @@ class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await FlutterAds.initialize(
-    config: FlutterAdsConfig(
+  await AdmobKit.initialize(
+    config: AdmobKitConfig(
       requestConsent: false,
       timeouts: AdTimeoutConfig.standard,
       isPremium: () => TaskStore.instance.isPremium,
@@ -85,7 +85,7 @@ void main() async {
     ),
   );
 
-  FlutterAds.registerPlacements(SampleAds.allPlacements);
+  AdmobKit.registerPlacements(SampleAds.allPlacements);
 
   runApp(const TaskFlowApp());
 }
@@ -115,7 +115,7 @@ class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      if (!FlutterAds.isShowingAd) {
+      if (!AdmobKit.isShowingAd) {
         _wasInBackground = true;
       }
     } else if (state == AppLifecycleState.resumed) {
@@ -123,10 +123,10 @@ class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
       _wasInBackground = false;
 
       if (SplashScreen.isSplashActive) return;
-      if (FlutterAds.isShowingAd) return;
+      if (AdmobKit.isShowingAd) return;
 
       TaskStore.instance.appendLog('📱 [Lifecycle] App resumed from background. Showing App Open ad...');
-      FlutterAds.show(SampleAds.appOpen);
+      AdmobKit.show(SampleAds.appOpen);
     }
   }
 

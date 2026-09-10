@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
 import '../state/task_store.dart';
 import '../theme/task_theme.dart';
 

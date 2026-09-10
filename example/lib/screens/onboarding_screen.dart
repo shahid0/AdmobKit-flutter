@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
 import '../config/sample_ads.dart';
 import '../theme/task_theme.dart';
 import 'paywall_screen.dart';

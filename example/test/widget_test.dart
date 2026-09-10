@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/flutter_ads.dart';
+import 'package:admob_kit_flutter/flutter_ads.dart';
 import 'package:flutter_ads_example/main.dart';
 
 void main() {

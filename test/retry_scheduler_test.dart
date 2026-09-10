@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ads/src/infrastructure/pool/retry_scheduler.dart';
+import 'package:admob_kit_flutter/src/infrastructure/pool/retry_scheduler.dart';
 
 void main() {
   group('RetryScheduler Tests', () {
