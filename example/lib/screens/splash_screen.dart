@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_ads/flutter_ads.dart';
 import '../config/sample_ads.dart';
@@ -60,17 +59,22 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
     _beaconController.repeat(reverse: true);
 
-    // 3. Start splash sequence: 2s brand intro, then present 0ms splash interstitial
-    _startSplashSequence();
+    // 3. Start splash sequence: present splash interstitial deterministically
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _startSplashSequence();
+      }
+    });
   }
 
-  Timer? _splashTimer;
-
   void _startSplashSequence() {
-    _splashTimer = Timer(const Duration(milliseconds: 2800), () {
-      if (!mounted || _hasNavigated) return;
-      _proceedToNextScreen();
-    });
+    TaskStore.instance.appendLog(
+      '🚀 [Splash] Awaiting settlement for ${SampleAds.splashInterstitial.id}...',
+    );
+    FlutterAds.show(
+      SampleAds.splashInterstitial,
+      onDismissed: _proceedToNextScreen,
+    );
   }
 
   void _proceedToNextScreen() {
@@ -82,13 +86,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _beaconController.stop();
     _beaconController.value = 1.0;
 
-    TaskStore.instance.appendLog(
-      '🚀 [Splash] Presenting ${SampleAds.splashInterstitial.id} with 0ms contract...',
-    );
-    FlutterAds.show(
-      SampleAds.splashInterstitial,
-      onDismissed: _navigateToOnboarding,
-    );
+    _navigateToOnboarding();
   }
 
   void _navigateToOnboarding() {
@@ -104,7 +102,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
-    _splashTimer?.cancel();
     _heroController.dispose();
     _beaconController.dispose();
     super.dispose();

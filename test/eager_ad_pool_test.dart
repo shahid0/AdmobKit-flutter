@@ -183,5 +183,67 @@ void main() {
 
       pool.dispose();
     });
+
+    test('Deterministic Splash Settlement: show() awaits in-flight splash placement', () async {
+      final pool = EagerAdPool(
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+      );
+
+      const splashPlacement = InterstitialPlacement(
+        id: 'splash_interstitial',
+        androidId: '4',
+        iosId: '4',
+        isSplash: true,
+      );
+
+      // Start preloading (in-flight)
+      final preloadFuture = pool.preload(splashPlacement);
+      expect(pool.isLoading(splashPlacement), true);
+
+      bool dismissed = false;
+      // show() called while in-flight loading
+      pool.show(splashPlacement, onDismissed: () => dismissed = true);
+
+      // Mutex should not yet be held, show awaits settlement
+      expect(driver.showCalls, 0);
+      expect(dismissed, false);
+
+      // Await preload completion
+      await preloadFuture;
+      // Allow microtask / event loop tick for async _waitForSplashAndShow to present
+      await Future.delayed(const Duration(milliseconds: 30));
+
+      expect(driver.showCalls, 1, reason: 'Must present ad immediately once splash load settles');
+      expect(dismissed, true, reason: 'Must invoke onDismissed upon presentation dismissal');
+
+      pool.dispose();
+    });
+
+    test('waitFor returns true when ad is ready and false when premium', () async {
+      bool isPremium = false;
+      final pool = EagerAdPool(
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        isPremium: () => isPremium,
+      );
+
+      const placement = InterstitialPlacement(id: 'wait_test', androidId: '5', iosId: '5');
+      final loadFuture = pool.preload(placement);
+
+      final waitFuture = pool.waitFor(placement);
+      await loadFuture;
+      final readyResult = await waitFuture;
+      expect(readyResult, true);
+
+      // When premium, waitFor returns false immediately
+      isPremium = true;
+      final premiumResult = await pool.waitFor(placement);
+      expect(premiumResult, false);
+
+      pool.dispose();
+    });
   });
 }

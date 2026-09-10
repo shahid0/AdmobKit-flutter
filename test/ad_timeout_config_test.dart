@@ -17,6 +17,12 @@ void main() {
       final inlineCellular = config.resolve(format: AdFormat.banner, network: AdNetworkType.cellular);
       expect(inlineWifi, const Duration(seconds: 10));
       expect(inlineCellular, const Duration(seconds: 15));
+
+      // Splash
+      final splashWifi = config.resolve(format: AdFormat.interstitial, network: AdNetworkType.wifi, isSplash: true);
+      final splashCellular = config.resolve(format: AdFormat.interstitial, network: AdNetworkType.cellular, isSplash: true);
+      expect(splashWifi, const Duration(seconds: 15));
+      expect(splashCellular, const Duration(seconds: 25));
     });
 
     test('Aggressive and Relaxed profiles resolve correctly', () {

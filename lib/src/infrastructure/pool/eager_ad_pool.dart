@@ -19,6 +19,8 @@ class EagerAdPool {
   final GoogleMobileAdsDriver _driver;
   final PresentationMutex _mutex;
   final TieredAdQueue _queue;
+  final AdNetworkInfo _networkInfo;
+  final AdTimeoutConfig _timeoutConfig;
   final PlatformAdLogger? _logger;
   final AdAnalyticsTracker? _analytics;
   final AdDiagnosticsTracker? _diagnostics;
@@ -41,6 +43,8 @@ class EagerAdPool {
     Duration adTtl = const Duration(minutes: 50),
   })  : _driver = driver,
         _mutex = mutex,
+        _networkInfo = networkInfo,
+        _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
         _logger = logger,
         _analytics = analytics,
         _diagnostics = diagnostics,
@@ -49,7 +53,7 @@ class EagerAdPool {
         _queue = TieredAdQueue(
           executor: (placement) => driver.loadAd(placement),
           networkInfo: networkInfo,
-          timeoutConfig: timeoutConfig,
+          timeoutConfig: timeoutConfig ?? AdTimeoutConfig.standard,
           retryScheduler: retryScheduler,
           logger: logger,
           diagnostics: diagnostics,
@@ -148,10 +152,64 @@ class EagerAdPool {
     return _queue.watchState(placement.id);
   }
 
+  /// Deterministically awaits [placement] until it is ready, fails, or times out.
+  ///
+  /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
+  Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) async {
+    if (isUserPremium) return false;
+    if (isReady(placement)) return true;
+    if (getState(placement) == AdPlacementState.error) return false;
+
+    Duration effectiveTimeout;
+    if (timeout != null) {
+      effectiveTimeout = timeout;
+    } else {
+      final network = await _networkInfo.getNetworkType();
+      effectiveTimeout = _timeoutConfig.resolve(
+        format: placement.format,
+        network: network,
+        isSplash: placement.isSplash,
+      );
+    }
+
+    try {
+      final terminalState = await watchState(placement)
+          .firstWhere((s) => s == AdPlacementState.ready || s == AdPlacementState.error)
+          .timeout(effectiveTimeout);
+      return terminalState == AdPlacementState.ready;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _waitForSplashAndShow(
+    FullscreenPlacement placement, {
+    VoidCallback? onDismissed,
+    void Function(num amount, String type)? onRewardGranted,
+    VoidCallback? onDisplayed,
+  }) async {
+    final ready = await waitFor(placement);
+    if (ready) {
+      _logger?.info('[Show] Splash placement "${placement.id}" ready after await. Presenting...');
+      show(
+        placement,
+        onDismissed: onDismissed,
+        onDisplayed: onDisplayed,
+        onRewardGranted: onRewardGranted,
+      );
+    } else {
+      _logger?.warning(
+        '[Show] Splash placement "${placement.id}" failed or timed out. Continuing user flow.',
+      );
+      onDismissed?.call();
+    }
+  }
+
   /// Shows a full-screen ad following the 0ms Non-Blocking Dumb View Contract.
   ///
   /// - If ready: presents immediately with zero perceived user wait.
   /// - If unready / offline: invokes [onDismissed] immediately without blocking user flow.
+  /// - If splash and currently loading: deterministically awaits settlement (show, fail, or timeout).
   /// - Upon dismissal: releases lock and auto-replenishes unless [placement.loadOnce] is true.
   void show(
     FullscreenPlacement placement, {
@@ -183,6 +241,22 @@ class EagerAdPool {
         _evict(placement.id, isStale: true);
       }
       _mutex.release(placement.id, wasDisplayed: false);
+
+      // Deterministic splash settlement: if splash placement is in-flight loading, await settlement
+      if (placement.isSplash && isLoading(placement)) {
+        _logger?.info(
+          '[Show] Splash placement "${placement.id}" is in-flight loading. '
+          'Awaiting deterministic settlement (show, fail, or timeout)...',
+        );
+        _waitForSplashAndShow(
+          placement,
+          onDismissed: onDismissed,
+          onDisplayed: onDisplayed,
+          onRewardGranted: onRewardGranted,
+        );
+        return;
+      }
+
       _logger?.info(
         '[Show] 0ms Cache Miss for "${placement.id}". Continuing user flow without delay.',
       );

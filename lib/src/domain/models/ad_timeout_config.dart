@@ -59,6 +59,9 @@ class AdTimeoutConfig {
   /// Timeout policy applied to inline formats (Banner, Native).
   final AdTimeoutPolicy inline;
 
+  /// Timeout policy applied to first-screen / splash placements.
+  final AdTimeoutPolicy splash;
+
   const AdTimeoutConfig({
     this.fullscreen = const AdTimeoutPolicy(
       wifiTimeout: Duration(seconds: 15),
@@ -71,6 +74,12 @@ class AdTimeoutConfig {
       cellularTimeout: Duration(seconds: 15),
       ethernetTimeout: Duration(seconds: 8),
       otherTimeout: Duration(seconds: 12),
+    ),
+    this.splash = const AdTimeoutPolicy(
+      wifiTimeout: Duration(seconds: 15),
+      cellularTimeout: Duration(seconds: 25),
+      ethernetTimeout: Duration(seconds: 12),
+      otherTimeout: Duration(seconds: 20),
     ),
   });
 
@@ -91,6 +100,12 @@ class AdTimeoutConfig {
       ethernetTimeout: Duration(seconds: 5),
       otherTimeout: Duration(seconds: 8),
     ),
+    splash: AdTimeoutPolicy(
+      wifiTimeout: Duration(seconds: 12),
+      cellularTimeout: Duration(seconds: 20),
+      ethernetTimeout: Duration(seconds: 10),
+      otherTimeout: Duration(seconds: 15),
+    ),
   );
 
   /// Relaxed profile with higher bounds for extremely spotty 2G/3G connections.
@@ -107,13 +122,21 @@ class AdTimeoutConfig {
       ethernetTimeout: Duration(seconds: 10),
       otherTimeout: Duration(seconds: 15),
     ),
+    splash: AdTimeoutPolicy(
+      wifiTimeout: Duration(seconds: 25),
+      cellularTimeout: Duration(seconds: 40),
+      ethernetTimeout: Duration(seconds: 15),
+      otherTimeout: Duration(seconds: 30),
+    ),
   );
 
   /// Resolves the timeout for a given format and network condition.
   Duration resolve({
     required AdFormat format,
     required AdNetworkType network,
+    bool isSplash = false,
   }) {
+    if (isSplash) return splash.resolve(network);
     return format.isFullscreen
         ? fullscreen.resolve(network)
         : inline.resolve(network);

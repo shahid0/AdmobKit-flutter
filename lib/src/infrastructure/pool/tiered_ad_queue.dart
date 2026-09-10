@@ -257,7 +257,11 @@ class TieredAdQueue {
     _inFlightTasks.add(task);
     final placement = task.placement;
     final network = await _networkInfo.getNetworkType();
-    final timeout = _timeoutConfig.resolve(format: placement.format, network: network);
+    final timeout = _timeoutConfig.resolve(
+      format: placement.format,
+      network: network,
+      isSplash: placement.isSplash,
+    );
 
     _logger?.info(
       '[Queue] 🚀 Dispatching "${placement.id}" (Tier: ${task.priority.name}, '

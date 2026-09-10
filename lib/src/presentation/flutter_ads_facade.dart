@@ -164,6 +164,15 @@ abstract final class FlutterAds {
     return _pool?.watchState(placement) ?? const Stream.empty();
   }
 
+  /// Deterministically awaits [placement] until it is ready, fails, or times out.
+  ///
+  /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
+  static Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) {
+    final pool = _pool;
+    if (pool == null) return Future.value(false);
+    return pool.waitFor(placement, timeout: timeout);
+  }
+
   /// Manually requests an on-demand preload for a specific placement.
   static void preload(AdPlacement placement) {
     _pool?.preload(placement);
