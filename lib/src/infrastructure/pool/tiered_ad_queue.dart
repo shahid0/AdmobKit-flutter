@@ -69,11 +69,30 @@ class TieredAdQueue {
   // Holding timers for tasks in exponential backoff
   final Map<String, Timer> _activeRetryTimers = {};
 
-  // Maximum concurrent in-flight ad downloads (Skill requirement: max 1-2)
-  static const int maxConcurrency = 2;
+  /// Concurrency limit during initial app startup / initial placement preloading (defaults to 1).
+  final int initialConcurrency;
 
-  // Active in-flight tasks (Concurrency <= 2)
+  /// Concurrency limit for subsequent ad preloads and replenishments (defaults to 1).
+  final int subsequentConcurrency;
+
+  // Active in-flight tasks
   final Set<AdLoadTask> _inFlightTasks = {};
+
+  // Initial batch tracking
+  final Set<String> _pendingInitialPlacementIds = {};
+  bool _isInitialBatchActive = false;
+
+  /// Marks a collection of placement IDs as belonging to the initial preloading batch.
+  void markInitialBatch(Iterable<String> placementIds) {
+    _pendingInitialPlacementIds.addAll(placementIds);
+    _isInitialBatchActive = _pendingInitialPlacementIds.isNotEmpty;
+  }
+
+  /// Whether the initial preloading batch is still in-flight or pending.
+  bool get isInitialBatchActive => _isInitialBatchActive;
+
+  /// The active concurrency limit based on whether the initial startup batch is running.
+  int get activeConcurrency => _isInitialBatchActive ? initialConcurrency : subsequentConcurrency;
 
   // Telco TCP black-hole defense counter
   int _consecutiveCellularTimeouts = 0;
@@ -88,6 +107,8 @@ class TieredAdQueue {
     RetryScheduler? retryScheduler,
     PlatformAdLogger? logger,
     AdDiagnosticsTracker? diagnostics,
+    this.initialConcurrency = 1,
+    this.subsequentConcurrency = 1,
   })  : _executor = executor,
         _networkInfo = networkInfo,
         _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
@@ -246,7 +267,7 @@ class TieredAdQueue {
   void _dispatchNext() {
     if (_isPaused) return;
 
-    while (_inFlightTasks.length < maxConcurrency) {
+    while (_inFlightTasks.length < activeConcurrency) {
       final task = _pollNextTask();
       if (task == null) break;
       _runTask(task);
@@ -265,7 +286,7 @@ class TieredAdQueue {
 
     _logger?.info(
       '[Queue] 🚀 Dispatching "${placement.id}" (Tier: ${task.priority.name}, '
-      'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: ${_inFlightTasks.length}/$maxConcurrency)',
+      'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: ${_inFlightTasks.length}/$activeConcurrency)',
     );
 
     _diagnostics?.onDiagnosticReport(
@@ -374,6 +395,17 @@ class TieredAdQueue {
 
       _inFlightTasks.remove(task);
       _handleFailure(task, errorCode: errorCode, error: error);
+    }
+
+    // Track initial batch settlement
+    if (_isInitialBatchActive) {
+      _pendingInitialPlacementIds.remove(placement.id);
+      if (_pendingInitialPlacementIds.isEmpty) {
+        _isInitialBatchActive = false;
+        _logger?.info(
+          '[Queue] Initial preloading batch complete. Switching to subsequent concurrency ($subsequentConcurrency).',
+        );
+      }
     }
 
     // Continue queue execution

@@ -41,6 +41,8 @@ class EagerAdPool {
     AdDiagnosticsTracker? diagnostics,
     bool Function()? isPremium,
     Duration adTtl = const Duration(minutes: 50),
+    int initialConcurrency = 1,
+    int subsequentConcurrency = 1,
   })  : _driver = driver,
         _mutex = mutex,
         _networkInfo = networkInfo,
@@ -57,6 +59,8 @@ class EagerAdPool {
           retryScheduler: retryScheduler,
           logger: logger,
           diagnostics: diagnostics,
+          initialConcurrency: initialConcurrency,
+          subsequentConcurrency: subsequentConcurrency,
         );
 
   /// Returns true if user is currently entitled to an ad-free experience.
@@ -71,6 +75,8 @@ class EagerAdPool {
       _logger?.info('[Pool] User is premium. Skipping initial ad preloading.');
       return;
     }
+
+    _queue.markInitialBatch(placements.map((p) => p.id));
 
     _logger?.info('[Pool] 🚀 Priming startup queue with ${placements.length} placement(s)...');
     final sorted = List<AdPlacement>.from(placements)

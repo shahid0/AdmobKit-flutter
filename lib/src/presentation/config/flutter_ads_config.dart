@@ -49,6 +49,15 @@ class FlutterAdsConfig {
   /// In-memory cache time-to-live before an ad is considered stale (defaults to 50 minutes).
   final Duration adTtl;
 
+  /// Maximum concurrent in-flight ad downloads during initial app startup / placement priming (defaults to 1).
+  ///
+  /// Set to 1 by default to optimize for slow/cellular networks, preventing multiple ad downloads
+  /// from congesting the radio and causing latency spikes or timeouts.
+  final int initialConcurrency;
+
+  /// Maximum concurrent in-flight ad downloads for subsequent ad preloads and auto-replenishments (defaults to 1).
+  final int subsequentConcurrency;
+
   const FlutterAdsConfig({
     this.placements,
     this.requestConsent = true,
@@ -62,5 +71,7 @@ class FlutterAdsConfig {
     this.testDeviceIds,
     this.initializeNativeGma = true,
     this.adTtl = const Duration(minutes: 50),
+    this.initialConcurrency = 1,
+    this.subsequentConcurrency = 1,
   });
 }

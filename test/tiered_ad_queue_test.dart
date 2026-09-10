@@ -38,7 +38,7 @@ void main() {
       diagnostics = FakeDiagnosticsTracker();
     });
 
-    test('Concurrency Limit <= 2: Up to 2 tasks execute concurrently, never exceeding 2', () async {
+    test('Concurrency Limit = 1 by default: only 1 task executes at a time to optimize for slow network', () async {
       int activeCount = 0;
       int maxConcurrent = 0;
 
@@ -70,7 +70,67 @@ void main() {
 
       await Future.wait(futures);
 
-      expect(maxConcurrent, 2, reason: 'Concurrency limit must cap at 2');
+      expect(maxConcurrent, 1, reason: 'Default concurrency must be 1 to optimize for slow networks');
+      queue.dispose();
+    });
+
+    test('Configurable Concurrency: initialConcurrency = 1, subsequentConcurrency = 2 transitions after initial batch', () async {
+      int activeCount = 0;
+      int maxConcurrentInitial = 0;
+      int maxConcurrentSubsequent = 0;
+      bool isSubsequentPhase = false;
+
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          activeCount++;
+          if (!isSubsequentPhase) {
+            if (activeCount > maxConcurrentInitial) {
+              maxConcurrentInitial = activeCount;
+            }
+          } else {
+            if (activeCount > maxConcurrentSubsequent) {
+              maxConcurrentSubsequent = activeCount;
+            }
+          }
+          await Future.delayed(const Duration(milliseconds: 30));
+          activeCount--;
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+        initialConcurrency: 1,
+        subsequentConcurrency: 2,
+      );
+
+      const p1 = BannerPlacement(id: 'p1', androidId: '1', iosId: '1');
+      const p2 = BannerPlacement(id: 'p2', androidId: '2', iosId: '2');
+      const p3 = BannerPlacement(id: 'p3', androidId: '3', iosId: '3');
+      const p4 = BannerPlacement(id: 'p4', androidId: '4', iosId: '4');
+
+      // Mark initial batch of p1 and p2
+      queue.markInitialBatch(['p1', 'p2']);
+      expect(queue.activeConcurrency, 1);
+
+      final initialFutures = [
+        queue.enqueue(p1),
+        queue.enqueue(p2),
+      ];
+
+      await Future.wait(initialFutures);
+      expect(maxConcurrentInitial, 1, reason: 'Initial phase must honor initialConcurrency = 1');
+      expect(queue.isInitialBatchActive, false, reason: 'Initial batch must be completed');
+      expect(queue.activeConcurrency, 2, reason: 'Queue must switch to subsequentConcurrency = 2');
+
+      // Now subsequent phase
+      isSubsequentPhase = true;
+      final subsequentFutures = [
+        queue.enqueue(p3),
+        queue.enqueue(p4),
+      ];
+
+      await Future.wait(subsequentFutures);
+      expect(maxConcurrentSubsequent, 2, reason: 'Subsequent phase must allow up to 2 concurrent tasks');
+
       queue.dispose();
     });
 
@@ -105,16 +165,12 @@ void main() {
       queue.dispose();
     });
 
-    test('Concurrent Priority 0 Dispatch: Splash Inline and Splash Fullscreen load concurrently', () async {
+    test('Priority 0 Dispatch: Splash Inline loads before Splash Fullscreen under concurrency = 1', () async {
       final executionOrder = <String>[];
-      final completerMap = <String, Completer<void>>{};
 
       final queue = TieredAdQueue(
         executor: (placement) async {
           executionOrder.add(placement.id);
-          final c = Completer<void>();
-          completerMap[placement.id] = c;
-          await c.future;
           return Object();
         },
         networkInfo: networkInfo,
@@ -134,14 +190,52 @@ void main() {
         isSplash: true,
       );
 
-      // Enqueue both Priority 1 placements
+      final f1 = queue.enqueue(splashFullscreen);
+      final f2 = queue.enqueue(splashInline);
+
+      await Future.wait([f1, f2]);
+
+      // Under concurrency = 1, splash inline loads first, then fullscreen
+      expect(executionOrder, ['splash_inline', 'splash_fullscreen']);
+      queue.dispose();
+    });
+
+    test('Custom initialConcurrency = 2 allows Splash Inline and Fullscreen to load concurrently', () async {
+      final executionOrder = <String>[];
+      final completerMap = <String, Completer<void>>{};
+
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          executionOrder.add(placement.id);
+          final c = Completer<void>();
+          completerMap[placement.id] = c;
+          await c.future;
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+        initialConcurrency: 2,
+        subsequentConcurrency: 2,
+      );
+
+      const splashInline = BannerPlacement(
+        id: 'splash_inline',
+        androidId: '1',
+        iosId: '1',
+        isSplash: true,
+      );
+      const splashFullscreen = InterstitialPlacement(
+        id: 'splash_fullscreen',
+        androidId: '2',
+        iosId: '2',
+        isSplash: true,
+      );
+
       queue.enqueue(splashFullscreen);
       queue.enqueue(splashInline);
 
-      // Give event loop a tick
       await Future.delayed(const Duration(milliseconds: 10));
 
-      // Under concurrency = 2, both Priority 1 placements start concurrently!
       expect(executionOrder, contains('splash_inline'));
       expect(executionOrder, contains('splash_fullscreen'));
 

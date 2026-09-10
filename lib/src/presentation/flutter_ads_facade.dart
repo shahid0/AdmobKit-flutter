@@ -92,6 +92,8 @@ abstract final class FlutterAds {
       diagnostics: config.diagnostics,
       isPremium: config.isPremium,
       adTtl: config.adTtl,
+      initialConcurrency: config.initialConcurrency,
+      subsequentConcurrency: config.subsequentConcurrency,
     );
 
     // 4. Prime initial placements if provided at init time
