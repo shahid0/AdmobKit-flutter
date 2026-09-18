@@ -9,6 +9,12 @@ import '../admob_kit_facade.dart';
 /// Automatically collapses to [SizedBox.shrink] if the user is premium.
 /// Layout dimensions and native view factory bindings are governed by the
 /// [NativeAdTemplate] enum ([NativeAdTemplate.big], [NativeAdTemplate.medium], [NativeAdTemplate.small]).
+///
+/// Deferred loading: ad loads are gated on [TickerMode] (route coverage via
+/// Overlay) **and** [Visibility] (e.g. hidden `IndexedStack` tabs). A tab
+/// inside an `IndexedStack` defers its ad request until switched to. Custom
+/// tab containers that neither gate must be wrapped in `TickerMode` or
+/// `Visibility` explicitly to opt into deferral.
 class AdNativeView extends StatefulWidget {
   /// The type-safe native placement descriptor.
   final NativePlacement placement;
@@ -64,41 +70,65 @@ class AdNativeView extends StatefulWidget {
 class _AdNativeViewState extends State<AdNativeView> {
   NativeAd? _nativeAd;
   bool _isLoading = true;
+  bool _hasAttemptedLoad = false;
+  bool _leasePending = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadNative();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkAndActivate();
+  }
+
+  @override
+  void didUpdateWidget(AdNativeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.placement.id != widget.placement.id) {
+      _nativeAd?.dispose();
+      _nativeAd = null;
+      _isLoading = true;
+      _hasAttemptedLoad = false;
+      _checkAndActivate();
+    }
+  }
+
+  void _checkAndActivate() {
+    if (!_isSubtreeActive && _nativeAd == null && !_leasePending) {
+      // Deactivated with nothing loaded or settled (e.g. prior offline
+      // failure): reset so reactivating this tab retries the lease instead of
+      // staying blank. Skipped while a lease is still in-flight.
+      _hasAttemptedLoad = false;
+    } else if (_isSubtreeActive && _nativeAd == null && !_hasAttemptedLoad) {
+      _loadNative();
+    }
   }
 
   void _loadNative() {
     if (AdmobKit.isUserPremium) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    final cached = AdmobKit.leaseInlineAd(widget.placement);
-    if (cached is NativeAd) {
+    _hasAttemptedLoad = true;
+    _leasePending = true;
+
+    // Demand-based lease: the pool delivers a distinct ad instance when one is
+    // buffered or replenished. Settles instantly on terminal load failure.
+    AdmobKit.leaseInlineAd(widget.placement).then((ad) {
+      _leasePending = false;
+      if (!mounted) {
+        // Never rendered — release the platform resource immediately.
+        if (ad is NativeAd) ad.dispose();
+        return;
+      }
       setState(() {
-        _nativeAd = cached;
+        _nativeAd = ad is NativeAd ? ad : null;
         _isLoading = false;
       });
-    } else {
-      AdmobKit.pool?.preload(widget.placement).then((_) {
-        if (!mounted) return;
-        final newlyLoaded = AdmobKit.leaseInlineAd(widget.placement);
-        if (newlyLoaded is NativeAd) {
-          setState(() {
-            _nativeAd = newlyLoaded;
-            _isLoading = false;
-          });
-        } else {
-          setState(() => _isLoading = false);
-        }
-      }).catchError((_) {
-        if (mounted) setState(() => _isLoading = false);
-      });
-    }
+    }).catchError((_) {
+      // AdMob no-fill / network failure / timeout: render the empty state
+      // instead of hanging on the placeholder.
+      if (mounted) setState(() => _isLoading = false);
+    });
   }
 
   @override
@@ -107,6 +137,12 @@ class _AdNativeViewState extends State<AdNativeView> {
     super.dispose();
   }
 
+  /// Deferred-loading gate: active only when the subtree both animates
+  /// (TickerMode, e.g. route coverage) and is visible (Visibility, e.g.
+  /// IndexedStack hidden tabs). Plain screens satisfy both by default.
+  bool get _isSubtreeActive =>
+      TickerMode.valuesOf(context).enabled && Visibility.of(context);
+
   NativeAdTemplate get _effectiveTemplate =>
       widget.template ?? widget.placement.template ?? NativeAdTemplate.medium;
 
@@ -114,6 +150,17 @@ class _AdNativeViewState extends State<AdNativeView> {
   Widget build(BuildContext context) {
     if (AdmobKit.isUserPremium) {
       return const SizedBox.shrink();
+    }
+
+    final isSubtreeActive = _isSubtreeActive;
+
+    // Preserves zero CLS layout bounds while offstage without mounting native platform view
+    if (!isSubtreeActive && _nativeAd == null) {
+      return SizedBox(
+        height: widget.height ?? _effectiveTemplate.height,
+        width: widget.width ?? _effectiveTemplate.width,
+        child: widget.placeholder ?? const SizedBox.shrink(),
+      );
     }
 
     return SizedBox(

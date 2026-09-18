@@ -7,6 +7,12 @@ import '../admob_kit_facade.dart';
 ///
 /// Automatically collapses to [SizedBox.shrink] if the user is premium.
 /// Pre-reserves layout bounds to prevent visual jumping when the ad renders.
+///
+/// Deferred loading: ad loads are gated on [TickerMode] (route coverage via
+/// Overlay) **and** [Visibility] (e.g. hidden `IndexedStack` tabs). A tab
+/// inside an `IndexedStack` defers its ad request until switched to. Custom
+/// tab containers that neither gate must be wrapped in `TickerMode` or
+/// `Visibility` explicitly to opt into deferral.
 class AdBannerView extends StatefulWidget {
   /// The type-safe banner placement descriptor.
   final BannerPlacement placement;
@@ -36,47 +42,94 @@ class AdBannerView extends StatefulWidget {
 class _AdBannerViewState extends State<AdBannerView> {
   BannerAd? _bannerAd;
   bool _isLoading = true;
+  bool _hasAttemptedLoad = false;
+  bool _leasePending = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadBanner();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkAndActivate();
+  }
+
+  @override
+  void didUpdateWidget(AdBannerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.placement.id != widget.placement.id) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      _isLoading = true;
+      _hasAttemptedLoad = false;
+      _checkAndActivate();
+    }
+  }
+
+  void _checkAndActivate() {
+    if (!_isSubtreeActive && _bannerAd == null && !_leasePending) {
+      // Deactivated with nothing loaded or settled (e.g. prior offline
+      // failure): reset so reactivating this tab retries the lease instead of
+      // staying blank. Skipped while a lease is still in-flight.
+      _hasAttemptedLoad = false;
+    } else if (_isSubtreeActive && _bannerAd == null && !_hasAttemptedLoad) {
+      _loadBanner();
+    }
   }
 
   void _loadBanner() {
     if (AdmobKit.isUserPremium) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    final cached = AdmobKit.leaseInlineAd(widget.placement);
-    if (cached is BannerAd) {
+    _hasAttemptedLoad = true;
+    _leasePending = true;
+
+    // Demand-based lease: the pool delivers a distinct ad instance when one is
+    // buffered or replenished. Settles instantly on terminal load failure.
+    AdmobKit.leaseInlineAd(widget.placement).then((ad) {
+      _leasePending = false;
+      if (!mounted) {
+        // Never rendered — release the platform resource immediately.
+        if (ad is BannerAd) ad.dispose();
+        return;
+      }
       setState(() {
-        _bannerAd = cached;
+        _bannerAd = ad is BannerAd ? ad : null;
         _isLoading = false;
       });
-    } else {
-      AdmobKit.pool?.preload(widget.placement).then((_) {
-        if (!mounted) return;
-        final newlyLoaded = AdmobKit.leaseInlineAd(widget.placement);
-        if (newlyLoaded is BannerAd) {
-          setState(() {
-            _bannerAd = newlyLoaded;
-            _isLoading = false;
-          });
-        } else {
-          setState(() => _isLoading = false);
-        }
-      }).catchError((_) {
-        if (mounted) setState(() => _isLoading = false);
-      });
-    }
+    }).catchError((_) {
+      // AdMob no-fill / network failure / timeout: render the empty state
+      // instead of hanging on the placeholder.
+      if (mounted) setState(() => _isLoading = false);
+    });
   }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  /// Deferred-loading gate: active only when the subtree both animates
+  /// (TickerMode, e.g. route coverage) and is visible (Visibility, e.g.
+  /// IndexedStack hidden tabs). Plain screens satisfy both by default.
+  bool get _isSubtreeActive =>
+      TickerMode.valuesOf(context).enabled && Visibility.of(context);
 
   @override
   Widget build(BuildContext context) {
     if (AdmobKit.isUserPremium) {
       return const SizedBox.shrink();
+    }
+
+    final isSubtreeActive = _isSubtreeActive;
+
+    // Preserves zero CLS layout bounds while offstage without mounting native platform view
+    if (!isSubtreeActive && _bannerAd == null) {
+      return SizedBox(
+        height: widget.height,
+        width: widget.width,
+        child: widget.placeholder ?? const SizedBox.shrink(),
+      );
     }
 
     return SizedBox(

@@ -276,5 +276,82 @@ void main() {
 
       queue.dispose();
     });
+
+    test('Inline placements generate distinct slot keys while fullscreen deduplicates', () async {
+      int execCount = 0;
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          execCount++;
+          await Future.delayed(const Duration(milliseconds: 20));
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+      );
+
+      const inlinePlacement = NativePlacement(id: 'feed_native', androidId: '1', iosId: '1');
+      // Enqueueing inline placement twice concurrently must create two distinct tasks
+      final f1 = queue.enqueue(inlinePlacement);
+      final f2 = queue.enqueue(inlinePlacement);
+      expect(identical(f1, f2), false, reason: 'Inline placements must NOT deduplicate to same Future');
+
+      const fullscreenPlacement = InterstitialPlacement(id: 'game_over', androidId: '2', iosId: '2');
+      // Enqueueing fullscreen placement twice concurrently must deduplicate to the same task
+      final fs1 = queue.enqueue(fullscreenPlacement);
+      final fs2 = queue.enqueue(fullscreenPlacement);
+      expect(identical(fs1, fs2), true, reason: 'Fullscreen placements must deduplicate to the same Future');
+
+      await Future.wait([f1, f2, fs1, fs2]);
+      expect(execCount, 3, reason: 'Must execute 2 tasks for inline plus 1 deduplicated for fullscreen');
+      queue.dispose();
+    });
+
+    test('Priority promotion: promote elevates pending task to head of target tier', () async {
+      final executedIds = <String>[];
+      final completers = <String, Completer<void>>{};
+
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          executedIds.add(placement.id);
+          final c = Completer<void>();
+          completers[placement.id] = c;
+          await c.future;
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+      );
+
+      const activeTask = BannerPlacement(id: 'active_task', androidId: '0', iosId: '0', priority: AdPriority.splash);
+      const lowPlacement = BannerPlacement(id: 'low_task', androidId: '1', iosId: '1', priority: AdPriority.low);
+      const mediumPlacement = BannerPlacement(id: 'med_task', androidId: '2', iosId: '2', priority: AdPriority.medium);
+
+      queue.enqueue(activeTask);
+      // Wait for active task to be in-flight
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      queue.enqueue(lowPlacement);
+      queue.enqueue(mediumPlacement);
+
+      // In normal order, med_task (medium) would run before low_task (low).
+      // Now promote low_task to immediate:
+      queue.promote('low_task', AdPriority.immediate);
+
+      // Complete active task
+      completers['active_task']!.complete();
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      // low_task should execute next because it was promoted to immediate!
+      expect(executedIds, ['active_task', 'low_task']);
+
+      completers['low_task']!.complete();
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(executedIds, ['active_task', 'low_task', 'med_task']);
+      completers['med_task']!.complete();
+
+      queue.dispose();
+    });
   });
 }
+

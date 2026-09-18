@@ -61,6 +61,11 @@ class AdmobKitConfig {
   /// The maximum concurrent in-flight ad downloads for subsequent ad preloads and auto-replenishments (defaults to 1).
   final int subsequentConcurrency;
 
+  /// The optional placement capacity / demand manifest (e.g. from compile-time manifest or dynamic config).
+  ///
+  /// Maps placement IDs to their target warm buffer depth (defaults to 1).
+  final Map<String, int>? placementCapacities;
+
   /// Creates a new [AdmobKitConfig] instance.
   const AdmobKitConfig({
     this.placements,
@@ -77,6 +82,7 @@ class AdmobKitConfig {
     this.adTtl = const Duration(minutes: 50),
     this.initialConcurrency = 1,
     this.subsequentConcurrency = 1,
+    this.placementCapacities,
   });
 }
 

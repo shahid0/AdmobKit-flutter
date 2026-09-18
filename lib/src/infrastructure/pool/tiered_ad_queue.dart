@@ -13,6 +13,7 @@ import 'retry_scheduler.dart';
 
 /// A load task representing an ad placement awaiting download.
 class AdLoadTask {
+  final String key;
   final AdPlacement placement;
   final AdPriority priority;
   final int retryAttempt;
@@ -20,19 +21,23 @@ class AdLoadTask {
   final DateTime createdAt;
 
   AdLoadTask({
+    String? key,
     required this.placement,
     required this.priority,
     this.retryAttempt = 0,
     Completer<dynamic>? completer,
     DateTime? createdAt,
-  })  : completer = completer ?? Completer<dynamic>(),
+  })  : key = key ?? placement.id,
+        completer = completer ?? Completer<dynamic>(),
         createdAt = createdAt ?? DateTime.now();
 
   AdLoadTask copyWith({
+    String? key,
     int? retryAttempt,
     AdPriority? priority,
   }) {
     return AdLoadTask(
+      key: key ?? this.key,
       placement: placement,
       priority: priority ?? this.priority,
       retryAttempt: retryAttempt ?? this.retryAttempt,
@@ -127,37 +132,76 @@ class TieredAdQueue {
     });
   }
 
+  int _inlineSlotSequence = 0;
+
   /// Enqueues an ad placement for loading with priority routing and deduplication.
+  ///
+  /// - For [FullscreenPlacement]: Deduplicates globally by placement ID.
+  /// - For [InlinePlacement]: Ensures distinct calls receive separate tasks
+  ///   (slot-suffixed keys, never deduplicated).
   Future<dynamic> enqueue(AdPlacement placement, {AdPriority? overridePriority}) {
     final priority = overridePriority ?? placement.priority;
 
-    for (final task in _inFlightTasks) {
-      if (task.placement.id == placement.id) {
-        _logger?.debug('[Queue] Placement "${placement.id}" is already in-flight.');
-        return task.completer.future;
-      }
-    }
+    final effectiveKey = placement is InlinePlacement
+        ? '${placement.id}#slot_${++_inlineSlotSequence}'
+        : placement.id;
 
-    for (final queue in _buckets.values) {
-      for (final existing in queue) {
-        if (existing.placement.id == placement.id) {
-          _logger?.debug('[Queue] Placement "${placement.id}" is already queued in ${existing.priority.name}.');
-          return existing.completer.future;
+    // Inline slot keys are unique per call, so the dedup scan can never match
+    // them — skip it to keep the common preload path O(1).
+    if (placement is! InlinePlacement) {
+      for (final task in _inFlightTasks) {
+        if (task.key == effectiveKey) {
+          _logger?.debug('[Queue] Task "$effectiveKey" is already in-flight.');
+          return task.completer.future;
+        }
+      }
+
+      for (final queue in _buckets.values) {
+        for (final existing in queue) {
+          if (existing.key == effectiveKey) {
+            _logger?.debug('[Queue] Task "$effectiveKey" is already queued in ${existing.priority.name}.');
+            return existing.completer.future;
+          }
         }
       }
     }
 
     final task = AdLoadTask(
+      key: effectiveKey,
       placement: placement,
       priority: priority,
     );
 
     _buckets[priority]!.addLast(task);
     _updateState(placement.id, AdPlacementState.loading);
-    _logger?.info('[Queue] Enqueued "${placement.id}" in [${priority.name}] tier. Total pending: $totalPending');
+    _logger?.info('[Queue] Enqueued "$effectiveKey" (${placement.id}) in [${priority.name}] tier. Total pending: $totalPending');
 
     _scheduleDispatch();
     return task.completer.future;
+  }
+
+  /// Dynamically elevates the priority of any pending tasks matching [placementId] to [newPriority].
+  ///
+  /// Tasks are promoted and placed at the head of the target priority tier so they dispatch next.
+  void promote(String placementId, AdPriority newPriority) {
+    bool scheduled = false;
+    for (final entry in _buckets.entries) {
+      final currentPriority = entry.key;
+      if (currentPriority <= newPriority) continue;
+
+      final queue = entry.value;
+      final matching = queue.where((t) => t.placement.id == placementId).toList();
+      for (final task in matching) {
+        queue.remove(task);
+        final elevated = task.copyWith(priority: newPriority);
+        _buckets[newPriority]!.addFirst(elevated);
+        scheduled = true;
+        _logger?.info('[Queue] ⚡ Promoted "${task.key}" from ${currentPriority.name} to ${newPriority.name}');
+      }
+    }
+    if (scheduled) {
+      _scheduleDispatch();
+    }
   }
 
   bool _isDispatchScheduled = false;
@@ -173,6 +217,20 @@ class TieredAdQueue {
 
   /// Total number of pending tasks across all tiers.
   int get totalPending => _buckets.values.fold(0, (sum, q) => sum + q.length);
+
+  /// Number of tasks for [placementId] that are queued, in-flight, or waiting
+  /// on a retry timer — i.e. everything that will eventually yield an ad.
+  int pendingTaskCount(String placementId) {
+    final queued = _buckets.values.fold<int>(
+      0,
+      (sum, q) => sum + q.where((t) => t.placement.id == placementId).length,
+    );
+    final inFlight = _inFlightTasks.where((t) => t.placement.id == placementId).length;
+    final retrying = _activeRetryTimers.keys
+        .where((k) => k == placementId || k.startsWith('$placementId#'))
+        .length;
+    return queued + inFlight + retrying;
+  }
 
   /// Returns the next eligible task across priority tiers.
   AdLoadTask? _pollNextTask() {
@@ -430,9 +488,10 @@ class TieredAdQueue {
         ),
       );
 
-      _activeRetryTimers[placement.id]?.cancel();
-      _activeRetryTimers[placement.id] = Timer(delay, () {
-        _activeRetryTimers.remove(placement.id);
+      final retryKey = task.key;
+      _activeRetryTimers[retryKey]?.cancel();
+      _activeRetryTimers[retryKey] = Timer(delay, () {
+        _activeRetryTimers.remove(retryKey);
         final retriedTask = task.copyWith(retryAttempt: nextAttempt);
         _buckets[task.priority]!.addFirst(retriedTask);
         _dispatchNext();

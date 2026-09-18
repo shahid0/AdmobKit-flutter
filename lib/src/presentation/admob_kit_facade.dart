@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../domain/contracts/ad_network_info.dart';
 import '../domain/models/ad_placement.dart';
 import '../domain/models/ad_placement_state.dart';
 import '../infrastructure/consent/consent_coordinator.dart';
@@ -32,11 +33,22 @@ abstract final class AdmobKit {
   @visibleForTesting
   static GoogleMobileAdsDriver? driverForTesting;
 
+  /// Optional network info override for testing environments.
+  @visibleForTesting
+  static AdNetworkInfo? networkInfoForTesting;
+
   /// Sets the internal eager pool for testing purposes.
   @visibleForTesting
   static void setPoolForTesting(EagerAdPool? pool) {
     _pool = pool;
     _canRequestAds = true;
+  }
+
+  /// Disposes the eager ad pool and releases all locks and resources.
+  static void dispose() {
+    _pool?.dispose();
+    _pool = null;
+    _mutex?.forceRelease();
   }
 
   /// Initializes consent (Google UMP + Apple ATT), native Google Mobile Ads SDK,
@@ -78,7 +90,7 @@ abstract final class AdmobKit {
       _logger?.warning('[FlutterAds] Consent disallowed ads. Skipping GMA init.');
     }
 
-    final networkInfo = ConnectivityNetworkInfo();
+    final networkInfo = networkInfoForTesting ?? ConnectivityNetworkInfo();
     _pool = EagerAdPool(
       driver: driver,
       mutex: _mutex!,
@@ -92,6 +104,7 @@ abstract final class AdmobKit {
       adTtl: config.adTtl,
       initialConcurrency: config.initialConcurrency,
       subsequentConcurrency: config.subsequentConcurrency,
+      placementCapacities: config.placementCapacities,
     );
 
     if (_canRequestAds && config.placements != null && config.placements!.isNotEmpty) {
@@ -103,11 +116,20 @@ abstract final class AdmobKit {
   ///
   /// Call this as soon as your ad configuration is ready (e.g. after Firebase Remote Config
   /// or backend API has loaded). Can be called multiple times to register new placements.
-  static void registerPlacements(Iterable<AdPlacement> placements) {
+  static void registerPlacements(
+    Iterable<AdPlacement> placements, {
+    Map<String, int>? placementCapacities,
+  }) {
     final pool = _pool;
     if (pool == null) {
       _logger?.warning('[FlutterAds] registerPlacements called before initialize().');
       return;
+    }
+
+    if (placementCapacities != null) {
+      for (final entry in placementCapacities.entries) {
+        pool.setCapacity(entry.key, entry.value);
+      }
     }
 
     if (_canRequestAds) {
@@ -203,9 +225,14 @@ abstract final class AdmobKit {
   }
 
   /// Leases an inline ad from the pool buffer. Internal package use.
+  ///
+  /// Resolves with an exclusively-owned ad instance (buffered immediately or
+  /// delivered on replenishment), or `null` on timeout / premium / failure.
   @internal
-  static dynamic leaseInlineAd(InlinePlacement placement) {
-    return _pool?.leaseInlineAd(placement);
+  static Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) {
+    final pool = _pool;
+    if (pool == null) return Future<dynamic>.value(null);
+    return pool.leaseInlineAd(placement, timeout: timeout);
   }
 
   /// Internal reference to logger.
