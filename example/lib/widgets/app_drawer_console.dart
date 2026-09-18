@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../state/task_store.dart';
 import '../theme/task_theme.dart';
 
@@ -70,7 +70,7 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                     icon: const Icon(Icons.bug_report_outlined, size: 20, color: TaskColors.amberText),
                     tooltip: 'Open AdMob Inspector',
                     onPressed: () {
-                      FlutterAds.openAdInspector((error) {
+                      AdmobKit.openAdInspector((error) {
                         if (error != null) {
                           store.appendLog('❌ Inspector error: $error');
                         } else {

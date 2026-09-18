@@ -86,5 +86,6 @@ class AdmobKitConfig {
   });
 }
 
-/// Backwards-compatible alias for [AdmobKitConfig].
-typedef FlutterAdsConfig = AdmobKitConfig;
+// NOTE: The legacy `typedef FlutterAdsConfig = AdmobKitConfig;` alias was
+// removed alongside the `FlutterAds` facade alias. Use [AdmobKitConfig] with
+// the `package:admob_kit_flutter/admob_kit_flutter.dart` import.

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../../config/sample_ads.dart';
 import '../../models/category_item.dart';
 import '../../state/task_store.dart';
@@ -96,7 +96,7 @@ class CategoriesTab extends StatelessWidget {
 
         if (TaskStore.instance.checkInterval('category_navigation', interval: 3)) {
           TaskStore.instance.appendLog('📂 [Action] Category navigation threshold reached. Triggering Interstitial...');
-          FlutterAds.show(
+          AdmobKit.show(
             SampleAds.mainInterstitial,
             onDismissed: navigate,
           );

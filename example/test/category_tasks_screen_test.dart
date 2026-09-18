@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:flutter_ads_example/models/category_item.dart';
 import 'package:flutter_ads_example/models/task_item.dart';
 import 'package:flutter_ads_example/screens/sub_screens/category_tasks_screen.dart';
@@ -11,8 +11,8 @@ import 'package:flutter_ads_example/widgets/task_tile.dart';
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await FlutterAds.initialize(
-      config: const FlutterAdsConfig(
+    await AdmobKit.initialize(
+      config: const AdmobKitConfig(
         placements: [],
         requestConsent: false,
         initializeNativeGma: false,

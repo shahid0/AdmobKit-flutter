@@ -63,7 +63,7 @@ abstract final class AdmobKit {
     _mutex = PresentationMutex(_logger);
     _consent = ConsentCoordinator(_logger);
 
-    _logger?.info('[FlutterAds] Initializing package...');
+    _logger?.info('[AdmobKit] Initializing package...');
 
     if (config.requestConsent) {
       _canRequestAds = await _consent!.gatherConsent(
@@ -85,9 +85,9 @@ abstract final class AdmobKit {
         await const MethodChannel('flutter_ads').invokeMethod<dynamic>('registerNativeAdFactories');
       } catch (_) {}
     } else if (!config.initializeNativeGma) {
-      _logger?.info('[FlutterAds] Native GMA initialization skipped via config.');
+      _logger?.info('[AdmobKit] Native GMA initialization skipped via config.');
     } else {
-      _logger?.warning('[FlutterAds] Consent disallowed ads. Skipping GMA init.');
+      _logger?.warning('[AdmobKit] Consent disallowed ads. Skipping GMA init.');
     }
 
     final networkInfo = networkInfoForTesting ?? ConnectivityNetworkInfo();
@@ -122,7 +122,7 @@ abstract final class AdmobKit {
   }) {
     final pool = _pool;
     if (pool == null) {
-      _logger?.warning('[FlutterAds] registerPlacements called before initialize().');
+      _logger?.warning('[AdmobKit] registerPlacements called before initialize().');
       return;
     }
 
@@ -135,7 +135,7 @@ abstract final class AdmobKit {
     if (_canRequestAds) {
       pool.primeAll(placements);
     } else {
-      _logger?.warning('[FlutterAds] Consent disallowed ads. Skipping placement priming.');
+      _logger?.warning('[AdmobKit] Consent disallowed ads. Skipping placement priming.');
     }
   }
 
@@ -152,7 +152,7 @@ abstract final class AdmobKit {
   }) {
     final pool = _pool;
     if (pool == null) {
-      _logger?.warning('[FlutterAds] show() called before initialize(). Proceeding.');
+      _logger?.warning('[AdmobKit] show() called before initialize(). Proceeding.');
       onDismissed?.call();
       return;
     }
@@ -244,6 +244,9 @@ abstract final class AdmobKit {
   static EagerAdPool? get pool => _pool;
 }
 
-/// Backwards-compatible alias for [AdmobKit].
-typedef FlutterAds = AdmobKit;
+// NOTE: The legacy `typedef FlutterAds = AdmobKit;` alias was removed.
+// Use [AdmobKit] everywhere. If you still reference `FlutterAds` from an
+// older integration, do a one-line find/replace to `AdmobKit` (same API,
+// same members) and update the import to
+// `package:admob_kit_flutter/admob_kit_flutter.dart`.
 

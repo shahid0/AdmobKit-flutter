@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../../config/sample_ads.dart';
 import '../../models/category_item.dart';
 import '../../state/task_store.dart';
@@ -127,7 +127,7 @@ class CategoryTasksScreen extends StatelessWidget {
 
                               if (TaskStore.instance.checkInterval('task_detail_navigation', interval: 4)) {
                                 TaskStore.instance.appendLog('🔍 [Action] Task detail navigation threshold reached. Triggering Interstitial...');
-                                FlutterAds.show(
+                                AdmobKit.show(
                                   SampleAds.mainInterstitial,
                                   onDismissed: navigate,
                                 );
@@ -139,7 +139,7 @@ class CategoryTasksScreen extends StatelessWidget {
                               store.deleteTask(task.id);
                               if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
                                 TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
-                                FlutterAds.show(
+                                AdmobKit.show(
                                   SampleAds.mainInterstitial,
                                   onDismissed: () {},
                                 );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 import 'package:flutter_ads_example/screens/tabs/settings_tab.dart';
 import 'package:flutter_ads_example/state/task_store.dart';
@@ -10,8 +10,8 @@ import 'package:flutter_ads_example/widgets/app_drawer_console.dart';
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await FlutterAds.initialize(
-      config: const FlutterAdsConfig(
+    await AdmobKit.initialize(
+      config: const AdmobKitConfig(
         placements: [],
         requestConsent: false,
         initializeNativeGma: false,
@@ -218,7 +218,7 @@ void main() {
     expect(find.byType(PaywallScreen), findsOneWidget);
   });
 
-  testWidgets('Tapping Test Interstitial Ad executes FlutterAds.show and logs verification', (tester) async {
+  testWidgets('Tapping Test Interstitial Ad executes AdmobKit.show and logs verification', (tester) async {
     tester.view.physicalSize = const Size(390, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {

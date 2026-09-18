@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 
 class FakeDriver extends GoogleMobileAdsDriver {
@@ -34,31 +34,31 @@ void main() {
 
   setUp(() {
     fakeDriver = FakeDriver();
-    FlutterAds.driverForTesting = fakeDriver;
+    AdmobKit.driverForTesting = fakeDriver;
   });
 
   tearDown(() {
-    FlutterAds.driverForTesting = null;
+    AdmobKit.driverForTesting = null;
   });
 
   group('Two-Stage Initialization & State Inspection Tests', () {
     test('Stage 1: Initialize boots SDK without initial placements', () async {
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           requestConsent: false,
           initializeNativeGma: false,
         ),
       );
 
-      expect(FlutterAds.canRequestAds, true);
+      expect(AdmobKit.canRequestAds, true);
       const testPlacement = InterstitialPlacement(androidId: '1', iosId: '1');
-      expect(FlutterAds.isReady(testPlacement), false);
-      expect(FlutterAds.getState(testPlacement), AdPlacementState.unloaded);
+      expect(AdmobKit.isReady(testPlacement), false);
+      expect(AdmobKit.getState(testPlacement), AdPlacementState.unloaded);
     });
 
     test('Stage 2: registerPlacements primes placements and triggers loading state', () async {
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           requestConsent: false,
           initializeNativeGma: false,
         ),
@@ -71,24 +71,24 @@ void main() {
         isSplash: true,
       );
 
-      expect(FlutterAds.getState(splashInterstitial), AdPlacementState.unloaded);
+      expect(AdmobKit.getState(splashInterstitial), AdPlacementState.unloaded);
 
       // Register placements dynamically (e.g. from Remote Config)
-      FlutterAds.registerPlacements([splashInterstitial]);
+      AdmobKit.registerPlacements([splashInterstitial]);
 
       // State is immediately tracked as loading
-      expect(FlutterAds.isLoading(splashInterstitial), true);
-      expect(FlutterAds.getState(splashInterstitial), AdPlacementState.loading);
+      expect(AdmobKit.isLoading(splashInterstitial), true);
+      expect(AdmobKit.getState(splashInterstitial), AdPlacementState.loading);
 
       // Wait for ad to resolve
-      await FlutterAds.watchState(splashInterstitial).firstWhere((s) => s == AdPlacementState.ready);
-      expect(FlutterAds.isReady(splashInterstitial), true);
-      expect(FlutterAds.getState(splashInterstitial), AdPlacementState.ready);
+      await AdmobKit.watchState(splashInterstitial).firstWhere((s) => s == AdPlacementState.ready);
+      expect(AdmobKit.isReady(splashInterstitial), true);
+      expect(AdmobKit.getState(splashInterstitial), AdPlacementState.ready);
     });
 
     test('watchState emits stream of state changes', () async {
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           requestConsent: false,
           initializeNativeGma: false,
         ),
@@ -101,11 +101,11 @@ void main() {
       );
 
       final states = <AdPlacementState>[];
-      final sub = FlutterAds.watchState(testPlacement).listen(states.add);
+      final sub = AdmobKit.watchState(testPlacement).listen(states.add);
 
-      FlutterAds.registerPlacements([testPlacement]);
+      AdmobKit.registerPlacements([testPlacement]);
 
-      await FlutterAds.watchState(testPlacement).firstWhere((s) => s == AdPlacementState.ready);
+      await AdmobKit.watchState(testPlacement).firstWhere((s) => s == AdPlacementState.ready);
 
       expect(states, contains(AdPlacementState.loading));
       expect(states, contains(AdPlacementState.ready));

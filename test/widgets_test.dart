@@ -1,25 +1,25 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 
 void main() {
   setUp(() {
-    FlutterAds.networkInfoForTesting = _TestNetworkInfo();
+    AdmobKit.networkInfoForTesting = _TestNetworkInfo();
   });
 
   tearDown(() {
-    FlutterAds.dispose();
-    FlutterAds.networkInfoForTesting = null;
-    FlutterAds.driverForTesting = null;
+    AdmobKit.dispose();
+    AdmobKit.networkInfoForTesting = null;
+    AdmobKit.driverForTesting = null;
   });
 
   group('Widget Tests', () {
     testWidgets('AdBannerView collapses to SizedBox.shrink when user is premium', (tester) async {
-      await FlutterAds.initialize(
-        config: FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: AdmobKitConfig(
           placements: const [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -48,8 +48,8 @@ void main() {
     });
 
     testWidgets('AdNativeView collapses to SizedBox.shrink when user is premium', (tester) async {
-      await FlutterAds.initialize(
-        config: FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: AdmobKitConfig(
           placements: const [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -76,10 +76,10 @@ void main() {
 
     testWidgets('AdNativeView reserves template default height when loading', (tester) async {
       final completer = Completer<Object>();
-      FlutterAds.driverForTesting = _TestDriver(onLoad: () => completer.future);
+      AdmobKit.driverForTesting = _TestDriver(onLoad: () => completer.future);
 
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -107,8 +107,8 @@ void main() {
     });
 
     testWidgets('AdPaywallGuard renders child content properly', (tester) async {
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -139,10 +139,10 @@ void main() {
         loadCalls++;
         return Object();
       });
-      FlutterAds.driverForTesting = fakeDriver;
+      AdmobKit.driverForTesting = fakeDriver;
 
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -185,13 +185,13 @@ void main() {
 
     testWidgets('AdNativeView retries lease after deactivation when prior load failed', (tester) async {
       // Simulate offline cold start: load always fails terminally.
-      FlutterAds.driverForTesting = _TrackingDriver(
+      AdmobKit.driverForTesting = _TrackingDriver(
         onLoad: () => throw LoadAdError(1, 'offline', 'network unavailable', null),
         onLoaded: (_) {},
       );
 
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -242,10 +242,10 @@ void main() {
         generatedAds.add(ad);
         return ad;
       });
-      FlutterAds.driverForTesting = fakeDriver;
+      AdmobKit.driverForTesting = fakeDriver;
 
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,
@@ -281,13 +281,13 @@ void main() {
 
     testWidgets('AdNativeView inside IndexedStack defers until its tab is visible', (tester) async {
       final loadedPlacements = <String>{};
-      FlutterAds.driverForTesting = _TrackingDriver(
+      AdmobKit.driverForTesting = _TrackingDriver(
         onLoad: () => Object(),
         onLoaded: (placement) => loadedPlacements.add(placement.id),
       );
 
-      await FlutterAds.initialize(
-        config: const FlutterAdsConfig(
+      await AdmobKit.initialize(
+        config: const AdmobKitConfig(
           placements: [],
           requestConsent: false,
           initializeNativeGma: false,

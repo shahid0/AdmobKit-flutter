@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../../config/sample_ads.dart';
 import '../../state/task_store.dart';
 import '../../theme/task_theme.dart';
@@ -72,7 +72,7 @@ class SettingsTab extends StatelessWidget {
                 ),
                 onTap: () {
                   store.appendLog('🎬 [Test] Triggering manual Interstitial ad...');
-                  FlutterAds.show(
+                  AdmobKit.show(
                     SampleAds.mainInterstitial,
                     onDismissed: () {
                       store.appendLog('✅ [Test] Interstitial dismissed. Verified: No App Open ad collision!');
@@ -118,7 +118,7 @@ class SettingsTab extends StatelessWidget {
                       ),
                 onTap: () {
                   if (store.isProThemeUnlocked) return;
-                  FlutterAds.show(
+                  AdmobKit.show(
                     SampleAds.rewardedBonus,
                     onDismissed: () {},
                     onRewardGranted: (amount, type) {
@@ -144,7 +144,7 @@ class SettingsTab extends StatelessWidget {
                 ),
                 onTap: () {
                   store.appendLog('📱 [Test] Presenting App Open ad on demand...');
-                  FlutterAds.show(
+                  AdmobKit.show(
                     SampleAds.appOpen,
                     onDismissed: () {
                       store.appendLog('✅ [Test] App Open ad dismissed.');
@@ -169,7 +169,7 @@ class SettingsTab extends StatelessWidget {
                 ),
                 onTap: () {
                   store.appendLog('🔍 [Test] Opening AdMob Inspector...');
-                  FlutterAds.openAdInspector((error) {
+                  AdmobKit.openAdInspector((error) {
                     if (error != null) {
                       store.appendLog('❌ Inspector error: $error');
                     } else {
@@ -195,7 +195,7 @@ class SettingsTab extends StatelessWidget {
                 ),
                 onTap: () async {
                   store.appendLog('📋 [UMP] Requesting Privacy & GDPR consent form...');
-                  final shown = await FlutterAds.showPrivacyOptionsForm();
+                  final shown = await AdmobKit.showPrivacyOptionsForm();
                   store.appendLog('📋 [UMP] Privacy form shown result: $shown');
                 },
               ),

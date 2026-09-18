@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:flutter_ads_example/screens/onboarding_screen.dart';
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 
@@ -17,8 +17,8 @@ class TestNavigatorObserver extends NavigatorObserver {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await FlutterAds.initialize(
-      config: const FlutterAdsConfig(
+    await AdmobKit.initialize(
+      config: const AdmobKitConfig(
         placements: [],
         requestConsent: false,
         initializeNativeGma: false,

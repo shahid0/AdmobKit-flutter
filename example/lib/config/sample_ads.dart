@@ -1,4 +1,4 @@
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 
 abstract final class SampleAds {
   static const splashBanner = BannerPlacement(

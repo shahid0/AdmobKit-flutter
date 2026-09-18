@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import '../../domain/contracts/ad_logger.dart';
 
-/// Platform-aware, structured console logger for FlutterAds.
+/// Platform-aware, structured console logger for AdmobKit.
 class PlatformAdLogger implements AdLogger {
   final AdLogLevel level;
   final String _tagPrefix;
@@ -13,20 +13,20 @@ class PlatformAdLogger implements AdLogger {
         _tagPrefix = _resolvePlatformTag();
 
   static String _resolvePlatformTag() {
-    if (kIsWeb) return '[FlutterAds::Web]';
+    if (kIsWeb) return '[AdmobKit::Web]';
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return '[FlutterAds::Android]';
+        return '[AdmobKit::Android]';
       case TargetPlatform.iOS:
-        return '[FlutterAds::iOS]';
+        return '[AdmobKit::iOS]';
       case TargetPlatform.macOS:
-        return '[FlutterAds::macOS]';
+        return '[AdmobKit::macOS]';
       case TargetPlatform.windows:
-        return '[FlutterAds::Windows]';
+        return '[AdmobKit::Windows]';
       case TargetPlatform.linux:
-        return '[FlutterAds::Linux]';
+        return '[AdmobKit::Linux]';
       case TargetPlatform.fuchsia:
-        return '[FlutterAds::Fuchsia]';
+        return '[AdmobKit::Fuchsia]';
     }
   }
 
@@ -37,7 +37,7 @@ class PlatformAdLogger implements AdLogger {
     if (error != null) {
       developer.log(
         formatted,
-        name: 'FlutterAds',
+        name: 'AdmobKit',
         level: _toDeveloperLogLevel(msgLevel),
         error: error,
         stackTrace: stackTrace,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../config/sample_ads.dart';
 import '../state/task_store.dart';
 import '../theme/task_theme.dart';
@@ -68,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     TaskStore.instance.appendLog(
       '🚀 [Splash] Awaiting settlement for ${SampleAds.splashInterstitial.id}...',
     );
-    FlutterAds.show(
+    AdmobKit.show(
       SampleAds.splashInterstitial,
       onDismissed: _proceedToNextScreen,
     );

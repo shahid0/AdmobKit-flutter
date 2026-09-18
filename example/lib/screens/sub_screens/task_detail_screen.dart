@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:admob_kit_flutter/flutter_ads.dart';
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../../config/sample_ads.dart';
 import '../../models/category_item.dart';
 import '../../models/task_item.dart';
@@ -60,7 +60,7 @@ class TaskDetailScreen extends StatelessWidget {
                   store.deleteTask(task.id);
                   if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
                     TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
-                    FlutterAds.show(
+                    AdmobKit.show(
                       SampleAds.mainInterstitial,
                       onDismissed: () {
                         if (context.mounted) Navigator.of(context).pop();
