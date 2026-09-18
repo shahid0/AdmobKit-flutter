@@ -603,7 +603,7 @@ AdmobKit.initialize(
 
 [![skills.sh](https://skills.sh/b/shahid0/AdmobKit-flutter)](https://skills.sh/shahid0/AdmobKit-flutter)
 
-A specialized agent skill ships with this package: [`skills/flutter-ads/SKILL.md`](skills/flutter-ads/SKILL.md) — API contracts, negative constraints, behavioral guarantees, and a verification checklist tuned for AI coding agents.
+A specialized agent skill ships with this package: [`skills/flutter-ads/SKILL.md`](skills/flutter-ads/SKILL.md) — a concise integration runbook with workflow, decision table, and verification checklist, backed by on-demand reference files (`reference/api.md` for the full API surface, `reference/patterns.md` for working code).
 
 ```bash
 # Install into current project (Claude Code, Cursor, Antigravity, Copilot, ...)
