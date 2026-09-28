@@ -23,15 +23,15 @@ class AdCacheEntry {
 
   /// Properly disposes the underlying platform ad instance.
   void dispose() {
+    disposeAdInstance(adInstance);
+  }
+
+  /// Disposes inline and fullscreen platform ads, including discarded loads.
+  static Future<void> disposeAdInstance(dynamic adInstance) async {
     try {
-      if (adInstance is BannerAd) {
-        (adInstance as BannerAd).dispose();
-      } else if (adInstance is NativeAd) {
-        (adInstance as NativeAd).dispose();
+      if (adInstance is Ad) {
+        await adInstance.dispose();
       }
-      // Note: Fullscreen ads (InterstitialAd, RewardedAd, AppOpenAd) do not require
-      // explicit dispose() call in GMA SDK once shown or discarded, but if present,
-      // GMA handles cleanup on native side.
     } catch (_) {}
   }
 }

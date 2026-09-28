@@ -38,6 +38,7 @@ void main() {
   });
 
   tearDown(() {
+    AdmobKit.dispose();
     AdmobKit.driverForTesting = null;
   });
 
@@ -114,4 +115,3 @@ void main() {
     });
   });
 }
-

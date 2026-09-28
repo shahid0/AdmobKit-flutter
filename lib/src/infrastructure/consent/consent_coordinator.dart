@@ -22,6 +22,7 @@ class ConsentTestConfig {
 /// Orchestrates Google UMP (User Messaging Platform) and Apple ATT (App Tracking Transparency).
 class ConsentCoordinator {
   final PlatformAdLogger? _logger;
+  final _disposed = Completer<void>();
 
   ConsentCoordinator([this._logger]);
 
@@ -30,13 +31,11 @@ class ConsentCoordinator {
   /// 2. Loads and displays UMP consent form if required (EEA/UK/Switzerland).
   /// 3. Prompts Apple ATT permission dialog if on iOS.
   /// 4. Verifies whether ads can be requested.
-  Future<bool> gatherConsent({
-    ConsentTestConfig? testConfig,
-  }) async {
+  Future<bool> gatherConsent({ConsentTestConfig? testConfig}) async {
     _logger?.info('[Consent] 🛡️ Starting consent gathering pipeline...');
 
     try {
-      final completer = Completer<void>();
+      final completer = Completer<bool>();
       final params = ConsentRequestParameters(
         consentDebugSettings: testConfig != null
             ? ConsentDebugSettings(
@@ -48,40 +47,36 @@ class ConsentCoordinator {
 
       ConsentInformation.instance.requestConsentInfoUpdate(
         params,
-        () async {
+        () {
           _logger?.debug('[Consent] UMP consent info updated successfully.');
-          ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-            if (formError != null) {
-              _logger?.warning(
-                '[Consent] UMP form dismissed with error: [${formError.errorCode}] ${formError.message}',
-              );
-            } else {
-              _logger?.debug('[Consent] UMP consent form resolved.');
-            }
-            if (!completer.isCompleted) completer.complete();
-          });
+          if (!completer.isCompleted) completer.complete(true);
         },
         (FormError error) {
-          _logger?.warning(
-            '[Consent] UMP requestConsentInfoUpdate failed: [${error.errorCode}] ${error.message}',
-          );
-          if (!completer.isCompleted) completer.complete();
+          _logger?.warning('[Consent] UMP requestConsentInfoUpdate failed: [${error.errorCode}] ${error.message}');
+          if (!completer.isCompleted) completer.complete(false);
         },
       );
 
-      await completer.future.timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          _logger?.warning('[Consent] UMP consent update timed out. Continuing...');
-        },
-      );
+      final updated = await Future.any([completer.future, _disposed.future.then((_) => false)]);
+      if (_disposed.isCompleted) return false;
+      if (updated) {
+        // This future completes when the form is dismissed, not when it opens.
+        await Future.any([
+          ConsentForm.loadAndShowConsentFormIfRequired((error) {
+            if (error != null) _logger?.warning('[Consent] UMP form error: ${error.message}');
+          }),
+          _disposed.future,
+        ]);
+      }
     } catch (e, st) {
       _logger?.error('[Consent] Unexpected error during UMP consent', e, st);
     }
 
+    if (_disposed.isCompleted) return false;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+        if (_disposed.isCompleted) return false;
         if (status == TrackingStatus.notDetermined) {
           _logger?.info('[Consent] Prompting iOS App Tracking Transparency (ATT)...');
           final newStatus = await AppTrackingTransparency.requestTrackingAuthorization();
@@ -94,9 +89,18 @@ class ConsentCoordinator {
       }
     }
 
-    final canRequest = await ConsentInformation.instance.canRequestAds();
+    if (_disposed.isCompleted) return false;
+    final canRequest = await canRequestAds();
     _logger?.info('[Consent] Final consent resolution: canRequestAds = $canRequest');
     return canRequest;
+  }
+
+  /// Reads the authoritative UMP decision after a form/update has settled.
+  Future<bool> canRequestAds() => ConsentInformation.instance.canRequestAds();
+
+  /// Prevents late consent callbacks from presenting new forms in an old session.
+  void dispose() {
+    if (!_disposed.isCompleted) _disposed.complete();
   }
 
   /// Returns true if the user requires a privacy options link in the app (e.g. in settings).
@@ -111,23 +115,21 @@ class ConsentCoordinator {
 
   /// Presents the Google UMP privacy options form so users can change their consent settings.
   Future<bool> showPrivacyOptionsForm() async {
-    final completer = Completer<bool>();
+    if (_disposed.isCompleted) return false;
+    var shown = false;
     try {
       await ConsentForm.showPrivacyOptionsForm((formError) {
         if (formError != null) {
-          _logger?.warning(
-            '[Consent] Privacy options form error: [${formError.errorCode}] ${formError.message}',
-          );
-          completer.complete(false);
+          _logger?.warning('[Consent] Privacy options form error: [${formError.errorCode}] ${formError.message}');
         } else {
           _logger?.info('[Consent] Privacy options updated by user.');
-          completer.complete(true);
+          shown = true;
         }
       });
     } catch (e) {
       _logger?.warning('[Consent] Failed to present privacy options form: $e');
       return false;
     }
-    return completer.future;
+    return shown && !_disposed.isCompleted;
   }
 }

@@ -40,6 +40,67 @@ class _FailingDriver extends GoogleMobileAdsDriver {
   }
 }
 
+class _DelayedDriver extends GoogleMobileAdsDriver {
+  int loadCalls = 0;
+  final Duration delay;
+
+  _DelayedDriver({required this.delay});
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement) async {
+    loadCalls++;
+    await Future.delayed(delay);
+    return Object();
+  }
+
+  @override
+  void showFullscreenAd({
+    required FullscreenPlacement placement,
+    required dynamic adInstance,
+    required void Function() onDisplayed,
+    required void Function() onDismissed,
+    void Function(num amount, String type)? onRewardGranted,
+  }) {
+    onDisplayed();
+    onDismissed();
+  }
+}
+
+class _ManualDismissDriver extends GoogleMobileAdsDriver {
+  int loadCalls = 0;
+  int showCalls = 0;
+  void Function()? pendingDismiss;
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement) async {
+    loadCalls++;
+    return Object();
+  }
+
+  @override
+  void showFullscreenAd({
+    required FullscreenPlacement placement,
+    required dynamic adInstance,
+    required void Function() onDisplayed,
+    required void Function() onDismissed,
+    void Function(num amount, String type)? onRewardGranted,
+  }) {
+    showCalls++;
+    onDisplayed();
+    pendingDismiss = onDismissed;
+  }
+}
+
+class _TrackingMutex extends PresentationMutex {
+  int attempts = 0;
+
+  @override
+  bool tryAcquire(String holderId) {
+    attempts++;
+    return super.tryAcquire(holderId);
+  }
+}
+
 class FakeNetworkInfo implements AdNetworkInfo {
   @override
   Future<AdNetworkType> getNetworkType() async => AdNetworkType.wifi;
@@ -60,21 +121,55 @@ void main() {
       networkInfo = FakeNetworkInfo();
     });
 
-    test('Entitlement Guard: Premium user bypasses all loads and shows', () {
-      bool isPremiumUser = true;
+    test('consumed empty placement skips the mutex without disturbing another ad', () async {
+      final trackedMutex = _TrackingMutex();
+      final pool = EagerAdPool(driver: driver, mutex: trackedMutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const placement = InterstitialPlacement(id: 'once', androidId: '1', iosId: '1', loadOnce: true);
+      await pool.preload(placement);
+      pool.show(placement);
+      expect(pool.isConsumed(placement), isTrue);
+      expect(pool.isReady(placement), isFalse);
+      expect(trackedMutex.tryAcquire('other'), isTrue);
+      final attempts = trackedMutex.attempts;
+      var dismissed = 0;
 
+      pool.show(placement, onDismissed: () => dismissed++);
+
+      expect(dismissed, 1);
+      expect(trackedMutex.attempts, attempts);
+      expect(trackedMutex.currentHolderId, 'other');
+      expect(driver.showCalls, 1);
+    });
+
+    test('consumed placement can still present its remaining cached ad', () async {
       final pool = EagerAdPool(
         driver: driver,
         mutex: mutex,
         networkInfo: networkInfo,
-        isPremium: () => isPremiumUser,
+        placementCapacities: {'once': 2},
       );
+      addTearDown(pool.dispose);
+      const placement = InterstitialPlacement(id: 'once', androidId: '1', iosId: '1', loadOnce: true);
+      await pool.preload(placement);
+      await pool.preload(placement);
+      pool.show(placement);
+      expect(pool.isConsumed(placement), isTrue);
+      expect(pool.isReady(placement), isTrue);
 
-      const placement = InterstitialPlacement(
-        id: 'interstitial',
-        androidId: '1',
-        iosId: '1',
-      );
+      pool.show(placement);
+
+      expect(driver.showCalls, 2);
+      expect(driver.loadCalls, 2);
+      expect(pool.isReady(placement), isFalse);
+    });
+
+    test('Entitlement Guard: Premium user bypasses all loads and shows', () {
+      bool isPremiumUser = true;
+
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo, isPremium: () => isPremiumUser);
+
+      const placement = InterstitialPlacement(id: 'interstitial', androidId: '1', iosId: '1');
 
       // Prime all should skip
       pool.primeAll([placement]);
@@ -93,17 +188,9 @@ void main() {
     });
 
     test('0ms Presentation Contract: Unready ad invokes onDismissed immediately', () {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const placement = InterstitialPlacement(
-        id: 'unready',
-        androidId: '1',
-        iosId: '1',
-      );
+      const placement = InterstitialPlacement(id: 'unready', androidId: '1', iosId: '1');
 
       bool dismissed = false;
       // Ad has not been loaded into pool buffer yet
@@ -116,25 +203,11 @@ void main() {
     });
 
     test('Replenishment: Recurring ad auto-refills buffer; loadOnce does not', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const recurring = InterstitialPlacement(
-        id: 'recurring',
-        androidId: '1',
-        iosId: '1',
-        loadOnce: false,
-      );
+      const recurring = InterstitialPlacement(id: 'recurring', androidId: '1', iosId: '1', loadOnce: false);
 
-      const oneOff = InterstitialPlacement(
-        id: 'one_off',
-        androidId: '2',
-        iosId: '2',
-        loadOnce: true,
-      );
+      const oneOff = InterstitialPlacement(id: 'one_off', androidId: '2', iosId: '2', loadOnce: true);
 
       // Preload both
       await pool.preload(recurring);
@@ -161,18 +234,9 @@ void main() {
     });
 
     test('Inline loadOnce: leaseInlineAd consumes placement and skips replenishment', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const oneOffNative = NativePlacement.big(
-        id: 'splash_native',
-        androidId: '3',
-        iosId: '3',
-        loadOnce: true,
-      );
+      const oneOffNative = NativePlacement.big(id: 'splash_native', androidId: '3', iosId: '3', loadOnce: true);
 
       // Preload inline ad
       await pool.preload(oneOffNative);
@@ -197,11 +261,7 @@ void main() {
     });
 
     test('Deterministic Splash Settlement: show() awaits in-flight splash placement', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
       const splashPlacement = InterstitialPlacement(
         id: 'splash_interstitial',
@@ -234,11 +294,7 @@ void main() {
     });
 
     test('Splash settlement: concurrent show() is rejected, mutex fully released after dismissal', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
       const splashPlacement = InterstitialPlacement(
         id: 'splash_interstitial',
@@ -268,17 +324,9 @@ void main() {
     });
 
     test('Concurrent inline leases on empty buffer: exactly one task, both receive distinct ads', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const inlinePlacement = NativePlacement(
-        id: 'race_native',
-        androidId: '1',
-        iosId: '1',
-      );
+      const inlinePlacement = NativePlacement(id: 'race_native', androidId: '1', iosId: '1');
 
       // Two widgets race on an empty buffer: both register demand.
       final lease1 = pool.leaseInlineAd(inlinePlacement);
@@ -294,9 +342,13 @@ void main() {
       expect(ad2, isNotNull, reason: 'Second waiter must receive its own ad (no blank view)');
       expect(identical(ad1, ad2), false, reason: 'Waiters must never share an ad instance');
       // 2 direct deliveries + 1 scheduled warm-buffer refill (target: 1).
-      expect(driver.loadCalls, 3,
-          reason: 'Demand leases must not storm (no per-waiter duplicate requests), '
-              'but the buffer must be replenished after direct delivery');
+      expect(
+        driver.loadCalls,
+        3,
+        reason:
+            'Demand leases must not storm (no per-waiter duplicate requests), '
+            'but the buffer must be replenished after direct delivery',
+      );
       expect(pool.isReady(inlinePlacement), true, reason: 'Buffer must be warm again for the next 0ms lease');
 
       pool.dispose();
@@ -304,25 +356,14 @@ void main() {
 
     test('Terminal load failure fast-fails the oldest lease waiter (no 15s placeholder hang)', () async {
       final failingDriver = _FailingDriver();
-      final pool = EagerAdPool(
-        driver: failingDriver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: failingDriver, mutex: mutex, networkInfo: networkInfo);
 
-      const inlinePlacement = NativePlacement(
-        id: 'nofill_native',
-        androidId: '1',
-        iosId: '1',
-      );
+      const inlinePlacement = NativePlacement(id: 'nofill_native', androidId: '1', iosId: '1');
 
       final lease = pool.leaseInlineAd(inlinePlacement);
 
       // Waiter must settle quickly (fast-fail), not hang until its timeout.
-      final ad = await lease.timeout(
-        const Duration(seconds: 2),
-        onTimeout: () => 'TIMED_OUT',
-      );
+      final ad = await lease.timeout(const Duration(seconds: 2), onTimeout: () => 'TIMED_OUT');
 
       expect(ad, isNull, reason: 'Terminal failure must settle the waiter with null, not keep it hanging');
       expect(failingDriver.loadCalls, 1);
@@ -331,18 +372,10 @@ void main() {
     });
 
     test('Leasing and preloading from a disposed pool are safe no-ops', () async {
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
       pool.dispose();
 
-      const inlinePlacement = NativePlacement(
-        id: 'disposed_native',
-        androidId: '1',
-        iosId: '1',
-      );
+      const inlinePlacement = NativePlacement(id: 'disposed_native', androidId: '1', iosId: '1');
 
       final ad = await pool.leaseInlineAd(inlinePlacement);
       expect(ad, isNull, reason: 'Lease from disposed pool must resolve null without registering waiters');
@@ -352,12 +385,7 @@ void main() {
 
     test('waitFor returns true when ad is ready and false when premium', () async {
       bool isPremium = false;
-      final pool = EagerAdPool(
-        driver: driver,
-        mutex: mutex,
-        networkInfo: networkInfo,
-        isPremium: () => isPremium,
-      );
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo, isPremium: () => isPremium);
 
       const placement = InterstitialPlacement(id: 'wait_test', androidId: '5', iosId: '5');
       final loadFuture = pool.preload(placement);
@@ -372,6 +400,273 @@ void main() {
       final premiumResult = await pool.waitFor(placement);
       expect(premiumResult, false);
 
+      pool.dispose();
+    });
+
+    test('loadOnce saturation: leaseInlineAd on empty buffer does NOT trigger duplicate load', () async {
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+
+      const oneOffNative = NativePlacement.big(
+        id: 'splash_native_saturation',
+        androidId: '3',
+        iosId: '3',
+        loadOnce: true,
+      );
+
+      // Startup prime: starts loading in background
+      final preloadFuture = pool.preload(oneOffNative);
+      expect(pool.isLoading(oneOffNative), true);
+
+      // Splash mounts immediately and requests lease before buffer is filled
+      final leaseFuture = pool.leaseInlineAd(oneOffNative);
+
+      await preloadFuture;
+      final ad = await leaseFuture;
+
+      expect(ad, isNotNull);
+      // Wait for any microtasks
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      // Exactly 1 load call must occur! (No duplicate load triggered by openLeases)
+      expect(driver.loadCalls, 1, reason: 'loadOnce must not enqueue a second load task due to openLeases');
+      expect(pool.getState(oneOffNative), AdPlacementState.unloaded);
+
+      pool.dispose();
+    });
+
+    test('show() cache miss on loadOnce or isSplash does NOT trigger background preload', () async {
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+
+      const oneOffInterstitial = InterstitialPlacement(
+        id: 'one_off_interstitial',
+        androidId: '10',
+        iosId: '10',
+        loadOnce: true,
+      );
+
+      bool dismissed = false;
+      pool.show(oneOffInterstitial, onDismissed: () => dismissed = true);
+
+      expect(dismissed, true);
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      expect(driver.loadCalls, 0, reason: '0ms cache miss on loadOnce must not fire ghost preload');
+      expect(driver.showCalls, 0);
+
+      pool.dispose();
+    });
+
+    test('Splash timeout cancels queue tasks and skips background preload', () async {
+      final delayedDriver = _DelayedDriver(delay: const Duration(milliseconds: 200));
+      final pool = EagerAdPool(
+        driver: delayedDriver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        timeoutConfig: const AdTimeoutConfig(
+          splash: AdTimeoutPolicy(wifiTimeout: Duration(milliseconds: 30)),
+          fullscreen: AdTimeoutPolicy(wifiTimeout: Duration(milliseconds: 30)),
+          inline: AdTimeoutPolicy(wifiTimeout: Duration(milliseconds: 30)),
+        ),
+      );
+
+      const splashGate = InterstitialPlacement(
+        id: 'splash_timeout_gate',
+        androidId: '11',
+        iosId: '11',
+        isSplash: true,
+        loadOnce: true,
+      );
+
+      // Start preloading
+      pool.preload(splashGate);
+      expect(pool.isLoading(splashGate), true);
+
+      bool dismissed = false;
+      pool.show(splashGate, onDismissed: () => dismissed = true);
+
+      // Wait for splash settlement to time out (30ms timeout + buffer)
+      await Future.delayed(const Duration(milliseconds: 80));
+
+      expect(dismissed, true, reason: 'Timed out splash must continue user flow');
+      expect(pool.getState(splashGate), AdPlacementState.unloaded);
+
+      // Wait past the driver's delayed load
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      // Exactly 1 load call ran (the original in-flight one). No second ghost preload!
+      expect(delayedDriver.loadCalls, 1, reason: 'Timed out splash must not schedule a second preload');
+
+      pool.dispose();
+    });
+
+    test('Inline lease timeout on loadOnce stops background preload', () async {
+      final hangingDriver = _DelayedDriver(delay: const Duration(seconds: 5));
+      final pool = EagerAdPool(driver: hangingDriver, mutex: mutex, networkInfo: networkInfo);
+
+      const oneOffNative = NativePlacement(
+        id: 'onboarding_timeout_native',
+        androidId: '12',
+        iosId: '12',
+        loadOnce: true,
+      );
+
+      final leasedAd = await pool.leaseInlineAd(oneOffNative, timeout: const Duration(milliseconds: 20));
+
+      expect(leasedAd, isNull, reason: 'Lease must time out and return null');
+      expect(pool.getState(oneOffNative), AdPlacementState.unloaded);
+      expect(pool.isConsumed(oneOffNative), true);
+
+      // Future waitFor should immediately return false
+      final waitResult = await pool.waitFor(oneOffNative);
+      expect(waitResult, false, reason: 'Consumed placement must immediately resolve false on waitFor');
+
+      pool.dispose();
+    });
+
+    test('Stale eviction of loadOnce ad does NOT trigger auto-refill', () async {
+      final pool = EagerAdPool(
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        adTtl: const Duration(milliseconds: 10),
+      );
+
+      const oneOff = InterstitialPlacement(id: 'stale_one_off', androidId: '13', iosId: '13', loadOnce: true);
+
+      await pool.preload(oneOff);
+      expect(driver.loadCalls, 1);
+      expect(pool.isReady(oneOff), true);
+
+      // Wait for TTL to expire
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      // Calling isReady evicts stale ad
+      final ready = pool.isReady(oneOff);
+      expect(ready, false);
+      expect(pool.getState(oneOff), AdPlacementState.unloaded, reason: 'Stale eviction sets state to unloaded');
+
+      await Future.delayed(const Duration(milliseconds: 20));
+      // driver.loadCalls must still be 1 (NO auto-refill for loadOnce!)
+      expect(driver.loadCalls, 1, reason: 'Stale eviction of loadOnce placement must not trigger refill');
+
+      pool.dispose();
+    });
+
+    test('waitFor auto-preloads unloaded placement and resolves to ready', () async {
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+
+      const unprimed = InterstitialPlacement(id: 'unprimed_placement', androidId: '14', iosId: '14');
+
+      // Placement was never primed. waitFor should trigger preload automatically:
+      final ready = await pool.waitFor(unprimed);
+
+      expect(ready, true, reason: 'waitFor on unprimed placement must auto-preload and settle ready');
+      expect(driver.loadCalls, 1);
+
+      pool.dispose();
+    });
+
+    test(
+      'loadOnce fullscreen ad is marked consumed immediately upon show, rejecting subsequent preloads while displaying',
+      () async {
+        final manualDriver = _ManualDismissDriver();
+        final pool = EagerAdPool(driver: manualDriver, mutex: mutex, networkInfo: networkInfo);
+
+        const oneOff = InterstitialPlacement(
+          id: 'immediate_consumed_interstitial',
+          androidId: '15',
+          iosId: '15',
+          loadOnce: true,
+        );
+
+        await pool.preload(oneOff);
+        expect(manualDriver.loadCalls, 1);
+        expect(pool.isReady(oneOff), true);
+        expect(pool.isConsumed(oneOff), false);
+
+        // Trigger show - ad enters active display without dismissing yet
+        pool.show(oneOff);
+        expect(manualDriver.showCalls, 1);
+        expect(manualDriver.pendingDismiss, isNotNull);
+
+        // Verify immediate consumption while actively showing on screen:
+        expect(pool.isConsumed(oneOff), true, reason: 'Placement must be marked consumed immediately on display');
+        expect(pool.getState(oneOff), AdPlacementState.unloaded);
+
+        // Preload attempt while displaying must be rejected:
+        await pool.preload(oneOff);
+        expect(manualDriver.loadCalls, 1, reason: 'Subsequent preload must be rejected while ad is displaying');
+
+        // Dismiss the ad
+        manualDriver.pendingDismiss?.call();
+        await Future.delayed(const Duration(milliseconds: 20));
+
+        expect(manualDriver.loadCalls, 1, reason: 'Dismissal must not trigger reload for loadOnce');
+        expect(pool.isConsumed(oneOff), true);
+
+        pool.dispose();
+      },
+    );
+
+    test('Stale eviction of recurring ad refuels buffer without getting stuck in unloaded state', () async {
+      final pool = EagerAdPool(
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        adTtl: const Duration(milliseconds: 50),
+      );
+
+      const recurring = InterstitialPlacement(id: 'stale_recurring', androidId: '16', iosId: '16');
+
+      await pool.preload(recurring);
+      expect(driver.loadCalls, 1);
+      expect(pool.isReady(recurring), true);
+
+      // Wait for TTL to expire (60ms > 50ms)
+      await Future.delayed(const Duration(milliseconds: 60));
+
+      // Calling isReady evicts stale ad and triggers preload refuel:
+      final ready = pool.isReady(recurring);
+      expect(ready, false);
+
+      // State must be loading (or ready after settlement), NOT stuck in unloaded!
+      expect(
+        pool.isLoading(recurring) || pool.isReady(recurring),
+        true,
+        reason: 'Placement must not get falsely stuck in unloaded state during refuel',
+      );
+
+      // Wait for refuel task to complete (10ms < 50ms TTL)
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(driver.loadCalls, 2);
+      expect(pool.isReady(recurring), true);
+
+      pool.dispose();
+    });
+
+    test('loadOnce fullscreen ad becomes unloaded without background refill', () async {
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+
+      const oneOff = InterstitialPlacement(
+        id: 'clean_transition_one_off',
+        androidId: '17',
+        iosId: '17',
+        loadOnce: true,
+      );
+
+      await pool.preload(oneOff);
+      expect(pool.isReady(oneOff), true);
+
+      final stateEvents = <AdPlacementState>[];
+      final sub = pool.watchState(oneOff).listen(stateEvents.add);
+
+      pool.show(oneOff, onDismissed: () {});
+      await Future.delayed(const Duration(milliseconds: 20));
+
+      expect(stateEvents, [AdPlacementState.unloaded]);
+      expect(driver.loadCalls, 1);
+
+      await sub.cancel();
       pool.dispose();
     });
   });

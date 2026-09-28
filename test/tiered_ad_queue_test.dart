@@ -231,8 +231,8 @@ void main() {
         isSplash: true,
       );
 
-      queue.enqueue(splashFullscreen);
-      queue.enqueue(splashInline);
+      final fullscreen = queue.enqueue(splashFullscreen);
+      final inline = queue.enqueue(splashInline);
 
       await Future.delayed(const Duration(milliseconds: 10));
 
@@ -241,6 +241,7 @@ void main() {
 
       completerMap['splash_inline']!.complete();
       completerMap['splash_fullscreen']!.complete();
+      await Future.wait([fullscreen, inline]);
       queue.dispose();
     });
 
@@ -326,12 +327,12 @@ void main() {
       const lowPlacement = BannerPlacement(id: 'low_task', androidId: '1', iosId: '1', priority: AdPriority.low);
       const mediumPlacement = BannerPlacement(id: 'med_task', androidId: '2', iosId: '2', priority: AdPriority.medium);
 
-      queue.enqueue(activeTask);
+      final active = queue.enqueue(activeTask);
       // Wait for active task to be in-flight
       await Future.delayed(const Duration(milliseconds: 10));
 
-      queue.enqueue(lowPlacement);
-      queue.enqueue(mediumPlacement);
+      final low = queue.enqueue(lowPlacement);
+      final medium = queue.enqueue(mediumPlacement);
 
       // In normal order, med_task (medium) would run before low_task (low).
       // Now promote low_task to immediate:
@@ -349,9 +350,88 @@ void main() {
 
       expect(executedIds, ['active_task', 'low_task', 'med_task']);
       completers['med_task']!.complete();
+      await Future.wait([active, low, medium]);
+
+      queue.dispose();
+    });
+
+    test('TieredAdQueue.cancel purges queued tasks and active retry timers', () async {
+      final executedIds = <String>[];
+      final completers = <String, Completer<void>>{};
+
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          executedIds.add(placement.id);
+          final c = Completer<void>();
+          completers[placement.id] = c;
+          await c.future;
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+      );
+
+      const activeTask = BannerPlacement(id: 'active', androidId: '0', iosId: '0');
+      const cancelTask1 = BannerPlacement(id: 'to_cancel', androidId: '1', iosId: '1', priority: AdPriority.low);
+      const cancelTask2 = BannerPlacement(id: 'to_cancel', androidId: '1', iosId: '1', priority: AdPriority.medium);
+      const survivor = BannerPlacement(id: 'survivor', androidId: '2', iosId: '2', priority: AdPriority.low);
+
+      queue.enqueue(activeTask);
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      queue.enqueue(cancelTask1).catchError((_) {});
+      queue.enqueue(cancelTask2).catchError((_) {});
+      final survivingLoad = queue.enqueue(survivor);
+
+      expect(queue.pendingTaskCount('to_cancel'), 2);
+
+      // Cancel to_cancel placement
+      queue.cancel('to_cancel');
+      expect(queue.pendingTaskCount('to_cancel'), 0);
+
+      // Complete active task
+      completers['active']!.complete();
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      // Only survivor should execute, to_cancel was purged from buckets
+      expect(executedIds, ['active', 'survivor']);
+      completers['survivor']!.complete();
+      await survivingLoad;
+
+      queue.dispose();
+    });
+
+    test('TieredAdQueue.cancel marks in-flight tasks and discards completed result with error', () async {
+      final completer = Completer<void>();
+      final queue = TieredAdQueue(
+        executor: (placement) async {
+          await completer.future;
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+      );
+
+      const placement = BannerPlacement(id: 'inflight_cancel', androidId: '1', iosId: '1');
+      bool caughtError = false;
+      final future = queue.enqueue(placement).catchError((e) {
+        caughtError = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(queue.isLoading('inflight_cancel'), true);
+
+      // Cancel while in-flight
+      queue.cancel('inflight_cancel');
+
+      // Now complete executor
+      completer.complete();
+      await future;
+
+      expect(caughtError, true, reason: 'Cancelled task future must reject with error');
+      expect(queue.getState('inflight_cancel'), AdPlacementState.unloaded);
 
       queue.dispose();
     });
   });
 }
-

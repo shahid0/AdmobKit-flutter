@@ -9,7 +9,20 @@ import '../../domain/models/ad_priority.dart';
 import '../../domain/models/ad_timeout_config.dart';
 import '../../domain/models/diagnostic_report.dart';
 import '../logging/platform_ad_logger.dart';
+import 'ad_cache_entry.dart';
 import 'retry_scheduler.dart';
+
+/// Exception thrown when an in-flight or queued ad task is cancelled.
+class AdTaskCancelledException implements Exception {
+  /// The placement identifier associated with the cancelled task.
+  final String placementId;
+
+  /// Creates an [AdTaskCancelledException] for [placementId].
+  const AdTaskCancelledException(this.placementId);
+
+  @override
+  String toString() => 'AdTaskCancelledException: Task for placement "$placementId" was cancelled.';
+}
 
 /// A load task representing an ad placement awaiting download.
 class AdLoadTask {
@@ -19,6 +32,7 @@ class AdLoadTask {
   final int retryAttempt;
   final Completer<dynamic> completer;
   final DateTime createdAt;
+  bool isCancelled;
 
   AdLoadTask({
     String? key,
@@ -27,15 +41,12 @@ class AdLoadTask {
     this.retryAttempt = 0,
     Completer<dynamic>? completer,
     DateTime? createdAt,
-  })  : key = key ?? placement.id,
-        completer = completer ?? Completer<dynamic>(),
-        createdAt = createdAt ?? DateTime.now();
+    this.isCancelled = false,
+  }) : key = key ?? placement.id,
+       completer = completer ?? Completer<dynamic>(),
+       createdAt = createdAt ?? DateTime.now();
 
-  AdLoadTask copyWith({
-    String? key,
-    int? retryAttempt,
-    AdPriority? priority,
-  }) {
+  AdLoadTask copyWith({String? key, int? retryAttempt, AdPriority? priority, bool? isCancelled}) {
     return AdLoadTask(
       key: key ?? this.key,
       placement: placement,
@@ -43,6 +54,7 @@ class AdLoadTask {
       retryAttempt: retryAttempt ?? this.retryAttempt,
       completer: completer,
       createdAt: createdAt,
+      isCancelled: isCancelled ?? this.isCancelled,
     );
   }
 }
@@ -69,7 +81,7 @@ class TieredAdQueue {
   final StreamController<({String placementId, AdPlacementState state})> _stateController =
       StreamController<({String placementId, AdPlacementState state})>.broadcast();
 
-  final Map<String, Timer> _activeRetryTimers = {};
+  final Map<String, ({Timer timer, AdLoadTask task})> _retries = {};
 
   /// Concurrency limit during initial app startup / initial placement preloading (defaults to 1).
   final int initialConcurrency;
@@ -97,6 +109,7 @@ class TieredAdQueue {
   int _consecutiveCellularTimeouts = 0;
 
   bool _isPaused = false;
+  bool _closed = false;
   StreamSubscription<AdNetworkType>? _networkSub;
 
   TieredAdQueue({
@@ -108,12 +121,12 @@ class TieredAdQueue {
     AdDiagnosticsTracker? diagnostics,
     this.initialConcurrency = 1,
     this.subsequentConcurrency = 1,
-  })  : _executor = executor,
-        _networkInfo = networkInfo,
-        _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
-        _retryScheduler = retryScheduler ?? RetryScheduler(),
-        _logger = logger,
-        _diagnostics = diagnostics {
+  }) : _executor = executor,
+       _networkInfo = networkInfo,
+       _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
+       _retryScheduler = retryScheduler ?? RetryScheduler(),
+       _logger = logger,
+       _diagnostics = diagnostics {
     _listenToNetworkChanges();
   }
 
@@ -140,21 +153,25 @@ class TieredAdQueue {
   /// - For [InlinePlacement]: Ensures distinct calls receive separate tasks
   ///   (slot-suffixed keys, never deduplicated).
   Future<dynamic> enqueue(AdPlacement placement, {AdPriority? overridePriority}) {
+    if (_closed) {
+      return Future<dynamic>.error(AdTaskCancelledException(placement.id));
+    }
     final priority = overridePriority ?? placement.priority;
 
-    final effectiveKey = placement is InlinePlacement
-        ? '${placement.id}#slot_${++_inlineSlotSequence}'
-        : placement.id;
+    final effectiveKey = placement is InlinePlacement ? '${placement.id}#slot_${++_inlineSlotSequence}' : placement.id;
 
     // Inline slot keys are unique per call, so the dedup scan can never match
     // them — skip it to keep the common preload path O(1).
     if (placement is! InlinePlacement) {
       for (final task in _inFlightTasks) {
-        if (task.key == effectiveKey) {
+        if (task.key == effectiveKey && !task.isCancelled) {
           _logger?.debug('[Queue] Task "$effectiveKey" is already in-flight.');
           return task.completer.future;
         }
       }
+
+      final retry = _retries[effectiveKey];
+      if (retry != null) return retry.task.completer.future;
 
       for (final queue in _buckets.values) {
         for (final existing in queue) {
@@ -166,15 +183,13 @@ class TieredAdQueue {
       }
     }
 
-    final task = AdLoadTask(
-      key: effectiveKey,
-      placement: placement,
-      priority: priority,
-    );
+    final task = AdLoadTask(key: effectiveKey, placement: placement, priority: priority);
 
     _buckets[priority]!.addLast(task);
     _updateState(placement.id, AdPlacementState.loading);
-    _logger?.info('[Queue] Enqueued "$effectiveKey" (${placement.id}) in [${priority.name}] tier. Total pending: $totalPending');
+    _logger?.info(
+      '[Queue] Enqueued "$effectiveKey" (${placement.id}) in [${priority.name}] tier. Total pending: $totalPending',
+    );
 
     _scheduleDispatch();
     return task.completer.future;
@@ -221,14 +236,9 @@ class TieredAdQueue {
   /// Number of tasks for [placementId] that are queued, in-flight, or waiting
   /// on a retry timer — i.e. everything that will eventually yield an ad.
   int pendingTaskCount(String placementId) {
-    final queued = _buckets.values.fold<int>(
-      0,
-      (sum, q) => sum + q.where((t) => t.placement.id == placementId).length,
-    );
-    final inFlight = _inFlightTasks.where((t) => t.placement.id == placementId).length;
-    final retrying = _activeRetryTimers.keys
-        .where((k) => k == placementId || k.startsWith('$placementId#'))
-        .length;
+    final queued = _buckets.values.fold<int>(0, (sum, q) => sum + q.where((t) => t.placement.id == placementId).length);
+    final inFlight = _inFlightTasks.where((t) => t.placement.id == placementId && !t.isCancelled).length;
+    final retrying = _retries.values.where((retry) => retry.task.placement.id == placementId).length;
     return queued + inFlight + retrying;
   }
 
@@ -291,14 +301,12 @@ class TieredAdQueue {
 
   /// Observes state transitions for [placementId].
   Stream<AdPlacementState> watchState(String placementId) {
-    return _stateController.stream
-        .where((e) => e.placementId == placementId)
-        .map((e) => e.state);
+    return _stateController.stream.where((e) => e.placementId == placementId).map((e) => e.state);
   }
 
   /// Called when an ad is evicted or consumed from cache.
   void notifyEvicted(String placementId) {
-    _updateState(placementId, AdPlacementState.unloaded);
+    _updateState(placementId, pendingTaskCount(placementId) > 0 ? AdPlacementState.loading : AdPlacementState.unloaded);
   }
 
   /// Called when an ad is confirmed ready in cache.
@@ -306,9 +314,64 @@ class TieredAdQueue {
     _updateState(placementId, AdPlacementState.ready);
   }
 
+  /// Cancels all pending queued and retrying load tasks for [placementId],
+  /// and marks in-flight tasks as cancelled so their loaded assets are immediately discarded.
+  void cancel(String placementId) {
+    final retryKeys = _retries.entries
+        .where((entry) => entry.value.task.placement.id == placementId)
+        .map((entry) => entry.key)
+        .toList();
+    for (final key in retryKeys) {
+      final retry = _retries.remove(key)!;
+      retry.timer.cancel();
+      _cancelTask(retry.task);
+    }
+
+    for (final queue in _buckets.values) {
+      queue.removeWhere((task) {
+        if (task.placement.id == placementId) {
+          _cancelTask(task);
+          return true;
+        }
+        return false;
+      });
+    }
+
+    for (final task in _inFlightTasks) {
+      if (task.placement.id == placementId) {
+        _cancelTask(task);
+      }
+    }
+
+    _updateState(placementId, AdPlacementState.unloaded);
+    _cleanupInitialBatch(placementId);
+    _logger?.info('[Queue] 🛑 Cancelled pending and retrying tasks for "$placementId".');
+  }
+
+  void _cancelTask(AdLoadTask task) {
+    task.isCancelled = true;
+    if (!task.completer.isCompleted) {
+      task.completer.completeError(AdTaskCancelledException(task.placement.id));
+    }
+  }
+
+  bool _handleCancelledInFlightTask(AdLoadTask task, [dynamic adInstance]) {
+    if (!task.isCancelled) return false;
+    _inFlightTasks.remove(task);
+    if (adInstance != null) {
+      AdCacheEntry.disposeAdInstance(adInstance);
+    }
+    if (!task.completer.isCompleted) {
+      task.completer.completeError(AdTaskCancelledException(task.placement.id));
+    }
+    _cleanupInitialBatch(task.placement.id);
+    _dispatchNext();
+    return true;
+  }
+
   /// Dispatches pending tasks up to the concurrency limit.
   void _dispatchNext() {
-    if (_isPaused) return;
+    if (_isPaused || _closed) return;
 
     while (_inFlightTasks.length < activeConcurrency) {
       final task = _pollNextTask();
@@ -320,39 +383,55 @@ class TieredAdQueue {
   Future<void> _runTask(AdLoadTask task) async {
     _inFlightTasks.add(task);
     final placement = task.placement;
-    final network = await _networkInfo.getNetworkType();
-    final timeout = _timeoutConfig.resolve(
-      format: placement.format,
-      network: network,
-      isSplash: placement.isSplash,
-    );
-
-    _logger?.info(
-      '[Queue] 🚀 Dispatching "${placement.id}" (Tier: ${task.priority.name}, '
-      'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: ${_inFlightTasks.length}/$activeConcurrency)',
-    );
-
-    _diagnostics?.onDiagnosticReport(
-      AdDiagnosticReport(
-        placementId: placement.id,
-        format: placement.format,
-        eventType: AdDiagnosticEventType.requested,
-        retryAttempt: task.retryAttempt,
-        elapsed: Duration.zero,
-        networkType: network.name,
-      ),
-    );
-
+    var network = AdNetworkType.unknown;
+    var timeout = Duration.zero;
     final stopwatch = Stopwatch()..start();
 
     try {
-      final adInstance = await _executor(placement).timeout(timeout);
+      network = await _networkInfo.getNetworkType();
+      if (_handleCancelledInFlightTask(task)) return;
+      timeout = _timeoutConfig.resolve(format: placement.format, network: network, isSplash: placement.isSplash);
+
+      _logger?.info(
+        '[Queue] 🚀 Dispatching "${placement.id}" (Tier: ${task.priority.name}, '
+        'Net: ${network.name}, Timeout: ${timeout.inSeconds}s, In-Flight: ${_inFlightTasks.length}/$activeConcurrency)',
+      );
+
+      _diagnostics?.onDiagnosticReport(
+        AdDiagnosticReport(
+          placementId: placement.id,
+          format: placement.format,
+          eventType: AdDiagnosticEventType.requested,
+          retryAttempt: task.retryAttempt,
+          elapsed: Duration.zero,
+          networkType: network.name,
+        ),
+      );
+
+      // Future.timeout does not cancel the SDK request. Retain ownership of
+      // any late result so it cannot escape cleanup after the watchdog fires.
+      var expired = false;
+      final adInstance = await _executor(placement)
+          .then((ad) {
+            if (expired) AdCacheEntry.disposeAdInstance(ad);
+            return ad;
+          })
+          .timeout(
+            timeout,
+            onTimeout: () {
+              expired = true;
+              throw TimeoutException('Ad load timed out', timeout);
+            },
+          );
       stopwatch.stop();
 
+      if (_handleCancelledInFlightTask(task, adInstance)) {
+        _logger?.info('[Queue] Task "${task.key}" for "${placement.id}" was cancelled. Discarding loaded ad instance.');
+        return;
+      }
+
       _consecutiveCellularTimeouts = 0;
-      _logger?.info(
-        '[Queue] ✅ Loaded "${placement.id}" in ${stopwatch.elapsedMilliseconds}ms.',
-      );
+      _logger?.info('[Queue] ✅ Loaded "${placement.id}" in ${stopwatch.elapsedMilliseconds}ms.');
 
       _diagnostics?.onDiagnosticReport(
         AdDiagnosticReport(
@@ -371,6 +450,9 @@ class TieredAdQueue {
       }
     } on TimeoutException {
       stopwatch.stop();
+
+      if (_handleCancelledInFlightTask(task)) return;
+
       _logger?.warning(
         '[Timeout] ⏱️ Placement "${placement.id}" timed out after ${timeout.inSeconds}s on ${network.name}.',
       );
@@ -411,6 +493,12 @@ class TieredAdQueue {
       _handleFailure(task, isTimeout: true);
     } catch (error) {
       stopwatch.stop();
+
+      if (error is AdTaskCancelledException) {
+        cancel(placement.id);
+      }
+      if (_handleCancelledInFlightTask(task)) return;
+
       int? errorCode;
       String? errorMessage;
 
@@ -419,9 +507,7 @@ class TieredAdQueue {
         errorMessage = error.message;
       }
 
-      _logger?.warning(
-        '[Queue] ❌ Failed to load "${placement.id}": [$errorCode] ${errorMessage ?? error}',
-      );
+      _logger?.warning('[Queue] ❌ Failed to load "${placement.id}": [$errorCode] ${errorMessage ?? error}');
 
       _diagnostics?.onDiagnosticReport(
         AdDiagnosticReport(
@@ -440,8 +526,13 @@ class TieredAdQueue {
       _handleFailure(task, errorCode: errorCode, error: error);
     }
 
+    _cleanupInitialBatch(placement.id);
+    _dispatchNext();
+  }
+
+  void _cleanupInitialBatch(String placementId) {
     if (_isInitialBatchActive) {
-      _pendingInitialPlacementIds.remove(placement.id);
+      _pendingInitialPlacementIds.remove(placementId);
       if (_pendingInitialPlacementIds.isEmpty) {
         _isInitialBatchActive = false;
         _logger?.info(
@@ -449,16 +540,9 @@ class TieredAdQueue {
         );
       }
     }
-
-    _dispatchNext();
   }
 
-  void _handleFailure(
-    AdLoadTask task, {
-    int? errorCode,
-    bool isTimeout = false,
-    Object? error,
-  }) {
+  void _handleFailure(AdLoadTask task, {int? errorCode, bool isTimeout = false, Object? error}) {
     final placement = task.placement;
     _updateState(placement.id, AdPlacementState.error);
 
@@ -489,13 +573,15 @@ class TieredAdQueue {
       );
 
       final retryKey = task.key;
-      _activeRetryTimers[retryKey]?.cancel();
-      _activeRetryTimers[retryKey] = Timer(delay, () {
-        _activeRetryTimers.remove(retryKey);
-        final retriedTask = task.copyWith(retryAttempt: nextAttempt);
-        _buckets[task.priority]!.addFirst(retriedTask);
+      final retriedTask = task.copyWith(retryAttempt: nextAttempt);
+      final timer = Timer(delay, () {
+        _retries.remove(retryKey);
+        if (_closed || retriedTask.isCancelled) return;
+        _buckets[retriedTask.priority]!.addFirst(retriedTask);
+        _updateState(placement.id, AdPlacementState.loading);
         _dispatchNext();
       });
+      _retries[retryKey] = (timer: timer, task: retriedTask);
     } else {
       _logger?.warning(
         '[CircuitBreaker] 🛑 Retry limit reached or fatal error for "${placement.id}". Aborting retries.',
@@ -520,15 +606,17 @@ class TieredAdQueue {
 
   /// Cancels all pending timers and subscriptions.
   void dispose() {
+    if (_closed) return;
+    _closed = true;
+    final placementIds = {
+      ..._inFlightTasks.map((task) => task.placement.id),
+      ..._buckets.values.expand((tasks) => tasks).map((task) => task.placement.id),
+      ..._retries.values.map((retry) => retry.task.placement.id),
+    };
+    for (final id in placementIds) {
+      cancel(id);
+    }
     _stateController.close();
     _networkSub?.cancel();
-    for (final timer in _activeRetryTimers.values) {
-      timer.cancel();
-    }
-    _activeRetryTimers.clear();
-    for (final bucket in _buckets.values) {
-      bucket.clear();
-    }
-    _inFlightTasks.clear();
   }
 }

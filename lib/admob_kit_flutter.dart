@@ -15,6 +15,7 @@ export 'src/domain/models/admob_test_ids.dart';
 export 'src/domain/models/ad_timeout_config.dart';
 export 'src/domain/models/diagnostic_report.dart';
 export 'src/domain/models/ad_placement_state.dart';
+export 'src/domain/models/ad_initialization_state.dart';
 
 export 'src/domain/contracts/ad_analytics_tracker.dart';
 export 'src/domain/contracts/ad_diagnostics_tracker.dart';

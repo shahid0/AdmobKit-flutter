@@ -12,18 +12,15 @@ class GoogleMobileAdsDriver {
   final PlatformAdLogger? _logger;
   final AdAnalyticsTracker? _analytics;
 
-  GoogleMobileAdsDriver({
-    PlatformAdLogger? logger,
-    AdAnalyticsTracker? analytics,
-  })  : _logger = logger,
-        _analytics = analytics;
+  GoogleMobileAdsDriver({PlatformAdLogger? logger, AdAnalyticsTracker? analytics})
+    : _logger = logger,
+      _analytics = analytics;
 
   /// Initializes the GMA SDK with optional test device IDs.
   Future<InitializationStatus> initialize({List<String>? testDeviceIds}) async {
     _logger?.info('[GMA] Initializing Google Mobile Ads SDK...');
-    final isMobile = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
+    final isMobile =
+        !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
 
     if (!isMobile) {
       _logger?.debug('[GMA] Non-mobile or test platform detected. Bypassing native GMA init.');
@@ -35,17 +32,9 @@ class GoogleMobileAdsDriver {
       await MobileAds.instance.updateRequestConfiguration(configuration);
       _logger?.debug('[GMA] Configured test devices: $testDeviceIds');
     }
-    try {
-      final status = await MobileAds.instance.initialize().timeout(
-        const Duration(seconds: 8),
-        onTimeout: () => InitializationStatus(const {}),
-      );
-      _logger?.info('[GMA] Google Mobile Ads SDK initialized.');
-      return status;
-    } catch (e) {
-      _logger?.warning('[GMA] MobileAds initialization fallback: $e');
-      return InitializationStatus(const {});
-    }
+    final status = await MobileAds.instance.initialize();
+    _logger?.info('[GMA] Google Mobile Ads SDK initialized.');
+    return status;
   }
 
   /// Loads an ad for the specified [placement].
@@ -178,11 +167,7 @@ class GoogleMobileAdsDriver {
     void handlePaidEvent(dynamic ad, double valueMicros, PrecisionType precision, String currencyCode) {
       _analytics?.onPaidEvent(
         placement,
-        AdRevenueValue(
-          micros: valueMicros.toInt(),
-          currencyCode: currencyCode,
-          precision: _mapPrecision(precision),
-        ),
+        AdRevenueValue(micros: valueMicros.toInt(), currencyCode: currencyCode, precision: _mapPrecision(precision)),
       );
     }
 

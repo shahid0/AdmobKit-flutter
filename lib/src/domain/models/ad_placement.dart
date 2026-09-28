@@ -21,7 +21,8 @@ sealed class AdPlacement {
   /// The initial priority tier for queue dispatching.
   final AdPriority priority;
 
-  /// Whether this ad is only loaded once and never replenished post-dismissal.
+  /// Disables background replenishment after consumption. Remaining buffered
+  /// ads stay usable, and later inline widget mounts can request fresh ads.
   final bool loadOnce;
 
   /// Whether this placement is part of the splash screen loading sequence.

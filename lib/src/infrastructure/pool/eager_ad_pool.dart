@@ -28,6 +28,7 @@ class EagerAdPool {
   final AdAnalyticsTracker? _analytics;
   final AdDiagnosticsTracker? _diagnostics;
   final bool Function()? _isPremium;
+  final bool Function()? _canRequestAds;
   final Duration _adTtl;
 
   final Map<String, ListQueue<AdCacheEntry>> _cache = {};
@@ -51,29 +52,36 @@ class EagerAdPool {
     AdAnalyticsTracker? analytics,
     AdDiagnosticsTracker? diagnostics,
     bool Function()? isPremium,
+    bool Function()? canRequestAds,
     Duration adTtl = const Duration(minutes: 50),
     int initialConcurrency = 1,
     int subsequentConcurrency = 1,
     Map<String, int>? placementCapacities,
-  })  : _driver = driver,
-        _mutex = mutex,
-        _networkInfo = networkInfo,
-        _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
-        _logger = logger,
-        _analytics = analytics,
-        _diagnostics = diagnostics,
-        _isPremium = isPremium,
-        _adTtl = adTtl,
-        _queue = TieredAdQueue(
-          executor: (placement) => driver.loadAd(placement),
-          networkInfo: networkInfo,
-          timeoutConfig: timeoutConfig ?? AdTimeoutConfig.standard,
-          retryScheduler: retryScheduler,
-          logger: logger,
-          diagnostics: diagnostics,
-          initialConcurrency: initialConcurrency,
-          subsequentConcurrency: subsequentConcurrency,
-        ) {
+  }) : _driver = driver,
+       _mutex = mutex,
+       _networkInfo = networkInfo,
+       _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
+       _logger = logger,
+       _analytics = analytics,
+       _diagnostics = diagnostics,
+       _isPremium = isPremium,
+       _canRequestAds = canRequestAds,
+       _adTtl = adTtl,
+       _queue = TieredAdQueue(
+         executor: (placement) {
+           if (!(canRequestAds?.call() ?? true) || (isPremium?.call() ?? false)) {
+             throw AdTaskCancelledException(placement.id);
+           }
+           return driver.loadAd(placement);
+         },
+         networkInfo: networkInfo,
+         timeoutConfig: timeoutConfig ?? AdTimeoutConfig.standard,
+         retryScheduler: retryScheduler,
+         logger: logger,
+         diagnostics: diagnostics,
+         initialConcurrency: initialConcurrency,
+         subsequentConcurrency: subsequentConcurrency,
+       ) {
     if (placementCapacities != null) {
       _placementCapacities.addAll(placementCapacities);
     }
@@ -92,21 +100,41 @@ class EagerAdPool {
   /// Returns true if user is currently entitled to an ad-free experience.
   bool get isUserPremium => _isPremium?.call() ?? false;
 
+  bool get _adsAllowed => !_closed && !isUserPremium && (_canRequestAds?.call() ?? true);
+
+  /// Whether background preloading has stopped for this loadOnce placement.
+  /// This does not prevent serving buffered ads or new inline widget demand.
+  bool isConsumed(AdPlacement placement) {
+    return placement.loadOnce && _consumedLoadOnceIds.contains(placement.id);
+  }
+
+  /// Marks [placement] as consumed if configured with `loadOnce: true`.
+  ///
+  /// Stops background preloading without invalidating other available ads.
+  void _markConsumed(AdPlacement placement) {
+    if (!placement.loadOnce) return;
+    _consumedLoadOnceIds.add(placement.id);
+    if (_cache[placement.id]?.isNotEmpty ?? false) {
+      _queue.notifyReady(placement.id);
+    } else {
+      _queue.notifyEvicted(placement.id);
+    }
+  }
+
   /// Returns the underlying presentation mutex.
   PresentationMutex get mutex => _mutex;
 
   /// Primes a list of placements at app startup according to their priority tiers.
   void primeAll(Iterable<AdPlacement> placements) {
-    if (isUserPremium) {
-      _logger?.info('[Pool] User is premium. Skipping initial ad preloading.');
+    if (!_adsAllowed) {
+      _logger?.info('[Pool] Ads unavailable. Skipping initial ad preloading.');
       return;
     }
 
     _queue.markInitialBatch(placements.map((p) => p.id));
 
     _logger?.info('[Pool] 🚀 Priming startup queue with ${placements.length} placement(s)...');
-    final sorted = List<AdPlacement>.from(placements)
-      ..sort((a, b) => a.priority.rank.compareTo(b.priority.rank));
+    final sorted = List<AdPlacement>.from(placements)..sort((a, b) => a.priority.rank.compareTo(b.priority.rank));
 
     for (final placement in sorted) {
       final capacity = getCapacity(placement.id);
@@ -117,10 +145,12 @@ class EagerAdPool {
   }
 
   /// Triggers a background preload for [placement].
-  Future<void> preload(AdPlacement placement) async {
-    if (isUserPremium || _closed) return;
+  Future<void> preload(AdPlacement placement) => _load(placement);
 
-    if (placement.loadOnce && _consumedLoadOnceIds.contains(placement.id)) {
+  Future<void> _load(AdPlacement placement, {bool forInlineDemand = false}) async {
+    if (!_adsAllowed) return;
+
+    if (isConsumed(placement) && !forInlineDemand) {
       _logger?.info('[Pool] Placement "${placement.id}" is loadOnce: true and already consumed. Preload skipped.');
       return;
     }
@@ -140,10 +170,13 @@ class EagerAdPool {
     final pending = _queue.pendingTaskCount(placement.id);
     final openLeases = _leaseWaiters[placement.id]?.length ?? 0;
     final targetCapacity = getCapacity(placement.id);
-    if (buffered + pending >= targetCapacity + openLeases) {
+    final effectiveCapacity = placement.loadOnce
+        ? (forInlineDemand && openLeases > targetCapacity ? openLeases : targetCapacity)
+        : targetCapacity + openLeases;
+    if (buffered + pending >= effectiveCapacity) {
       _logger?.debug(
         '[Pool] Placement "${placement.id}" saturated '
-        '(buffered:$buffered pending:$pending leases:$openLeases target:$targetCapacity).',
+        '(buffered:$buffered pending:$pending leases:$openLeases target:$effectiveCapacity).',
       );
       return;
     }
@@ -152,6 +185,11 @@ class EagerAdPool {
 
     try {
       final adInstance = await _queue.enqueue(placement);
+      if (!_adsAllowed) {
+        AdCacheEntry.disposeAdInstance(adInstance);
+        _queue.notifyEvicted(placement.id);
+        throw AdTaskCancelledException(placement.id);
+      }
 
       // Demand-based delivery: serve the oldest registered lease first so a
       // concurrent widget receives its own instance without a re-lease race.
@@ -160,8 +198,11 @@ class EagerAdPool {
         final waiter = waiters.removeFirst();
         if (waiters.isEmpty) _leaseWaiters.remove(placement.id);
         if (!waiter.isCompleted) waiter.complete(adInstance);
-        if (placement.loadOnce) _consumedLoadOnceIds.add(placement.id);
-        _queue.notifyEvicted(placement.id);
+        if (placement.loadOnce) {
+          _markConsumed(placement);
+        } else {
+          _queue.notifyEvicted(placement.id);
+        }
         _logger?.info('[Pool] Delivered ad for "${placement.id}" directly to a waiting lease.');
 
         // Buffer replenishment: after direct delivery, keep the warm buffer
@@ -171,13 +212,11 @@ class EagerAdPool {
           _scheduleReplenish(placement);
         }
       } else {
-        queue.addLast(AdCacheEntry(
-          placement: placement,
-          adInstance: adInstance,
-          ttl: _adTtl,
-        ));
+        queue.addLast(AdCacheEntry(placement: placement, adInstance: adInstance, ttl: _adTtl));
         _queue.notifyReady(placement.id);
-        _logger?.info('[Pool] Buffer filled for "${placement.id}" (${queue.length}/$targetCapacity). Ready for instant display.');
+        _logger?.info(
+          '[Pool] Buffer filled for "${placement.id}" (${queue.length}/$targetCapacity). Ready for instant display.',
+        );
       }
     } catch (error) {
       // Failure logging and retries are managed within TieredAdQueue. However,
@@ -196,21 +235,29 @@ class EagerAdPool {
 
   /// Checks whether an ad is primed and ready in memory.
   bool isReady(AdPlacement placement) {
-    if (isUserPremium) return false;
+    if (!_adsAllowed) return false;
 
     final queue = _cache[placement.id];
     if (queue == null || queue.isEmpty) return false;
 
+    bool evictedAny = false;
     while (queue.isNotEmpty && queue.first.isStale) {
       final stale = queue.removeFirst();
       _logger?.info('[Pool] Ad for "${placement.id}" expired in memory. Evicting and refilling.');
       _evictEntry(stale, isStale: true);
-      preload(placement);
+      evictedAny = true;
     }
 
     if (queue.isEmpty) {
       _queue.notifyEvicted(placement.id);
+      if (!placement.loadOnce) {
+        preload(placement);
+      }
       return false;
+    }
+
+    if (evictedAny && !placement.loadOnce) {
+      preload(placement);
     }
 
     return true;
@@ -236,9 +283,17 @@ class EagerAdPool {
   ///
   /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
   Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) async {
-    if (isUserPremium) return false;
+    if (!_adsAllowed) return false;
     if (isReady(placement)) return true;
+    if (isConsumed(placement) && _queue.pendingTaskCount(placement.id) == 0) {
+      return false;
+    }
     if (getState(placement) == AdPlacementState.error) return false;
+
+    // If not currently loading or ready, ensure it is primed:
+    if (!isLoading(placement)) {
+      preload(placement);
+    }
 
     // ⚡ Dynamically promote priority so this placement preempts background tasks:
     _queue.promote(placement.id, AdPriority.immediate);
@@ -255,13 +310,28 @@ class EagerAdPool {
       );
     }
 
+    // Loading may settle during the network lookup. Inspect current state and
+    // subscribe without another await so a broadcast event cannot be missed.
+    if (!_adsAllowed) return false;
+    if (isReady(placement)) return true;
+    if (getState(placement) != AdPlacementState.loading) return false;
+
+    final settled = Completer<bool>();
+    final subscription = watchState(placement).listen(
+      (state) {
+        if (settled.isCompleted || state == AdPlacementState.loading) return;
+        settled.complete(state == AdPlacementState.ready && isReady(placement));
+      },
+      onDone: () {
+        if (!settled.isCompleted) settled.complete(false);
+      },
+    );
     try {
-      final terminalState = await watchState(placement)
-          .firstWhere((s) => s == AdPlacementState.ready || s == AdPlacementState.error)
-          .timeout(effectiveTimeout);
-      return terminalState == AdPlacementState.ready;
+      return await settled.future.timeout(effectiveTimeout, onTimeout: () => false);
     } catch (_) {
       return false;
+    } finally {
+      await subscription.cancel();
     }
   }
 
@@ -282,19 +352,19 @@ class EagerAdPool {
 
     if (entry == null) {
       _mutex.release(placement.id, wasDisplayed: false);
-      _logger?.warning(
-        '[Show] Splash placement "${placement.id}" failed or timed out. Continuing user flow.',
-      );
-      preload(placement);
+      _logger?.warning('[Show] Splash placement "${placement.id}" failed or timed out. Continuing user flow.');
+      _queue.cancel(placement.id);
+      _markConsumed(placement);
       onDismissed?.call();
       return;
     }
 
-    if (queue != null && queue.isEmpty) {
+    if (queue != null && queue.isEmpty && !placement.loadOnce) {
       _queue.notifyEvicted(placement.id);
     }
 
     _logger?.info('[Show] Splash placement "${placement.id}" ready after await. Presenting...');
+    _markConsumed(placement);
     _driver.showFullscreenAd(
       placement: placement,
       adInstance: entry.adInstance,
@@ -323,8 +393,14 @@ class EagerAdPool {
     void Function(num amount, String type)? onRewardGranted,
     VoidCallback? onDisplayed,
   }) {
-    if (isUserPremium) {
-      _logger?.info('[Show] User is premium. Bypassing ad display for "${placement.id}".');
+    if (!_adsAllowed) {
+      _logger?.info('[Show] Ads unavailable. Bypassing ad display for "${placement.id}".');
+      onDismissed?.call();
+      return;
+    }
+
+    if (isConsumed(placement) && (_cache[placement.id]?.isEmpty ?? true) && !isLoading(placement)) {
+      _logger?.info('[Show] Placement "${placement.id}" is consumed and unloaded. Skipping presentation.');
       onDismissed?.call();
       return;
     }
@@ -337,7 +413,7 @@ class EagerAdPool {
 
     final queue = _cache[placement.id];
     final cached = (queue != null && queue.isNotEmpty) ? queue.removeFirst() : null;
-    if (cached != null && queue != null && queue.isEmpty) {
+    if (cached != null && queue != null && queue.isEmpty && !placement.loadOnce) {
       _queue.notifyEvicted(placement.id);
     }
 
@@ -363,15 +439,20 @@ class EagerAdPool {
       }
 
       _mutex.release(placement.id, wasDisplayed: false);
-      _logger?.info(
-        '[Show] 0ms Cache Miss for "${placement.id}". Continuing user flow without delay.',
-      );
-      preload(placement);
+      _logger?.info('[Show] 0ms Cache Miss for "${placement.id}". Continuing user flow without delay.');
+      if (placement.loadOnce) {
+        _queue.cancel(placement.id);
+        _markConsumed(placement);
+      } else if (!placement.isSplash) {
+        preload(placement);
+      }
       onDismissed?.call();
       return;
     }
 
     _logger?.info('[Show] 🎯 0ms Cache Hit for "${placement.id}". Displaying ad.');
+
+    _markConsumed(placement);
 
     _driver.showFullscreenAd(
       placement: placement,
@@ -400,7 +481,7 @@ class EagerAdPool {
   /// ad arrives (each waiter receives its own distinct instance), or returns
   /// `null` after [timeout] elapses without settlement.
   Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) async {
-    if (isUserPremium || _closed) return null;
+    if (!_adsAllowed) return null;
 
     final queue = _cache.putIfAbsent(placement.id, () => ListQueue<AdCacheEntry>());
 
@@ -415,11 +496,11 @@ class EagerAdPool {
     final entry = queue.isNotEmpty ? queue.removeFirst() : null;
 
     if (entry != null) {
-      if (queue.isEmpty) {
+      if (queue.isEmpty && !placement.loadOnce) {
         _queue.notifyEvicted(placement.id);
       }
       if (placement.loadOnce) {
-        _consumedLoadOnceIds.add(placement.id);
+        _markConsumed(placement);
       } else {
         _logger?.info('[Pool] Auto-replenishing recurring inline placement "${placement.id}".');
         preload(placement);
@@ -434,22 +515,31 @@ class EagerAdPool {
 
     final waiter = Completer<dynamic>();
     _leaseWaiters.putIfAbsent(placement.id, () => ListQueue<Completer<dynamic>>()).addLast(waiter);
-    preload(placement); // no-op when a task is already pending (saturation check)
+    _load(placement, forInlineDemand: true);
 
-    final effectiveTimeout = timeout ?? _timeoutConfig.resolve(
-      format: placement.format,
-      network: await _networkInfo.getNetworkType(),
-      isSplash: placement.isSplash,
+    final effectiveTimeout =
+        timeout ??
+        _timeoutConfig.resolve(
+          format: placement.format,
+          network: await _networkInfo.getNetworkType(),
+          isSplash: placement.isSplash,
+        );
+
+    return waiter.future.timeout(
+      effectiveTimeout,
+      onTimeout: () {
+        _leaseWaiters[placement.id]?.remove(waiter);
+        if (_leaseWaiters[placement.id]?.isEmpty ?? false) {
+          _leaseWaiters.remove(placement.id);
+        }
+        if (placement.loadOnce && !_leaseWaiters.containsKey(placement.id)) {
+          _queue.cancel(placement.id);
+          _markConsumed(placement);
+        }
+        _logger?.warning('[Pool] Inline lease for "${placement.id}" timed out. Returning null.');
+        return null;
+      },
     );
-
-    return waiter.future.timeout(effectiveTimeout, onTimeout: () {
-      _leaseWaiters[placement.id]?.remove(waiter);
-      if (_leaseWaiters[placement.id]?.isEmpty ?? false) {
-        _leaseWaiters.remove(placement.id);
-      }
-      _logger?.warning('[Pool] Inline lease for "${placement.id}" timed out. Returning null.');
-      return null;
-    });
   }
 
   /// Schedules a microtask-level buffer replenishment without blocking the

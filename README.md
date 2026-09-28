@@ -102,6 +102,38 @@ void onRemoteConfigLoaded() {
 }
 ```
 
+### Initialization readiness without polling
+
+`canRequestAds` is a synchronous **snapshot**, not a consent-only flag. It becomes true only after UMP/ATT, SDK initialization, and native factory registration have completed, and the user is not premium. Do not use a false snapshot during startup to permanently skip an ad.
+
+Start `initialize` once. Calls to `waitFor`, inline widgets, and `preload` made while it is running wait for that same initialization. Registrations made during startup are retained, including their capacities. No guessed delays are needed:
+
+```dart
+final boot = AdmobKit.initialize(config: yourConfig);
+AdmobKit.registerPlacements([AppAds.splashInterstitial]);
+final adReady = AdmobKit.waitFor(AppAds.splashInterstitial);
+
+try {
+  await boot; // SDK/factory errors propagate here; consent denial is not an error.
+  if (await adReady) {
+    AdmobKit.show(AppAds.splashInterstitial, onDismissed: continueNavigation);
+  } else {
+    continueNavigation();
+  }
+} catch (error) {
+  // Report initialization failure and continue the application flow.
+  continueNavigation();
+}
+```
+
+For an eligibility decision without requesting an ad, use `await AdmobKit.waitUntilCanRequestAds()`. It waits while initialization or a privacy update is pending; false means settled consent denial, initialization failure, premium entitlement, disposal, or initialization was never started. It does not implicitly initialize the package. Eligibility does not guarantee network connectivity or ad fill; `waitFor(placement)` resolves actual ad readiness.
+
+Observe `AdmobKit.initializationStateListenable` with `ValueListenableBuilder<AdInitializationState>` to display `gatheringConsent`, `initializingSdk`, or `updatingConsent`. Terminal states are `ready`, `consentDenied`, `failed`, and `disposed`; `uninitialized` means initialization has not been started.
+
+The ad timeout supplied to `waitFor` starts **after** initialization/consent settles. Time spent reading a consent form does not consume the ad-loading timeout. Consent forms await real dismissal rather than a fixed timer. If the native platform never responds, the stage remains pending; `dispose()` explicitly cancels this session and releases its waiting callers.
+
+Concurrent/repeated `initialize` calls share the first configuration and future. Use `dispose()` before changing configuration; a failed initialization can be retried. Privacy options temporarily suspend new loads, discard old buffered ads, recheck UMP eligibility after dismissal, and resume waiting requests only if allowed. `show()` remains a non-blocking cache-only presentation API; use `waitFor` first when startup settlement is required.
+
 **4. Render** — zero layout shift, zero manual state:
 
 ```dart
@@ -188,7 +220,10 @@ When a widget leases an ad on an empty buffer, it registers demand; the replenis
 | `leaseInlineAd` | `Future<dynamic> leaseInlineAd(InlinePlacement, {Duration? timeout})` | Package-internal. Used by `AdBannerView` / `AdNativeView` — do not call from app code. |
 | `isShowingAd` | `bool get isShowingAd` | A fullscreen ad is currently on screen (gate App Open re-entry with this). |
 | `isUserPremium` | `bool get isUserPremium` | Effective entitlement state. |
-| `canRequestAds` | `bool get canRequestAds` | Consent outcome. |
+| `canRequestAds` | `bool get canRequestAds` | Snapshot of resolved consent + SDK/factories + non-premium entitlement. |
+| `waitUntilCanRequestAds` | `Future<bool> waitUntilCanRequestAds()` | Awaits pending initialization/privacy resolution before returning eligibility. |
+| `initializationState` | `AdInitializationState get initializationState` | Current initialization/privacy stage. |
+| `initializationStateListenable` | `ValueListenable<AdInitializationState>` | Observable stage for initialization UI; no polling. |
 | `showPrivacyOptionsForm` | `Future<bool> showPrivacyOptionsForm()` | UMP privacy options (GDPR settings screen). |
 | `openAdInspector` | `void openAdInspector([void Function(String?)? onComplete])` | Native on-device Ad Inspector for QA. |
 
@@ -292,16 +327,18 @@ TickerMode(enabled: pageController.page == 0, child: PageOne())
 // or Visibility(visible: currentIndex == 0, child: PageOne())
 ```
 
-### One-time screens: registration is forever (the loadOnce trap)
+### One-time screens and `loadOnce`
 
-`loadOnce: true` means **"load this ad once per install, ever."** The engine marks the placement consumed permanently — which is exactly what splash and onboarding want. But it creates an asymmetry you must respect at registration time:
+`loadOnce: true` disables **background replenishment after consumption** for the current pool session. It is not a one-impression limit or a permanent per-install flag. Remaining cached and in-flight ads stay usable. A later inline widget mounting with the same placement can request a fresh ad when its buffer is empty, without refilling the buffer afterward.
 
-> **If a screen or feature only exists for first-run users, do NOT register its ad placement — or guard the registration itself.** A registered `loadOnce` placement is primed at Stage 2 whether or not the user ever reaches that screen. Worse: if the user *skips* onboarding without consuming the ad (e.g. signed in with an existing account), the ad sits consumed-but-unshown, and on every subsequent launch nothing loads — correct for the ad, but the point is the *screen* is also one-time.
+`preload` does not restart background loading after consumption. `waitFor` can await remaining requests or report readiness of buffered ads; it does not replenish an exhausted `loadOnce` placement. Inline widget demand is what starts a fresh request.
+
+Register first-run-only placements conditionally: Stage 2 primes registered placements even if the user never reaches their screens.
 
 ```dart
 // ❌ Wrong: onboarding exists only for new installs, but its placement is
 // registered unconditionally. Second-launch users pay for a load they'll
-// never see, and skip-paths leave phantom consumed state.
+// never see.
 AdmobKit.registerPlacements([AppAds.onboardingNative]);
 
 // ✅ Right: the caller knows the routing context — register conditionally.
@@ -315,7 +352,7 @@ void onRemoteConfigLoaded({required bool isFirstLaunch}) {
 }
 ```
 
-The general rule: **the placement list should mirror what can actually be *shown* on this install** — not the app's full static inventory. `registerPlacements` is callable multiple times, so register a screen's placement when (or just before) that screen becomes reachable. Never registered = never loaded = zero waste.
+The placement list should mirror what can actually be shown in this session, not the app's full static inventory. `registerPlacements` is callable multiple times, so register a screen's placement when (or just before) that screen becomes reachable. Mounting an inline ad widget can also request an ad directly.
 
 ### Slow splash on a bad connection
 

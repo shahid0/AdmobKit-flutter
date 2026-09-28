@@ -5,13 +5,14 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../domain/contracts/ad_network_info.dart';
 import '../domain/models/ad_placement.dart';
 import '../domain/models/ad_placement_state.dart';
+import '../domain/models/ad_initialization_state.dart';
 import '../infrastructure/consent/consent_coordinator.dart';
 import '../infrastructure/drivers/google_mobile_ads_driver.dart';
 import '../infrastructure/logging/platform_ad_logger.dart';
-import '../infrastructure/mutex/presentation_mutex.dart';
 import '../infrastructure/network/connectivity_network_info.dart';
 import '../infrastructure/pool/eager_ad_pool.dart';
 import 'config/admob_kit_config.dart';
+import 'ad_session.dart';
 
 /// Unified developer-facing facade for the AdmobKit plugin.
 ///
@@ -23,11 +24,17 @@ import 'config/admob_kit_config.dart';
 /// - [waitFor]: Deterministic splash settlement without blind timers.
 /// - Inline widgets: `AdBannerView`, `AdNativeView`, `AdPaywallGuard`.
 abstract final class AdmobKit {
-  static EagerAdPool? _pool;
-  static ConsentCoordinator? _consent;
+  static AdSession? _session;
+  static EagerAdPool? _testPool;
+  static EagerAdPool? get _pool => _testPool ?? _session?.pool;
   static PlatformAdLogger? _logger;
-  static PresentationMutex? _mutex;
-  static bool _canRequestAds = false;
+  static final _initializationState = ValueNotifier(AdInitializationState.uninitialized);
+
+  /// Current consent/SDK stage. This is separate from individual ad readiness.
+  static AdInitializationState get initializationState => _initializationState.value;
+
+  /// Observable stage, suitable for ValueListenableBuilder without polling.
+  static ValueListenable<AdInitializationState> get initializationStateListenable => _initializationState;
 
   /// Optional driver override for testing environments.
   @visibleForTesting
@@ -40,15 +47,20 @@ abstract final class AdmobKit {
   /// Sets the internal eager pool for testing purposes.
   @visibleForTesting
   static void setPoolForTesting(EagerAdPool? pool) {
-    _pool = pool;
-    _canRequestAds = true;
+    dispose();
+    _testPool = pool;
+    _initializationState.value = pool == null ? AdInitializationState.disposed : AdInitializationState.ready;
   }
 
   /// Disposes the eager ad pool and releases all locks and resources.
   static void dispose() {
-    _pool?.dispose();
-    _pool = null;
-    _mutex?.forceRelease();
+    final session = _session;
+    final testPool = _testPool;
+    _session = null;
+    _testPool = null;
+    session?.dispose();
+    testPool?.dispose();
+    _initializationState.value = AdInitializationState.disposed;
   }
 
   /// Initializes consent (Google UMP + Apple ATT), native Google Mobile Ads SDK,
@@ -56,87 +68,47 @@ abstract final class AdmobKit {
   ///
   /// Can be called immediately at boot (`main()`) before Remote Config or network placements resolve.
   /// If [AdmobKitConfig.placements] is provided, they are primed immediately.
-  static Future<void> initialize({
-    AdmobKitConfig config = const AdmobKitConfig(),
-  }) async {
+  /// Concurrent/repeated calls share the first initialization and configuration.
+  /// Dispose before replacing configuration. Failed initialization can be retried.
+  /// Errors are logged and retained for awaiters, even if the future is initially ignored.
+  /// Disposal releases the future without starting ads.
+  static Future<void> initialize({AdmobKitConfig config = const AdmobKitConfig()}) {
+    final existing = _session;
+    if (existing != null && existing.state != AdInitializationState.failed && !existing.isDisposed) {
+      return existing.initialize();
+    }
+    dispose();
     _logger = PlatformAdLogger(level: config.logLevel);
-    _mutex = PresentationMutex(_logger);
-    _consent = ConsentCoordinator(_logger);
-
-    _logger?.info('[AdmobKit] Initializing package...');
-
-    if (config.requestConsent) {
-      _canRequestAds = await _consent!.gatherConsent(
-        testConfig: config.consentTestConfig,
-      );
-    } else {
-      _canRequestAds = true;
-    }
-
-    final driver = driverForTesting ??
-        GoogleMobileAdsDriver(
-          logger: _logger,
-          analytics: config.analytics,
-        );
-
-    if (_canRequestAds && config.initializeNativeGma) {
-      await driver.initialize(testDeviceIds: config.testDeviceIds);
-      try {
-        await const MethodChannel('flutter_ads').invokeMethod<dynamic>('registerNativeAdFactories');
-      } catch (_) {}
-    } else if (!config.initializeNativeGma) {
-      _logger?.info('[AdmobKit] Native GMA initialization skipped via config.');
-    } else {
-      _logger?.warning('[AdmobKit] Consent disallowed ads. Skipping GMA init.');
-    }
-
-    final networkInfo = networkInfoForTesting ?? ConnectivityNetworkInfo();
-    _pool = EagerAdPool(
-      driver: driver,
-      mutex: _mutex!,
-      networkInfo: networkInfo,
-      timeoutConfig: config.timeouts,
-      retryScheduler: config.retryScheduler,
-      logger: _logger,
-      analytics: config.analytics,
-      diagnostics: config.diagnostics,
-      isPremium: config.isPremium,
-      adTtl: config.adTtl,
-      initialConcurrency: config.initialConcurrency,
-      subsequentConcurrency: config.subsequentConcurrency,
-      placementCapacities: config.placementCapacities,
+    late final AdSession session;
+    session = AdSession(
+      config: config,
+      driver: driverForTesting ?? GoogleMobileAdsDriver(logger: _logger, analytics: config.analytics),
+      consent: ConsentCoordinator(_logger),
+      networkInfo: networkInfoForTesting ?? ConnectivityNetworkInfo(),
+      logger: _logger!,
+      registerNativeFactories: () async {
+        final registered = await const MethodChannel('flutter_ads').invokeMethod<bool>('registerNativeAdFactories');
+        if (registered != true) throw StateError('Native ad factory registration failed.');
+      },
+      onStateChanged: (state) {
+        if (identical(_session, session)) _initializationState.value = state;
+      },
     );
-
-    if (_canRequestAds && config.placements != null && config.placements!.isNotEmpty) {
-      _pool!.primeAll(config.placements!);
-    }
+    _session = session;
+    return session.initialize();
   }
 
   /// Stage 2: Registers and primes placements in the eager preloading pool.
   ///
   /// Call this as soon as your ad configuration is ready (e.g. after Firebase Remote Config
   /// or backend API has loaded). Can be called multiple times to register new placements.
-  static void registerPlacements(
-    Iterable<AdPlacement> placements, {
-    Map<String, int>? placementCapacities,
-  }) {
-    final pool = _pool;
-    if (pool == null) {
+  static void registerPlacements(Iterable<AdPlacement> placements, {Map<String, int>? placementCapacities}) {
+    final session = _session;
+    if (session == null) {
       _logger?.warning('[AdmobKit] registerPlacements called before initialize().');
       return;
     }
-
-    if (placementCapacities != null) {
-      for (final entry in placementCapacities.entries) {
-        pool.setCapacity(entry.key, entry.value);
-      }
-    }
-
-    if (_canRequestAds) {
-      pool.primeAll(placements);
-    } else {
-      _logger?.warning('[AdmobKit] Consent disallowed ads. Skipping placement priming.');
-    }
+    session.registerPlacements(placements, capacities: placementCapacities);
   }
 
   /// Displays a full-screen ad (Interstitial, Rewarded, or App Open) with a 0ms Non-Blocking contract.
@@ -150,19 +122,19 @@ abstract final class AdmobKit {
     void Function(num amount, String type)? onRewardGranted,
     VoidCallback? onDisplayed,
   }) {
-    final pool = _pool;
+    final session = _session;
+    if (session != null) {
+      session.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+      return;
+    }
+    final pool = _testPool;
     if (pool == null) {
       _logger?.warning('[AdmobKit] show() called before initialize(). Proceeding.');
       onDismissed?.call();
       return;
     }
 
-    pool.show(
-      placement,
-      onDismissed: onDismissed,
-      onRewardGranted: onRewardGranted,
-      onDisplayed: onDisplayed,
-    );
+    pool.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
   }
 
   /// Whether an ad is primed, fresh, and ready for instant 0ms display.
@@ -188,29 +160,41 @@ abstract final class AdmobKit {
   /// Deterministically awaits [placement] until it is ready, fails, or times out.
   ///
   /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
+  /// Waits for pending initialization/privacy resolution before loading. [timeout]
+  /// applies to the ad wait, not to time spent resolving consent or the SDK.
   static Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) {
-    final pool = _pool;
-    if (pool == null) return Future.value(false);
-    return pool.waitFor(placement, timeout: timeout);
+    return _session?.waitFor(placement, timeout: timeout) ??
+        _testPool?.waitFor(placement, timeout: timeout) ??
+        Future.value(false);
   }
 
   /// Manually requests an on-demand preload for a specific placement.
   static void preload(AdPlacement placement) {
-    _pool?.preload(placement);
+    if (_session != null) {
+      unawaited(_session!.preload(placement));
+    } else {
+      _testPool?.preload(placement);
+    }
   }
 
   /// Whether the user is currently entitled to an ad-free experience.
-  static bool get isUserPremium => _pool?.isUserPremium ?? false;
+  static bool get isUserPremium => _session?.isPremium ?? _testPool?.isUserPremium ?? false;
 
   /// Whether a full-screen ad is currently active on screen.
-  static bool get isShowingAd => _mutex?.isLocked ?? false;
+  static bool get isShowingAd => _pool?.mutex.isLocked ?? false;
 
-  /// Whether valid consent has been gathered to request ads.
-  static bool get canRequestAds => _canRequestAds;
+  /// Snapshot: consent AND SDK/factories are ready and the user is not premium.
+  /// False can mean still resolving. Await [waitUntilCanRequestAds] for a decision.
+  static bool get canRequestAds => _session?.canRequestAds ?? (_testPool != null && !_testPool!.isUserPremium);
+
+  /// Waits for consent, ATT, SDK initialization and native factory registration.
+  /// Returns false only for a settled denial/failure, premium, disposal, or when
+  /// initialize has not been called. Does not start initialization implicitly.
+  static Future<bool> waitUntilCanRequestAds() => _session?.waitUntilCanRequestAds() ?? Future.value(canRequestAds);
 
   /// Presents the Google UMP privacy options form so users can update consent in settings.
   static Future<bool> showPrivacyOptionsForm() async {
-    return _consent?.showPrivacyOptionsForm() ?? Future.value(false);
+    return _session?.showPrivacyOptionsForm() ?? Future.value(false);
   }
 
   /// Opens the native Google Mobile Ads Inspector for on-device ad verification.
@@ -230,9 +214,9 @@ abstract final class AdmobKit {
   /// delivered on replenishment), or `null` on timeout / premium / failure.
   @internal
   static Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) {
-    final pool = _pool;
-    if (pool == null) return Future<dynamic>.value(null);
-    return pool.leaseInlineAd(placement, timeout: timeout);
+    return _session?.leaseInlineAd(placement, timeout: timeout) ??
+        _testPool?.leaseInlineAd(placement, timeout: timeout) ??
+        Future<dynamic>.value(null);
   }
 
   /// Internal reference to logger.
@@ -249,4 +233,3 @@ abstract final class AdmobKit {
 // older integration, do a one-line find/replace to `AdmobKit` (same API,
 // same members) and update the import to
 // `package:admob_kit_flutter/admob_kit_flutter.dart`.
-
