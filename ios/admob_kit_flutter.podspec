@@ -1,13 +1,13 @@
 #
 # To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
-# Run `pod lib lint flutter_ads.podspec` to validate before publishing.
+# Run `pod lib lint admob_kit_flutter.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
   s.name             = 'admob_kit_flutter'
   s.version          = '0.0.1'
-  s.summary          = 'Production-grade Google AdMob plugin for Flutter with instant 0ms display.'
+  s.summary          = 'Flutter AdMob ads with native templates and adaptive banners.'
   s.description      = <<-DESC
-Production-grade Google AdMob plugin for Flutter with instant 0ms display, UMP GDPR consent, zero-CLS native ad templates, banners, interstitials, and rewarded ads.
+Google AdMob ads for Flutter with consent-aware loading, adaptive banners, native templates, fullscreen presentation and live native styling.
                        DESC
   s.homepage         = 'https://github.com/shahid0/AdmobKit-flutter'
   s.license          = { :file => '../LICENSE' }

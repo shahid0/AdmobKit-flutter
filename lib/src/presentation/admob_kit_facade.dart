@@ -20,13 +20,13 @@ import 'ad_session.dart';
 
 /// Unified developer-facing facade for the AdmobKit plugin.
 ///
-/// Features a pure 0ms non-blocking API:
-/// - [initialize]: Boots consent (UMP) & AdMob SDK immediately at app launch.
-/// - [registerPlacements]: Primes the eager pool once placements are known (e.g. from Remote Config).
-/// - [show]: 0ms non-blocking full-screen display contract.
-/// - [isReady], [isLoading], [getState], [watchState]: Transparent placement state queries.
-/// - [waitFor]: Deterministic splash settlement without blind timers.
-/// - Inline widgets: `AdBannerView`, `AdNativeView`, `AdPaywallGuard`.
+/// [initialize] resolves consent and SDK/factory readiness. Register reachable
+/// placements with [registerPlacements], and use [waitFor] for ad readiness.
+/// [show] presents cached fullscreen ads; splash placements may settle an
+/// existing load. SDK presentation latency is not guaranteed.
+///
+/// Inline rendering uses AdBannerView and AdNativeView. App navigation,
+/// cooldowns and frequency limits remain app policy.
 abstract final class AdmobKit {
   static AdSession? _session;
   static EagerAdPool? _testPool;
@@ -76,7 +76,8 @@ abstract final class AdmobKit {
   /// registers native ad factories, and prepares the internal eager ad pool.
   ///
   /// Can be called immediately at boot (`main()`) before Remote Config or network placements resolve.
-  /// If [AdmobKitConfig.placements] is provided, they are primed immediately.
+  /// Known non-banner [AdmobKitConfig.placements] are primed once eligible.
+  /// Banners need a layout from their widget or an explicit load call.
   /// Concurrent/repeated calls share the first initialization and configuration.
   /// Dispose before replacing configuration. Failed initialization can be retried.
   /// Errors are logged and retained for awaiters, even if the future is initially ignored.
@@ -132,11 +133,11 @@ abstract final class AdmobKit {
     session.registerPlacements(placements, capacities: placementCapacities);
   }
 
-  /// Displays a full-screen ad (Interstitial, Rewarded, or App Open) with a 0ms Non-Blocking contract.
+  /// Presents a cached SDK fullscreen ad without waiting for a download.
   ///
-  /// - If the ad is ready in memory: displays immediately.
-  /// - If unready or offline: invokes [onDismissed] immediately without blocking user navigation.
-  /// - Passing an inline placement (Banner/Native) is prevented at compile time.
+  /// Unavailable or blocked presentations invoke [onDismissed].
+  /// Splash placements may await an existing load before checking ownership.
+  /// Inline placements, including fullscreen natives, use their widgets.
   static void show(
     FullscreenPlacement placement, {
     VoidCallback? onDismissed,
@@ -158,12 +159,12 @@ abstract final class AdmobKit {
     pool.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
   }
 
-  /// Whether an ad is primed, fresh, and ready for instant 0ms display.
+  /// Whether a fresh buffered ad is available for this placement/layout.
   static bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) {
     return _pool?.isReady(placement, bannerLayout: bannerLayout) ?? false;
   }
 
-  /// Whether an ad is currently in-flight downloading in the priority queue.
+  /// Whether queued, in-flight or retry work exists for this placement/layout.
   static bool isLoading(AdPlacement placement, {BannerLayout? bannerLayout}) {
     return _pool?.isLoading(placement, bannerLayout: bannerLayout) ?? false;
   }
@@ -180,7 +181,8 @@ abstract final class AdmobKit {
 
   /// Deterministically awaits [placement] until it is ready, fails, or times out.
   ///
-  /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
+  /// Returns true for a ready buffered ad, or false when unavailable after
+  /// denial, failure, timeout, premium gating or disposal.
   /// Waits for pending initialization/privacy resolution before loading. [timeout]
   /// applies to the ad wait, not to time spent resolving consent or the SDK.
   static Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) {
@@ -189,7 +191,8 @@ abstract final class AdmobKit {
         Future.value(false);
   }
 
-  /// Manually requests an on-demand preload for a specific placement.
+  /// Waits for eligibility and requests a preload for the placement/layout.
+  /// Completion is not a readiness result; use [waitFor] for that.
   static Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) =>
       _session?.preload(placement, bannerLayout: bannerLayout) ??
       _testPool?.preload(placement, bannerLayout: bannerLayout) ??
@@ -198,7 +201,8 @@ abstract final class AdmobKit {
   /// Whether the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _session?.isPremium ?? _testPool?.isUserPremium ?? false;
 
-  /// Whether a full-screen ad is currently active on screen.
+  /// Whether SDK fullscreen or loaded active fullscreen-native ownership is held.
+  /// App dialogs and paywalls are not tracked.
   static bool get isShowingAd => _pool?.mutex.isLocked ?? false;
 
   /// Snapshot: consent AND SDK/factories are ready and the user is not premium.

@@ -1,6 +1,5 @@
-/// Production-grade Google AdMob plugin for Flutter with instant 0ms display,
-/// UMP GDPR consent, zero-CLS native ad templates, banners, interstitials,
-/// and rewarded ads.
+/// Google AdMob ads for Flutter with consent-aware loading, adaptive banners,
+/// native templates, fullscreen presentation and live native styling.
 library;
 
 export 'src/domain/models/native_ad_style.dart';
