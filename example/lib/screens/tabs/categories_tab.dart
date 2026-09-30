@@ -69,12 +69,7 @@ class CategoriesTab extends StatelessWidget {
             'Isolate cognitive context across focused domains.',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              height: 1.4,
-              color: TaskColors.textSlateMedium,
-            ),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, height: 1.4, color: TaskColors.textSlateMedium),
           ),
         ],
       ),
@@ -86,20 +81,13 @@ class CategoriesTab extends StatelessWidget {
       onTap: () {
         void navigate() {
           if (context.mounted) {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CategoryTasksScreen(category: cat),
-              ),
-            );
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryTasksScreen(category: cat)));
           }
         }
 
         if (TaskStore.instance.checkInterval('category_navigation', interval: 3)) {
           TaskStore.instance.appendLog('📂 [Action] Category navigation threshold reached. Triggering Interstitial...');
-          AdmobKit.show(
-            SampleAds.mainInterstitial,
-            onDismissed: navigate,
-          );
+          AdmobKit.show(SampleAds.mainInterstitial, onDismissed: navigate);
         } else {
           navigate();
         }
@@ -114,10 +102,7 @@ class CategoriesTab extends StatelessWidget {
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(
-                color: cat.color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: cat.color.withValues(alpha: 0.12), shape: BoxShape.circle),
               alignment: Alignment.center,
               child: Icon(cat.icon, color: cat.color, size: 22),
             ),
@@ -140,11 +125,7 @@ class CategoriesTab extends StatelessWidget {
                   count == 1 ? '1 task' : '$count tasks',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: TaskColors.textSlateMedium,
-                  ),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TaskColors.textSlateMedium),
                 ),
               ],
             ),
@@ -196,20 +177,15 @@ class CategoriesTab extends StatelessWidget {
             ),
             AdNativeView(
               placement: SampleAds.smallNative,
-              height: 74,
               placeholder: Container(
-                height: 74,
+                height: NativeAdTemplate.small1.height,
                 decoration: BoxDecoration(
                   color: TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: TaskColors.borderSubtle),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
-                  Icons.ads_click_rounded,
-                  size: 20,
-                  color: TaskColors.textMutedCaption,
-                ),
+                child: const Icon(Icons.ads_click_rounded, size: 20, color: TaskColors.textMutedCaption),
               ),
             ),
           ],

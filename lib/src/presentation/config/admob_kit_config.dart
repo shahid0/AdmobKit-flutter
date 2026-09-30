@@ -2,12 +2,16 @@ import '../../domain/contracts/ad_analytics_tracker.dart';
 import '../../domain/contracts/ad_diagnostics_tracker.dart';
 import '../../domain/contracts/ad_logger.dart';
 import '../../domain/models/ad_placement.dart';
+import '../../domain/models/native_ad_colors.dart';
 import '../../domain/models/ad_timeout_config.dart';
 import '../../infrastructure/consent/consent_coordinator.dart';
 import '../../infrastructure/pool/retry_scheduler.dart';
 
 /// Configuration passed to [AdmobKit.initialize] at application startup.
 class AdmobKitConfig {
+  /// Global color overrides for built-in native templates.
+  final NativeAdColors nativeColors;
+
   /// The initial catalog of ad placements to register.
   ///
   /// If provided, placements are primed during [AdmobKit.initialize].
@@ -68,6 +72,7 @@ class AdmobKitConfig {
 
   /// Creates a new [AdmobKitConfig] instance.
   const AdmobKitConfig({
+    this.nativeColors = const NativeAdColors(),
     this.placements,
     this.requestConsent = true,
     this.consentTestConfig,

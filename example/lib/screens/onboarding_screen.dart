@@ -22,9 +22,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _navigateToPaywall() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const PaywallScreen(isFromOnboarding: true)),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const PaywallScreen(isFromOnboarding: true)));
   }
 
   void _onContinueOrStart() {
@@ -33,10 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (disableAnimations) {
         _pageController.jumpToPage(_currentPage + 1);
       } else {
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-        );
+        _pageController.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
       }
     } else {
       _navigateToPaywall();
@@ -55,11 +52,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (index) => setState(() => _currentPage = index),
-                children: [
-                  _buildStep1(),
-                  _buildStep2(),
-                  _buildStep3(),
-                ],
+                children: [_buildStep1(), _buildStep2(), _buildStep3()],
               ),
             ),
             const SizedBox(height: 16),
@@ -84,11 +77,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             alignment: Alignment.center,
             child: const Text(
               'Skip',
-              style: TextStyle(
-                color: TaskColors.textSlateMedium,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -126,11 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'A deliberate system designed to eliminate digital fatigue and align daily execution with macro objectives.',
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: TaskColors.textSlateMedium,
-              fontSize: 14,
-              height: 1.5,
-            ),
+            style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 28),
           TaskCard(
@@ -187,7 +172,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _buildStep2() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -214,15 +199,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'Categorize initiatives, isolate deep work sessions, and track execution velocity across multiple domains.',
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: TaskColors.textSlateMedium,
-              fontSize: 14,
-              height: 1.5,
-            ),
+            style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 28),
           TaskCard(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -239,10 +220,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(height: 10),
                 AdNativeView(
                   placement: SampleAds.onboardingBigNative,
-                  template: NativeAdTemplate.big,
                   placeholder: Container(
-                    height: NativeAdTemplate.big.height,
-                    width: NativeAdTemplate.big.width,
+                    height: NativeAdTemplate.large1.height,
+                    width: double.infinity,
                     decoration: BoxDecoration(
                       color: TaskColors.surfaceSubtle,
                       borderRadius: BorderRadius.circular(10),
@@ -289,11 +269,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'Transform sporadic bursts into resilient systems with integrated Pomodoro blocks and velocity analytics.',
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: TaskColors.textSlateMedium,
-              fontSize: 14,
-              height: 1.5,
-            ),
+            style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 28),
           Row(
@@ -317,11 +293,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       SizedBox(height: 6),
                       Text(
                         'Consistency Rate',
-                        style: TextStyle(
-                          color: TaskColors.textSlateMedium,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -347,11 +319,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       SizedBox(height: 6),
                       Text(
                         'Current Streak',
-                        style: TextStyle(
-                          color: TaskColors.textSlateMedium,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: TextStyle(color: TaskColors.textSlateMedium, fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -383,11 +351,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 240),
             curve: Curves.easeOut,
             builder: (context, scaleX, child) {
-              return Transform.scale(
-                scaleX: scaleX,
-                scaleY: 1.0,
-                child: child,
-              );
+              return Transform.scale(scaleX: scaleX, scaleY: 1.0, child: child);
             },
             child: AnimatedOpacity(
               opacity: isSelected ? 1.0 : 0.4,
@@ -416,29 +380,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Container(
           width: double.infinity,
           height: 52,
-          decoration: BoxDecoration(
-            color: TaskColors.accentPrimary,
-            borderRadius: BorderRadius.circular(12),
-          ),
+          decoration: BoxDecoration(color: TaskColors.accentPrimary, borderRadius: BorderRadius.circular(12)),
           alignment: Alignment.center,
           child: _currentPage == 2
               ? const Text(
                   'Get Started',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2),
                 )
               : const Text(
                   'Continue',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2),
                 ),
         ),
       ),

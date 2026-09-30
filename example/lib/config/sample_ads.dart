@@ -9,7 +9,8 @@ abstract final class SampleAds {
     priority: AdPriority.medium,
   );
 
-  static const splashBigNative = NativePlacement.big(
+  static const splashBigNative = NativePlacement(
+    template: NativeAdTemplate.large1,
     id: 'splash_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -25,7 +26,8 @@ abstract final class SampleAds {
     loadOnce: true,
   );
 
-  static const onboardingBigNative = NativePlacement.big(
+  static const onboardingBigNative = NativePlacement(
+    template: NativeAdTemplate.large1,
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -57,19 +59,22 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.appOpenIos,
   );
 
-  static const bigNative = NativePlacement.big(
+  static const bigNative = NativePlacement(
+    template: NativeAdTemplate.large1,
     id: 'native_big_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const mediumNative = NativePlacement.medium(
+  static const mediumNative = NativePlacement(
+    template: NativeAdTemplate.medium1,
     id: 'native_medium_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const smallNative = NativePlacement.small(
+  static const smallNative = NativePlacement(
+    template: NativeAdTemplate.small1,
     id: 'native_small_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,

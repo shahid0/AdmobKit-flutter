@@ -9,6 +9,7 @@ import 'tabs/categories_tab.dart';
 import 'tabs/focus_tab.dart';
 import 'tabs/analytics_tab.dart';
 import 'tabs/settings_tab.dart';
+import 'ad_gallery_screen.dart';
 
 class MainTabsScreen extends StatefulWidget {
   const MainTabsScreen({super.key});
@@ -77,6 +78,13 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Ad gallery',
+                icon: const Icon(Icons.view_quilt_outlined),
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => const AdGalleryScreen()),
+                ),
+              ),
               TactileButton(
                 onTap: () => AppDrawerConsole.show(context),
                 child: Container(
@@ -94,7 +102,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                       Icon(Icons.terminal_rounded, color: TaskColors.accentPrimary, size: 16),
                       SizedBox(width: 6),
                       Text(
-                        'Live Diagnostic HUD',
+                        'Diagnostics',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

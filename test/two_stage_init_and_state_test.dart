@@ -7,7 +7,7 @@ class FakeDriver extends GoogleMobileAdsDriver {
   int showCalls = 0;
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loadCalls++;
     await Future.delayed(const Duration(milliseconds: 20));
     return Object();

@@ -59,7 +59,9 @@ class TaskDetailScreen extends StatelessWidget {
                 onPressed: () {
                   store.deleteTask(task.id);
                   if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
-                    TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
+                    TaskStore.instance.appendLog(
+                      '🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...',
+                    );
                     AdmobKit.show(
                       SampleAds.mainInterstitial,
                       onDismissed: () {
@@ -125,10 +127,7 @@ class TaskDetailScreen extends StatelessWidget {
                             icon: Container(
                               width: 6,
                               height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: task.priority.color,
-                              ),
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: task.priority.color),
                             ),
                           ),
                         ],
@@ -146,16 +145,10 @@ class TaskDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        task.description.isEmpty
-                            ? 'No additional description provided.'
-                            : task.description,
+                        task.description.isEmpty ? 'No additional description provided.' : task.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: TaskColors.textSlateMedium,
-                          height: 1.5,
-                        ),
+                        style: const TextStyle(fontSize: 14, color: TaskColors.textSlateMedium, height: 1.5),
                       ),
                       const SizedBox(height: 16),
                       TactileButton(
@@ -166,13 +159,9 @@ class TaskDetailScreen extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: task.isCompleted
-                                ? TaskColors.surfaceSubtle
-                                : TaskColors.accentPrimary,
+                            color: task.isCompleted ? TaskColors.surfaceSubtle : TaskColors.accentPrimary,
                             borderRadius: BorderRadius.circular(10),
-                            border: task.isCompleted
-                                ? Border.all(color: TaskColors.borderSubtle)
-                                : null,
+                            border: task.isCompleted ? Border.all(color: TaskColors.borderSubtle) : null,
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -232,9 +221,7 @@ class TaskDetailScreen extends StatelessWidget {
                             width: 1.5,
                           ),
                         ),
-                        child: task.isCompleted
-                            ? const Icon(Icons.check, size: 13, color: Colors.white)
-                            : null,
+                        child: task.isCompleted ? const Icon(Icons.check, size: 13, color: Colors.white) : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -283,10 +270,9 @@ class TaskDetailScreen extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: AdNativeView(
                       placement: SampleAds.bigNative,
-                      template: NativeAdTemplate.big,
                       placeholder: Container(
-                        height: NativeAdTemplate.big.height,
-                        width: NativeAdTemplate.big.width,
+                        height: NativeAdTemplate.large1.height,
+                        width: double.infinity,
                         decoration: BoxDecoration(
                           color: TaskColors.surfaceSubtle,
                           borderRadius: BorderRadius.circular(10),

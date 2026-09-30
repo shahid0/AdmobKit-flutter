@@ -51,7 +51,7 @@ class _Driver extends GoogleMobileAdsDriver {
   }
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loads.add(placement.id);
     return ad == null ? Object() : ad!.future;
   }
@@ -653,7 +653,7 @@ void main() {
     );
     await tester.pump();
     await init;
-    expect(AdmobKit.pool!.mutex.tryAcquire(_placement.id), isTrue);
+    expect(AdmobKit.pool!.mutex.tryAcquire(_placement.id), isNotNull);
     expect(await AdmobKit.showPrivacyOptionsForm(), isFalse);
     expect(AdmobKit.isShowingAd, isTrue);
     expect(AdmobKit.initializationState, AdInitializationState.ready);

@@ -57,7 +57,8 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             all {
-                it.useJUnitPlatform()
+                it.useJUnit()
+                it.jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED", "--add-opens=java.base/java.util=ALL-UNNAMED")
 
                 it.outputs.upToDateWhen { false }
 
@@ -71,8 +72,8 @@ android {
 }
 
 dependencies {
-    implementation("com.google.android.gms:play-services-ads:23.6.0")
-    implementation("com.google.android.material:material:1.12.0")
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("org.mockito:mockito-core:5.0.0")
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("org.mockito:mockito-core:5.24.0")
 }

@@ -1,5 +1,7 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../domain/models/ad_placement.dart';
+import '../drivers/adaptive_banner_ad.dart';
+import '../drivers/managed_native_ad.dart';
 
 /// In-memory cache entry holding a primed ad instance with freshness tracking.
 class AdCacheEntry {
@@ -16,10 +18,14 @@ class AdCacheEntry {
   }) : loadedAt = loadedAt ?? DateTime.now();
 
   /// Returns true if this ad has exceeded its time-to-live (50 mins by default).
-  bool get isStale => DateTime.now().difference(loadedAt) > ttl;
+  bool get isStale => age > ttl;
 
   /// Time elapsed since this ad was loaded.
-  Duration get age => DateTime.now().difference(loadedAt);
+  Duration get age => DateTime.now().difference(
+    adInstance is AdaptiveBannerAd || adInstance is ManagedNativeAd
+        ? (adInstance.loadedAt as DateTime? ?? loadedAt)
+        : loadedAt,
+  );
 
   /// Properly disposes the underlying platform ad instance.
   void dispose() {

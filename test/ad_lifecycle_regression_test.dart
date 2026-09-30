@@ -40,7 +40,7 @@ class _Driver extends GoogleMobileAdsDriver {
   _Driver([this.pending]);
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     calls++;
     if (!started.isCompleted) started.complete();
     return pending == null ? Object() : pending!.future;
@@ -125,7 +125,7 @@ void main() {
   testWidgets('cancelling backoff settles the original future without retrying', (tester) async {
     var calls = 0;
     final queue = TieredAdQueue(
-      executor: (_) async {
+      executor: (_, {bannerLayout, validateRequest}) async {
         calls++;
         throw Exception('network');
       },
@@ -158,7 +158,7 @@ void main() {
     final gate = Completer<AdNetworkType>();
     var calls = 0;
     final queue = TieredAdQueue(
-      executor: (_) async {
+      executor: (_, {bannerLayout, validateRequest}) async {
         calls++;
         return Object();
       },
@@ -179,7 +179,7 @@ void main() {
       final pending = Completer<dynamic>();
       final ad = _Banner();
       final queue = TieredAdQueue(
-        executor: (_) => pending.future,
+        executor: (_, {bannerLayout, validateRequest}) => pending.future,
         networkInfo: _Network(),
         timeoutConfig: _timeouts,
         retryScheduler: RetryScheduler(maxRetries: 0),
@@ -199,7 +199,7 @@ void main() {
   testWidgets('cancelled fullscreen result is disposed exactly once', (tester) async {
     final pending = Completer<dynamic>();
     final ad = _Fullscreen();
-    final queue = TieredAdQueue(executor: (_) => pending.future, networkInfo: _Network());
+    final queue = TieredAdQueue(executor: (_, {bannerLayout, validateRequest}) => pending.future, networkInfo: _Network());
     addTearDown(queue.dispose);
     final result = queue.enqueue(_fullscreen).catchError((_) => null);
     await tester.pump();

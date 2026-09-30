@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../domain/models/banner_layout.dart';
+import '../domain/models/native_ad_colors.dart';
+import '../infrastructure/appearance/native_appearance.dart';
 
 import '../domain/contracts/ad_network_info.dart';
 import '../domain/models/ad_initialization_state.dart';
@@ -14,6 +17,7 @@ import 'config/admob_kit_config.dart';
 /// Owns one initialization lifetime. Old async completions cannot revive it.
 class AdSession {
   final AdmobKitConfig config;
+  final NativeAppearance? appearance;
   final GoogleMobileAdsDriver driver;
   final ConsentCoordinator consent;
   final AdNetworkInfo networkInfo;
@@ -33,6 +37,7 @@ class AdSession {
 
   AdSession({
     required this.config,
+    this.appearance,
     required this.driver,
     required this.consent,
     required this.networkInfo,
@@ -42,6 +47,7 @@ class AdSession {
   }) {
     _capacities.addAll(config.placementCapacities ?? {});
     for (final placement in config.placements ?? <AdPlacement>[]) {
+      pool.validatePlacement(placement);
       _placements[placement.id] = placement;
     }
   }
@@ -50,6 +56,12 @@ class AdSession {
   bool get isPremium => config.isPremium?.call() ?? false;
   bool get canRequestAds => state == AdInitializationState.ready && !isDisposed && !isPremium;
   bool get _isResolving => !_settled.isCompleted;
+
+  /// Applies initial or live appearance independently of consent/ad requests.
+  Future<void> setNativeColors(NativeAdColors colors, {NativePlacement? placement}) {
+    if (isDisposed || appearance == null) return Future.error(StateError('No active native appearance session.'));
+    return appearance!.setColors(colors, placement: placement);
+  }
 
   EagerAdPool _createPool() => EagerAdPool(
     driver: driver,
@@ -147,6 +159,7 @@ class AdSession {
     if (isDisposed) return;
     final added = placements.toList();
     for (final placement in added) {
+      pool.validatePlacement(placement);
       _placements[placement.id] = placement;
     }
     if (capacities != null) {
@@ -159,26 +172,26 @@ class AdSession {
   }
 
   /// Waits for eligibility, then preloads into the current privacy-safe pool.
-  Future<void> preload(AdPlacement placement) async {
+  Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) async {
     while (!isDisposed) {
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return;
       final currentPool = pool;
-      await currentPool.preload(placement);
+      await currentPool.preload(placement, bannerLayout: bannerLayout);
       if (identical(currentPool, pool) && !_isResolving) return;
     }
   }
 
   /// Waits for eligibility and ad readiness; [timeout] starts after eligibility.
   /// Returns false on denial, failure, timeout, or disposal.
-  Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) async {
+  Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) async {
     while (!isDisposed) {
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return false;
       final currentPool = pool;
-      final ready = await currentPool.waitFor(placement, timeout: timeout);
+      final ready = await currentPool.waitFor(placement, timeout: timeout, bannerLayout: bannerLayout);
       if (isDisposed) return false;
       if (identical(currentPool, pool) && !_isResolving) return ready && canRequestAds;
     }
@@ -187,13 +200,13 @@ class AdSession {
 
   /// Waits for eligibility and leases an exclusive inline ad from the current pool.
   /// Discards stale-pool results and returns null when no ad can be leased.
-  Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) async {
+  Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) async {
     while (!isDisposed) {
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return null;
       final currentPool = pool;
-      final ad = await currentPool.leaseInlineAd(placement, timeout: timeout);
+      final ad = await currentPool.leaseInlineAd(placement, timeout: timeout, bannerLayout: bannerLayout);
       if (identical(currentPool, pool) && canRequestAds) return ad;
       await AdCacheEntry.disposeAdInstance(ad);
       if (isDisposed) return null;
@@ -256,7 +269,13 @@ class AdSession {
     state = AdInitializationState.disposed;
     consent.dispose();
     pool.dispose();
+    mutex.dispose();
     if (!_settled.isCompleted) _settled.complete(false);
+    unawaited(
+      appearance?.dispose().catchError((Object error, StackTrace stack) {
+        logger.error('[Native] Appearance disposal failed', error, stack);
+      }),
+    );
     onStateChanged(state);
   }
 }

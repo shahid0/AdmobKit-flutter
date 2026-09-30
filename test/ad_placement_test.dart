@@ -4,11 +4,7 @@ import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 void main() {
   group('AdPlacement Hierarchy & Priority Inference Tests', () {
     test('Splash inline placement defaults to splash priority', () {
-      const banner = BannerPlacement(
-        androidId: 'android_banner',
-        iosId: 'ios_banner',
-        isSplash: true,
-      );
+      const banner = BannerPlacement(androidId: 'android_banner', iosId: 'ios_banner', isSplash: true);
 
       expect(banner.isSplash, true);
       expect(banner.priority, AdPriority.splash);
@@ -32,18 +28,12 @@ void main() {
     });
 
     test('Regular placements infer standard priorities and formats', () {
-      const rewarded = RewardedPlacement(
-        androidId: 'android_reward',
-        iosId: 'ios_reward',
-      );
-      const appOpen = AppOpenPlacement(
-        androidId: 'android_open',
-        iosId: 'ios_open',
-      );
+      const rewarded = RewardedPlacement(androidId: 'android_reward', iosId: 'ios_reward');
+      const appOpen = AppOpenPlacement(androidId: 'android_open', iosId: 'ios_open');
       const native = NativePlacement(
         androidId: 'android_native',
         iosId: 'ios_native',
-        factoryId: 'card_factory',
+        template: NativeAdTemplate.small2,
       );
 
       expect(rewarded.format, AdFormat.rewarded);
@@ -51,41 +41,30 @@ void main() {
       expect(appOpen.format, AdFormat.appOpen);
       expect(appOpen.priority, AdPriority.high);
       expect(native.format, AdFormat.native);
-      expect(native.factoryId, 'card_factory');
+      expect(native.template.factoryId, 'admobKit.small2');
     });
 
     test('Native placement template constructors set correct factory IDs and properties', () {
-      const big = NativePlacement.big(
-        androidId: 'big_android',
-        iosId: 'big_ios',
-      );
-      expect(big.factoryId, 'bigNativeAd');
-      expect(big.template, NativeAdTemplate.big);
-      expect(big.template?.height, 300.0);
-      expect(big.template?.width, double.infinity);
-      expect(big.template?.defaultHeight, 300.0);
+      const big = NativePlacement(template: NativeAdTemplate.large1, androidId: 'big_android', iosId: 'big_ios');
+      expect(big.template.factoryId, 'admobKit.large1');
+      expect(big.template, NativeAdTemplate.large1);
+      expect(big.template.height, 360.0);
       expect(big.priority, AdPriority.medium);
 
-      const medium = NativePlacement.medium(
-        androidId: 'med_android',
-        iosId: 'med_ios',
-      );
-      expect(medium.factoryId, 'listTileMedium');
-      expect(medium.template, NativeAdTemplate.medium);
-      expect(medium.template?.height, 130.0);
-      expect(medium.template?.width, double.infinity);
-      expect(medium.template?.defaultHeight, 130.0);
+      const medium = NativePlacement(template: NativeAdTemplate.medium1, androidId: 'med_android', iosId: 'med_ios');
+      expect(medium.template.factoryId, 'admobKit.medium1');
+      expect(medium.template, NativeAdTemplate.medium1);
+      expect(medium.template.height, 180.0);
 
-      const small = NativePlacement.small(
+      const small = NativePlacement(
+        template: NativeAdTemplate.small1,
         androidId: 'small_android',
         iosId: 'small_ios',
         isSplash: true,
       );
-      expect(small.factoryId, 'smallNativeAd');
-      expect(small.template, NativeAdTemplate.small);
-      expect(small.template?.height, 74.0);
-      expect(small.template?.width, double.infinity);
-      expect(small.template?.defaultHeight, 74.0);
+      expect(small.template.factoryId, 'admobKit.small1');
+      expect(small.template, NativeAdTemplate.small1);
+      expect(small.template.height, 112.0);
       expect(small.priority, AdPriority.splash);
     });
 

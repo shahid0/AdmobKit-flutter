@@ -40,15 +40,11 @@ class _TasksListTabState extends State<TasksListTab> {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
                       sliver: filteredTasks.isEmpty
-                          ? SliverToBoxAdapter(
-                              child: _buildEmptyState(),
-                            )
+                          ? SliverToBoxAdapter(child: _buildEmptyState())
                           : SliverList(
                               delegate: SliverChildBuilderDelegate(
                                 (context, index) {
-                                  final adCount = filteredTasks.length >= 3
-                                      ? 2
-                                      : (filteredTasks.isNotEmpty ? 1 : 0);
+                                  final adCount = filteredTasks.length >= 3 ? 2 : (filteredTasks.isNotEmpty ? 1 : 0);
 
                                   if (index == 1) {
                                     if (store.isPremium) {
@@ -56,7 +52,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.mediumNative,
-                                      height: NativeAdTemplate.medium.height,
+                                      height: NativeAdTemplate.medium1.height,
                                     );
                                   }
 
@@ -66,7 +62,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.bigNative,
-                                      height: NativeAdTemplate.big.height,
+                                      height: NativeAdTemplate.large1.height,
                                     );
                                   }
 
@@ -106,18 +102,14 @@ class _TasksListTabState extends State<TasksListTab> {
                                           SampleAds.mainInterstitial,
                                           onDismissed: () {
                                             Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) => TaskDetailScreen(taskId: task.id),
-                                              ),
+                                              MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: task.id)),
                                             );
                                           },
                                         );
                                       } else {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => TaskDetailScreen(taskId: task.id),
-                                          ),
-                                        );
+                                        Navigator.of(
+                                          context,
+                                        ).push(MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: task.id)));
                                       }
                                     },
                                     onDelete: () {
@@ -126,18 +118,14 @@ class _TasksListTabState extends State<TasksListTab> {
                                         store.appendLog(
                                           '🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...',
                                         );
-                                        AdmobKit.show(
-                                          SampleAds.mainInterstitial,
-                                          onDismissed: () {},
-                                        );
+                                        AdmobKit.show(SampleAds.mainInterstitial, onDismissed: () {});
                                       }
                                     },
                                   );
                                 },
-                                childCount: filteredTasks.length +
-                                    (filteredTasks.length >= 3
-                                        ? 2
-                                        : (filteredTasks.isNotEmpty ? 1 : 0)),
+                                childCount:
+                                    filteredTasks.length +
+                                    (filteredTasks.length >= 3 ? 2 : (filteredTasks.isNotEmpty ? 1 : 0)),
                               ),
                             ),
                     ),
@@ -167,9 +155,7 @@ class _TasksListTabState extends State<TasksListTab> {
     return Container(
       decoration: const BoxDecoration(
         color: TaskColors.surfaceCard,
-        border: Border(
-          bottom: BorderSide(color: TaskColors.borderSubtle, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: TaskColors.borderSubtle, width: 1)),
       ),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       child: Column(
@@ -213,10 +199,7 @@ class _TasksListTabState extends State<TasksListTab> {
                   icon: Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: TaskColors.emeraldText,
-                    ),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: TaskColors.emeraldText),
                   ),
                 ),
               ],
@@ -249,11 +232,7 @@ class _TasksListTabState extends State<TasksListTab> {
     );
   }
 
-  Widget _buildFilterChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildFilterChip({required String label, required bool isSelected, required VoidCallback onTap}) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -265,10 +244,7 @@ class _TasksListTabState extends State<TasksListTab> {
           decoration: BoxDecoration(
             color: isSelected ? TaskColors.accentPrimary : TaskColors.surfaceSubtle,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? TaskColors.accentPrimary : TaskColors.borderSubtle,
-              width: 1,
-            ),
+            border: Border.all(color: isSelected ? TaskColors.accentPrimary : TaskColors.borderSubtle, width: 1),
           ),
           child: Text(
             label,
@@ -284,14 +260,11 @@ class _TasksListTabState extends State<TasksListTab> {
     );
   }
 
-  Widget _buildNativeAdCard({
-    required NativePlacement placement,
-    required double height,
-  }) {
+  Widget _buildNativeAdCard({required NativePlacement placement, required double height}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: TaskCard(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         borderRadius: 16,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +297,6 @@ class _TasksListTabState extends State<TasksListTab> {
               borderRadius: BorderRadius.circular(10),
               child: AdNativeView(
                 placement: placement,
-                height: height,
                 placeholder: Container(
                   height: height,
                   decoration: BoxDecoration(
@@ -363,11 +335,7 @@ class _TasksListTabState extends State<TasksListTab> {
                 shape: BoxShape.circle,
                 border: Border.all(color: TaskColors.borderSubtle),
               ),
-              child: const Icon(
-                Icons.checklist_rounded,
-                color: TaskColors.textSlateMedium,
-                size: 26,
-              ),
+              child: const Icon(Icons.checklist_rounded, color: TaskColors.textSlateMedium, size: 26),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -402,9 +370,7 @@ class _TasksListTabState extends State<TasksListTab> {
   Widget _buildFloatingActionButton(BuildContext context) {
     return TactileButton(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreateTaskScreen()),
-        );
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateTaskScreen()));
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
@@ -426,12 +392,7 @@ class _TasksListTabState extends State<TasksListTab> {
             SizedBox(width: 8),
             Text(
               'New Task',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
+              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: -0.2),
             ),
           ],
         ),

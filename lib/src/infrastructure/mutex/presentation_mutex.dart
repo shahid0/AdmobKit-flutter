@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../logging/platform_ad_logger.dart';
 
 /// Mutual-exclusion coordinator guaranteeing single full-screen presentation.
@@ -5,51 +6,72 @@ import '../logging/platform_ad_logger.dart';
 /// Prevents overlapping presentations between App Open, Interstitial, and Paywall ads.
 class PresentationMutex {
   final PlatformAdLogger? _logger;
-  String? _currentHolderId;
+  PresentationToken? _holder;
+  final _changes = StreamController<void>.broadcast();
+  bool _disposed = false;
 
   PresentationMutex([this._logger]);
 
   /// Returns true if a full-screen ad is currently holding the presentation lock.
-  bool get isLocked => _currentHolderId != null;
+  bool get isLocked => _holder != null;
 
   /// ID of the placement or component currently holding the lock.
-  String? get currentHolderId => _currentHolderId;
+  String? get currentHolderId => _holder?.holderId;
+
+  /// Asynchronous state notifications; consumers recheck ownership on delivery.
+  Stream<void> get changes => _changes.stream;
+
+  bool owns(PresentationToken token) => identical(_holder, token);
 
   /// Attempts to acquire the presentation lock for [holderId].
   ///
-  /// Returns `true` if lock was successfully acquired.
-  /// Returns `false` if another ad is already active, rejecting collision.
-  bool tryAcquire(String holderId) {
-    if (_currentHolderId != null) {
+  /// Returns an exclusive token, or null if another presentation owns the lock.
+  PresentationToken? tryAcquire(String holderId) {
+    if (_disposed) return null;
+    if (_holder != null) {
       _logger?.warning(
         '[Mutex] Presentation lock collision! "$holderId" rejected because '
-        '"$_currentHolderId" is currently active.',
+        '"$currentHolderId" is currently active.',
       );
-      return false;
+      return null;
     }
 
-    _currentHolderId = holderId;
+    final token = PresentationToken._(holderId);
+    _holder = token;
+    _changes.add(null);
     _logger?.info('[Mutex] 🔒 Presentation lock ACQUIRED by "$holderId".');
-    return true;
+    return token;
   }
 
-  /// Releases the lock if held by [holderId].
-  void release(String holderId, {bool wasDisplayed = true}) {
-    if (_currentHolderId == holderId) {
-      _currentHolderId = null;
-      _logger?.info('[Mutex] 🔓 Presentation lock RELEASED by "$holderId".');
-    } else {
-      _logger?.warning(
-        '[Mutex] Attempted to release lock for "$holderId", but lock is held by "$_currentHolderId".',
-      );
-    }
+  /// Releases only this acquisition. Late callbacks cannot release a newer one.
+  void release(PresentationToken token) {
+    if (!identical(_holder, token)) return;
+    _holder = null;
+    _changes.add(null);
+    _logger?.info('[Mutex] 🔓 Presentation lock RELEASED by "${token.holderId}".');
   }
 
   /// Force-clears the lock in case of uncaught native dismissals.
   void forceRelease() {
-    if (_currentHolderId != null) {
-      _logger?.warning('[Mutex] ⚠️ Force-releasing presentation lock from "$_currentHolderId".');
-      _currentHolderId = null;
+    if (_holder != null) {
+      _logger?.warning('[Mutex] ⚠️ Force-releasing presentation lock from "$currentHolderId".');
+      _holder = null;
+      _changes.add(null);
     }
   }
+
+  /// Ends this session's presentation lifetime. Late holders cannot reacquire.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    forceRelease();
+    unawaited(_changes.close());
+  }
+}
+
+/// Identity of a single acquisition, not merely the placement that requested it.
+final class PresentationToken {
+  final String holderId;
+
+  PresentationToken._(this.holderId);
 }

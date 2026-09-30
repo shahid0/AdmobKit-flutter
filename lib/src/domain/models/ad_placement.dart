@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'ad_format.dart';
 import 'ad_native_template.dart';
 import 'ad_priority.dart';
+import 'banner_sizing.dart';
+import 'native_ad_colors.dart';
 
 /// Base class representing a type-safe ad placement configuration.
 @immutable
@@ -44,10 +46,7 @@ sealed class AdPlacement {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AdPlacement &&
-          runtimeType == other.runtimeType &&
-          id == other.id;
+      identical(this, other) || other is AdPlacement && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;
@@ -95,10 +94,10 @@ class InterstitialPlacement extends FullscreenPlacement {
     super.loadOnce = false,
     super.isSplash = false,
   }) : super(
-          id: id ?? androidId,
-          format: AdFormat.interstitial,
-          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
-        );
+         id: id ?? androidId,
+         format: AdFormat.interstitial,
+         priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
+       );
 }
 
 /// Type-safe placement descriptor for Rewarded ads.
@@ -110,11 +109,7 @@ class RewardedPlacement extends FullscreenPlacement {
     required super.iosId,
     super.priority = AdPriority.medium,
     super.loadOnce = false,
-  }) : super(
-          id: id ?? androidId,
-          format: AdFormat.rewarded,
-          isSplash: false,
-        );
+  }) : super(id: id ?? androidId, format: AdFormat.rewarded, isSplash: false);
 }
 
 /// Type-safe placement descriptor for Rewarded Interstitial ads.
@@ -126,11 +121,7 @@ class RewardedInterstitialPlacement extends FullscreenPlacement {
     required super.iosId,
     super.priority = AdPriority.medium,
     super.loadOnce = false,
-  }) : super(
-          id: id ?? androidId,
-          format: AdFormat.rewardedInterstitial,
-          isSplash: false,
-        );
+  }) : super(id: id ?? androidId, format: AdFormat.rewardedInterstitial, isSplash: false);
 }
 
 /// Type-safe placement descriptor for App Open ads.
@@ -144,16 +135,20 @@ class AppOpenPlacement extends FullscreenPlacement {
     super.loadOnce = false,
     super.isSplash = false,
   }) : super(
-          id: id ?? androidId,
-          format: AdFormat.appOpen,
-          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
-        );
+         id: id ?? androidId,
+         format: AdFormat.appOpen,
+         priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.high),
+       );
 }
 
 /// Type-safe placement descriptor for Banner ads.
 class BannerPlacement extends InlinePlacement {
+  /// Anchored adaptive by default; use inline adaptive for scrolling content.
+  final BannerSizing sizing;
+
   /// Creates a [BannerPlacement] with the specified unit IDs and options.
   const BannerPlacement({
+    this.sizing = const BannerSizing.anchoredAdaptive(),
     String? id,
     required super.androidId,
     required super.iosId,
@@ -161,90 +156,33 @@ class BannerPlacement extends InlinePlacement {
     super.isSplash = false,
     super.loadOnce = false,
   }) : super(
-          id: id ?? androidId,
-          format: AdFormat.banner,
-          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
-        );
+         id: id ?? androidId,
+         format: AdFormat.banner,
+         priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
+       );
 }
 
-/// Type-safe placement descriptor for Native ads.
+/// Type-safe placement for one built-in native template, mounted with AdNativeView.
 class NativePlacement extends InlinePlacement {
-  /// The optional native ad factory ID registered on Android / iOS.
-  final String? factoryId;
+  /// Initial per-placement colors. Live updates use AdmobKit.setNativeColors.
+  final NativeAdColors colors;
 
-  /// The associated template type if using standard templates.
-  final NativeAdTemplate? template;
+  /// Layout and factory identity. Use a distinct placement ID for each template.
+  final NativeAdTemplate template;
 
-  /// Creates a [NativePlacement] with the specified unit IDs, template, or custom factory.
+  /// Creates an inline native placement with a catalog-owned layout.
   const NativePlacement({
     String? id,
     required super.androidId,
     required super.iosId,
-    this.factoryId,
-    this.template,
+    this.template = NativeAdTemplate.medium1,
+    this.colors = const NativeAdColors(),
     AdPriority? priority,
     super.isSplash = false,
     super.loadOnce = false,
   }) : super(
-          id: id ?? androidId,
-          format: AdFormat.native,
-          priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
-        );
-
-  /// Convenience constructor for the Big Native Ad template (`bigNativeAd`).
-  const NativePlacement.big({
-    String? id,
-    required String androidId,
-    required String iosId,
-    AdPriority? priority,
-    bool isSplash = false,
-    bool loadOnce = false,
-  }) : this(
-          id: id,
-          androidId: androidId,
-          iosId: iosId,
-          factoryId: 'bigNativeAd',
-          template: NativeAdTemplate.big,
-          priority: priority,
-          isSplash: isSplash,
-          loadOnce: loadOnce,
-        );
-
-  /// Convenience constructor for the Medium Native Ad template (`listTileMedium`).
-  const NativePlacement.medium({
-    String? id,
-    required String androidId,
-    required String iosId,
-    AdPriority? priority,
-    bool isSplash = false,
-    bool loadOnce = false,
-  }) : this(
-          id: id,
-          androidId: androidId,
-          iosId: iosId,
-          factoryId: 'listTileMedium',
-          template: NativeAdTemplate.medium,
-          priority: priority,
-          isSplash: isSplash,
-          loadOnce: loadOnce,
-        );
-
-  /// Convenience constructor for the Small Native Ad template (`smallNativeAd`).
-  const NativePlacement.small({
-    String? id,
-    required String androidId,
-    required String iosId,
-    AdPriority? priority,
-    bool isSplash = false,
-    bool loadOnce = false,
-  }) : this(
-          id: id,
-          androidId: androidId,
-          iosId: iosId,
-          factoryId: 'smallNativeAd',
-          template: NativeAdTemplate.small,
-          priority: priority,
-          isSplash: isSplash,
-          loadOnce: loadOnce,
-        );
+         id: id ?? androidId,
+         format: AdFormat.native,
+         priority: priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
+       );
 }

@@ -31,7 +31,7 @@ Every part of the engine enforces these. Internalize them before writing ad code
 1. **The 0ms Show Contract** — `AdmobKit.show(placement, onDismissed: ...)` is strictly non-blocking. Ad in memory → displays instantly. Unready, expired, or offline → `onDismissed` fires immediately with **0ms delay**. User navigation is never stalled.
 2. **Deterministic Settlement** — Never guess when an ad arrives with `Timer()` or `Future.delayed()`. Use `await AdmobKit.waitFor(placement)` (returns `bool`), composed in `Future.wait` with auth/config futures.
 3. **Immediate-Display Priority** — The ad the user is looking at wins the network. Visible-screen leases and `waitFor` calls promote their placement to the `immediate` tier automatically, preempting background preloads.
-4. **Template-Bound Native Dimensions** — Native container sizes are owned by native layouts (`small` 74dp, `medium` 130dp, `big` 300dp). Flutter never guesses heights — always bind `template.height`.
+4. **Template-Bound Native Dimensions** — Choose one of 20 inline layouts on the placement. `AdNativeView` reserves its catalog height: small 112dp, medium 180dp, large 360dp.
 
 ---
 
@@ -58,7 +58,8 @@ abstract final class AppAds {
     loadOnce: true,
   );
 
-  static const feedNative = NativePlacement.medium(
+  static const feedNative = NativePlacement(
+    template: NativeAdTemplate.medium1,
     id: 'feed_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -78,8 +79,8 @@ abstract final class AppAds {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await AdmobKit.initialize(
-    config: const AdmobKitConfig(
+  final boot = AdmobKit.initialize(
+    config: AdmobKitConfig(
       initialConcurrency: 1,   // single-radio discipline on slow networks
       subsequentConcurrency: 1,
       isPremium: () => UserStore.isVip, // universal ad suppression gate
@@ -87,6 +88,11 @@ void main() async {
   );
 
   runApp(const MyApp());
+  try {
+    await boot;
+  } catch (error, stack) {
+    FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+  }
 }
 ```
 
@@ -216,7 +222,7 @@ When a widget leases an ad on an empty buffer, it registers demand; the replenis
 | `isLoading` | `bool isLoading(AdPlacement)` | A download for this placement is in flight. |
 | `getState` | `AdPlacementState getState(AdPlacement)` | See [state machine](#placement-state-machine). |
 | `watchState` | `Stream<AdPlacementState> watchState(AdPlacement)` | Reactive stream of state transitions (custom loading UIs). |
-| `preload` | `void preload(AdPlacement)` | Manual on-demand top-up. No-ops when buffer + pending already meet capacity. |
+| `preload` | `Future<void> preload(AdPlacement, {BannerLayout? bannerLayout})` | Awaitable on-demand top-up. Waits for initialization/privacy settlement. |
 | `leaseInlineAd` | `Future<dynamic> leaseInlineAd(InlinePlacement, {Duration? timeout})` | Package-internal. Used by `AdBannerView` / `AdNativeView` — do not call from app code. |
 | `isShowingAd` | `bool get isShowingAd` | A fullscreen ad is currently on screen (gate App Open re-entry with this). |
 | `isUserPremium` | `bool get isUserPremium` | Effective entitlement state. |
@@ -256,17 +262,146 @@ When a widget leases an ad on an empty buffer, it registers demand; the replenis
 | `RewardedPlacement` | Fullscreen | `medium` | — | Unlock features, bonuses |
 | `RewardedInterstitialPlacement` | Fullscreen | `medium` | — | Natural-break monetization |
 | `BannerPlacement` | Inline | `medium` | `splash` | Sticky shells, lists |
-| `NativePlacement.small/medium/big` | Inline | `medium` | `splash` | Feed cards, in-content units |
+| `NativePlacement(template: ...)` | Inline | `medium` | `splash` | Feed cards, in-content units |
 
 All accept `priority:` to override, `loadOnce:` (one-time placements — set `true` for splash/onboarding to prevent wasteful replenishment), and `isSplash:` (routes to the dedicated splash tier + deterministic settlement on show).
 
 ### Native templates
 
-| Template | Height | Native factory ID |
+| Templates | Height | Arrangements |
 | :--- | :--- | :--- |
-| `NativeAdTemplate.small` / `NativePlacement.small` | 74dp | `smallNativeAd` |
-| `NativeAdTemplate.medium` / `NativePlacement.medium` | 130dp | `listTileMedium` |
-| `NativeAdTemplate.big` / `NativePlacement.big` | 300dp | `bigNativeAd` |
+| `small1`–`small8` | 112dp | Compact rows with optional icon/metadata and compact or tall side CTA |
+| `medium1`–`medium6` | 180dp | Two media split-cards and four icon/content cards with top or bottom CTA |
+| `large1`–`large6` | 360dp | Media cards with different content and CTA positions |
+| `fullscreen1`–`fullscreen5` | Fill bounded height, minimum 360dp | Fullscreen content/media/CTA compositions |
+
+```dart
+const articleAd = NativePlacement(
+  id: 'article_native',
+  androidId: AdMobTestIds.nativeAndroid,
+  iosId: AdMobTestIds.nativeIos,
+  template: NativeAdTemplate.large1,
+);
+
+// The parent supplies the width; the template owns the reserved height.
+AdNativeView(placement: articleAd)
+```
+
+The default template is `medium1`. All templates require a bounded width of at
+least 320 logical pixels and enough height for the selected template. Invalid
+bounds fail before the widget requests an ad. There are no widget-level size or
+template overrides, custom factory IDs, or legacy small/medium/big constructors.
+A different template requires a distinct placement ID.
+
+Each layout reserves a separate attribution/AdChoices strip. Missing optional
+assets leave their reserved space empty; no substitute CTA or advertiser text is
+invented. The SDK owns asset clicks and impressions.
+
+These are adaptations of the upstream arrangements, using its iOS variant
+ordering consistently across platforms. Sizes, asset binding and stack layouts
+are adapted to this package, not pixel-identical copies. See
+[third-party attribution](THIRD_PARTY_NOTICES.md).
+
+### Fullscreen native hosts
+
+Select a fullscreen template on a distinct placement and give the host bounded
+space (at least 320 × 360 logical pixels **after** safe areas and navigation).
+Fullscreen `template.height` is a minimum, not the rendered height. The example
+app's fullscreen menu demonstrates all five variants with an always-available
+close button outside the ad.
+
+```dart
+const fullscreenNative = NativePlacement(
+  id: 'onboarding_fullscreen',
+  androidId: AdMobTestIds.nativeAndroid,
+  iosId: AdMobTestIds.nativeIos,
+  template: NativeAdTemplate.fullscreen1,
+  loadOnce: true,
+);
+
+Scaffold(
+  appBar: AppBar(leading: const CloseButton()),
+  body: const SafeArea(child: AdNativeView(placement: fullscreenNative)),
+)
+```
+
+The existing session loads the ad normally. A loaded, active native host acquires
+exclusive presentation before mounting its SDK `AdWidget`; downloads and
+placeholders do not hold the lock. If an interstitial, app-open ad, or another
+fullscreen native owns it, the native host waits for an ownership notification.
+`AdmobKit.isShowingAd` includes this ownership. Ordinary inline templates do not
+take the fullscreen lock. These templates remain native placements: mount them
+with `AdNativeView`, not `AdmobKit.show`.
+
+Visibility, TickerMode, app foreground state, and widget attachment gate
+presentation. Hiding/removing the host releases ownership; a fresh retained ad
+can be shown again without another request. Expired retained/waiting ads reload
+before presentation. `loadOnce` still disables background replenishment, not
+fresh demand after consumption.
+
+For a `PageView` or other lazy container that keeps offscreen children active,
+pass `active: pageIndex == currentPage` from the container's selection state.
+`active` cannot override a hidden or ticker-disabled ancestor. Arbitrary viewport
+visibility is not inferred. Keep dismissal/navigation outside the ad assets;
+use safe areas and do not cover AdChoices or media controls.
+
+Variant 3 adapts the source overlay into a dedicated bottom panel, leaving media
+controls clear. Variant 4 splits the available content height evenly between
+media and content/CTA. Fullscreen natives share the same live color API.
+For production setup, follow Google's fullscreen native guidance for
+[Android](https://developers.google.com/admob/android/native/full-screen) and
+[iOS](https://developers.google.com/admob/ios/native/full-screen), including a
+dedicated fullscreen ad unit.
+
+### Native colors and live themes
+
+All 25 native templates support `background`, `headline`,
+`body`, `callToActionBackground`, and `callToActionText`. Values are unsigned
+ARGB integers (`0xAARRGGBB`); Flutter colors can use `color.toARGB32()`.
+The `body` slot also colors optional advertiser, rating and price text. Attribution
+and SDK-owned AdChoices styling are not overridden.
+
+```dart
+const feedNative = NativePlacement(
+  template: NativeAdTemplate.medium1,
+  id: 'feed',
+  androidId: AdMobTestIds.nativeAndroid,
+  iosId: AdMobTestIds.nativeIos,
+  colors: NativeAdColors(callToActionBackground: 0xff6750a4),
+);
+
+await AdmobKit.initialize(config: const AdmobKitConfig(
+  placements: [feedNative],
+  nativeColors: NativeAdColors(background: 0xff141416, headline: 0xffffffff),
+));
+
+// Apply a new global theme to pending, cached, and displayed native ads.
+await AdmobKit.setNativeColors(const NativeAdColors(
+  background: 0xfffafafa,
+  headline: 0xff161616,
+  body: 0xff333333,
+));
+
+// Replace this placement's overrides (not a merge with its previous overrides).
+await AdmobKit.setNativeColors(const NativeAdColors(
+  callToActionBackground: 0xff2457c5,
+  callToActionText: 0xffffffff,
+), placement: feedNative);
+
+// Remove its overrides, including the initial placement colors.
+await AdmobKit.setNativeColors(const NativeAdColors(), placement: feedNative);
+```
+
+Precedence is per-placement overrides → global colors → template defaults.
+Null fields inherit; an empty global palette restores template defaults wherever
+there is no placement override. Updates preserve the loaded ad, its age, layout,
+and click regions. They do not cause additional ad requests. Await the update:
+platform failures are reported through its future. The desired colors are retained
+and included in the next update/request; there is no hidden retry loop. Call
+`initialize()` before setting colors; updates do not wait for consent or request ads.
+
+An inactive native host retains its ad, but checks the original load age before
+showing it again. Expired ads are disposed and replaced on reactivation.
 
 ### Placement state machine
 
@@ -298,7 +433,7 @@ AdmobKit.registerPlacements([AppAds.feedNative],
 // no duplicate network requests for the same demand.
 ListView.builder(
   itemBuilder: (context, i) => i == 2
-      ? const AdNativeView.templated(placement: AppAds.feedNative, template: NativeAdTemplate.medium)
+      ? const AdNativeView(placement: AppAds.feedNative)
       : TaskCard(tasks[i]),
 );
 ```
@@ -326,6 +461,38 @@ Works out of the box with `IndexedStack` and covered navigation routes. **Caveat
 TickerMode(enabled: pageController.page == 0, child: PageOne())
 // or Visibility(visible: currentIndex == 0, child: PageOne())
 ```
+
+For a custom retained-page host, both ad widgets also accept `active: currentIndex == pageIndex`.
+This is an additional gate: `active: true` never overrides an inactive `TickerMode` or `Visibility` ancestor.
+Inactive hosts retain their leased ad but unmount its platform view; reactivation reuses the lease without another request.
+Disposal, privacy updates, and failed/denied initialization discard the host's lease.
+
+### Adaptive banners
+
+`BannerPlacement` defaults to `BannerSizing.anchoredAdaptive()`. `AdBannerView` takes the available logical width from its parent and uses the SDK-selected height. Give the parent a bounded width, or supply `width:` when the parent is horizontally unbounded. The former fixed `height:` option is removed.
+
+For a scrolling feed:
+
+```dart
+const feedBanner = BannerPlacement(
+  id: 'feed_banner',
+  androidId: AdMobTestIds.bannerAndroid,
+  iosId: AdMobTestIds.bannerIos,
+  sizing: BannerSizing.inlineAdaptive(maxHeight: 160),
+);
+const AdBannerView(placement: feedBanner);
+```
+
+Inline banners reserve `maxHeight` and center the creative at the actual size reported by the SDK. Anchored banners occupy zero height until the SDK resolves and loads the ad; they do not promise zero layout shift during that initial resolution. No fixed-size fallback is used when sizing fails. Refresh remains SDK-managed, including render-size updates.
+
+Registration retains banner configuration but cannot preload a banner until its layout is known. Widgets supply the layout automatically. For explicit `preload`, `waitFor`, `isReady`, `isLoading`, `getState`, or `watchState`, pass `bannerLayout:`:
+
+```dart
+const layout = BannerLayout(width: 360, orientation: BannerOrientation.portrait);
+final ready = await AdmobKit.waitFor(feedBanner, bannerLayout: layout);
+```
+
+Use the host's actual logical width and device orientation. Width/orientation changes create distinct requests; readiness for one size never means another size is ready. Buffer capacity and `loadOnce` remain placement-scoped, and a placement ID cannot be reused with different units, sizing, or policy during a session. Flutter 3.41 or newer is required.
 
 ### One-time screens and `loadOnce`
 
@@ -356,7 +523,7 @@ The placement list should mirror what can actually be shown in this session, not
 
 ### Slow splash on a bad connection
 
-`isSplash: true` + `loadOnce: true`. If the ad is already in memory at show time → 0ms display. If it's still downloading → the presentation mutex is held, the splash **deterministically settles** (shows when ready, or continues the flow on failure/timeout — no 15s blank screen, no dropped splash), and any concurrent fullscreen trigger is rejected cleanly.
+`isSplash: true` + `loadOnce: true`. If the ad is already in memory at show time → 0ms display. If it's still downloading, the splash deterministically awaits readiness, failure, or timeout without holding the presentation lock. Duplicate show requests for that pending placement are rejected. Once ready, it acquires the lock immediately before presentation; if another ad is then on screen, `onDismissed` runs and the cached splash ad remains available.
 
 ```dart
 await Future.wait([
@@ -580,6 +747,16 @@ We benchmarked the three architectures above, standardized the winner, and engin
 
 ## Platform Setup
 
+### Requirements and example gallery
+
+- Flutter >=3.41 with Dart >=3.11.5, matching this package's declared constraints.
+- Android minSdk 24, compileSdk 36, Java 17. The native SDK dependency is aligned with `google_mobile_ads` 9.1.0: Google Mobile Ads 25.4.0.
+- iOS deployment target 13.0 or later. The current Flutter SDK dependency uses Google Mobile Ads `~>13.7`; its minimum Xcode version is 26.2. See Google's [iOS release notes](https://developers.google.com/admob/ios/rel-notes). Installed Xcode/simulator tooling can impose additional local build constraints.
+
+Run the app in `example/` and open **Ad gallery** from the home toolbar. Browse all 25 native templates without preloading the inventory; opening a preview requests only that placement. The palette menu applies live colors or resets inheritance without loading another ad. The two banner demos expose width changes and use SDK-resolved heights. Use Google test IDs for device checks, including rotation, large text, missing assets, AdChoices/video controls, navigation and background/resume.
+
+The automated suite checks transport, lifecycle and layout contracts. Real SDK rendering and physical-device accessibility checks are still required; passing unit/widget tests is not a substitute.
+
 ### Android — `android/app/src/main/AndroidManifest.xml`
 
 ```xml
@@ -654,7 +831,7 @@ npx skills add shahid0/AdmobKit-flutter -g
 
 - **Initial setup**: *"Integrate `admob_kit_flutter` using the `flutter-ads` skill. Two-stage initialization: Stage 1 in `main.dart`, Stage 2 in `RemoteConfigService`. Startup concurrency 1. Import from `package:admob_kit_flutter/admob_kit_flutter.dart`."*
 - **Splash**: *"Implement the splash with the deterministic settlement pattern: compose `AdmobKit.waitFor(splashInterstitial)` with bootstrap futures in `Future.wait`, proceed via `AdmobKit.show` `onDismissed`. Zero timers, nothing over consent."*
-- **Feed native**: *"Add a native card at feed index 3 with `NativePlacement.medium` + `AdNativeView.templated`, capacity 2, zero CLS."*
+- **Feed native**: *"Add a native card at feed index 3 with `NativePlacement(template: NativeAdTemplate.medium1)` + `AdNativeView`, capacity 2, zero CLS."*
 - **Tabs**: *"Place ads inside an `IndexedStack` tab shell so hidden tabs defer loading until selected."*
 - **Paywall**: *"Wrap the paywall in `AdPaywallGuard` intercepting hardware back and the close button."*
 

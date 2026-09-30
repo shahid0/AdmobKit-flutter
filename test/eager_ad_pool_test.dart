@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
@@ -10,7 +12,7 @@ class FakeDriver extends GoogleMobileAdsDriver {
   int showCalls = 0;
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loadCalls++;
     return Object();
   }
@@ -34,7 +36,7 @@ class _FailingDriver extends GoogleMobileAdsDriver {
   int loadCalls = 0;
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loadCalls++;
     throw LoadAdError(1, 'invalid_request', 'FATAL invalid unit id', null);
   }
@@ -47,7 +49,7 @@ class _DelayedDriver extends GoogleMobileAdsDriver {
   _DelayedDriver({required this.delay});
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loadCalls++;
     await Future.delayed(delay);
     return Object();
@@ -72,7 +74,7 @@ class _ManualDismissDriver extends GoogleMobileAdsDriver {
   void Function()? pendingDismiss;
 
   @override
-  Future<dynamic> loadAd(AdPlacement placement) async {
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     loadCalls++;
     return Object();
   }
@@ -95,10 +97,29 @@ class _TrackingMutex extends PresentationMutex {
   int attempts = 0;
 
   @override
-  bool tryAcquire(String holderId) {
+  PresentationToken? tryAcquire(String holderId) {
     attempts++;
     return super.tryAcquire(holderId);
   }
+}
+
+class _PendingSplashDriver extends _ManualDismissDriver {
+  final splash = Completer<dynamic>();
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) =>
+      placement.isSplash ? splash.future : super.loadAd(placement, bannerLayout: bannerLayout, validateRequest: validateRequest);
+}
+
+class _ThrowingShowDriver extends FakeDriver {
+  @override
+  void showFullscreenAd({
+    required FullscreenPlacement placement,
+    required dynamic adInstance,
+    required void Function() onDisplayed,
+    required void Function() onDismissed,
+    void Function(num amount, String type)? onRewardGranted,
+  }) => throw StateError('platform presentation failed');
 }
 
 class FakeNetworkInfo implements AdNetworkInfo {
@@ -121,6 +142,81 @@ void main() {
       networkInfo = FakeNetworkInfo();
     });
 
+    testWidgets('pending splash leaves display available and rechecks mutex after loading', (tester) async {
+      final driver = _PendingSplashDriver();
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+      const other = InterstitialPlacement(id: 'other', androidId: '2', iosId: '2', loadOnce: true);
+      await pool.preload(other);
+      pool.preload(splash);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      expect(mutex.isLocked, isFalse);
+      pool.show(other);
+      expect(mutex.currentHolderId, 'other');
+      await tester.pump();
+      driver.splash.complete(Object());
+      await tester.pump();
+      expect(pool.isReady(splash), isTrue);
+      await tester.runAsync(() async {});
+      await tester.pump();
+      expect(dismissed, 1);
+      expect(driver.showCalls, 1);
+      expect(pool.isReady(splash), isTrue, reason: 'Collision must not consume the cached ad');
+      driver.pendingDismiss!();
+      pool.show(splash);
+      expect(driver.showCalls, 2);
+      driver.pendingDismiss!();
+    });
+
+    testWidgets('disposing a pending splash settles navigation without acquiring the lock', (tester) async {
+      final driver = _PendingSplashDriver();
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true);
+      pool.preload(splash);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      pool.dispose();
+      await tester.pump();
+      expect(dismissed, 1);
+      expect(mutex.isLocked, isFalse);
+      driver.splash.complete(Object());
+      await tester.pump();
+      expect(driver.showCalls, 0);
+      expect(dismissed, 1);
+    });
+
+    test('duplicate dismissal cannot release a newer presentation or repeat navigation', () async {
+      final driver = _ManualDismissDriver();
+      final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const placement = InterstitialPlacement(id: 'same', androidId: '1', iosId: '1');
+      await pool.preload(placement);
+      var dismissed = 0;
+      pool.show(placement, onDismissed: () => dismissed++);
+      final firstDismiss = driver.pendingDismiss!;
+      firstDismiss();
+      expect(await pool.waitFor(placement), isTrue);
+      pool.show(placement);
+      firstDismiss();
+      expect(dismissed, 1);
+      expect(mutex.isLocked, isTrue);
+      driver.pendingDismiss!();
+    });
+
+    test('synchronous presentation failure releases ownership and settles navigation', () async {
+      final pool = EagerAdPool(driver: _ThrowingShowDriver(), mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const placement = InterstitialPlacement(id: 'throw', androidId: '1', iosId: '1', loadOnce: true);
+      await pool.preload(placement);
+      var dismissed = 0;
+      pool.show(placement, onDismissed: () => dismissed++);
+      expect(dismissed, 1);
+      expect(mutex.isLocked, isFalse);
+      expect(pool.isReady(placement), isFalse);
+    });
+
     test('consumed empty placement skips the mutex without disturbing another ad', () async {
       final trackedMutex = _TrackingMutex();
       final pool = EagerAdPool(driver: driver, mutex: trackedMutex, networkInfo: networkInfo);
@@ -130,7 +226,7 @@ void main() {
       pool.show(placement);
       expect(pool.isConsumed(placement), isTrue);
       expect(pool.isReady(placement), isFalse);
-      expect(trackedMutex.tryAcquire('other'), isTrue);
+      expect(trackedMutex.tryAcquire('other'), isNotNull);
       final attempts = trackedMutex.attempts;
       var dismissed = 0;
 
@@ -236,7 +332,7 @@ void main() {
     test('Inline loadOnce: leaseInlineAd consumes placement and skips replenishment', () async {
       final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const oneOffNative = NativePlacement.big(id: 'splash_native', androidId: '3', iosId: '3', loadOnce: true);
+      const oneOffNative = NativePlacement(template: NativeAdTemplate.large1, id: 'splash_native', androidId: '3', iosId: '3', loadOnce: true);
 
       // Preload inline ad
       await pool.preload(oneOffNative);
@@ -406,7 +502,8 @@ void main() {
     test('loadOnce saturation: leaseInlineAd on empty buffer does NOT trigger duplicate load', () async {
       final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const oneOffNative = NativePlacement.big(
+      const oneOffNative = NativePlacement(
+        template: NativeAdTemplate.large1,
         id: 'splash_native_saturation',
         androidId: '3',
         iosId: '3',

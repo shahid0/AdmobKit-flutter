@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../domain/models/native_ad_colors.dart';
+import '../infrastructure/appearance/native_appearance.dart';
+import '../domain/models/banner_layout.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -11,6 +14,7 @@ import '../infrastructure/drivers/google_mobile_ads_driver.dart';
 import '../infrastructure/logging/platform_ad_logger.dart';
 import '../infrastructure/network/connectivity_network_info.dart';
 import '../infrastructure/pool/eager_ad_pool.dart';
+import '../infrastructure/mutex/presentation_mutex.dart';
 import 'config/admob_kit_config.dart';
 import 'ad_session.dart';
 
@@ -36,6 +40,10 @@ abstract final class AdmobKit {
   /// Observable stage, suitable for ValueListenableBuilder without polling.
   static ValueListenable<AdInitializationState> get initializationStateListenable => _initializationState;
 
+  /// Package-internal presentation coordinator for native hosts.
+  @internal
+  static PresentationMutex? get presentationMutex => _pool?.mutex;
+
   /// Optional driver override for testing environments.
   @visibleForTesting
   static GoogleMobileAdsDriver? driverForTesting;
@@ -60,6 +68,7 @@ abstract final class AdmobKit {
     _testPool = null;
     session?.dispose();
     testPool?.dispose();
+    testPool?.mutex.dispose();
     _initializationState.value = AdInitializationState.disposed;
   }
 
@@ -79,10 +88,14 @@ abstract final class AdmobKit {
     }
     dispose();
     _logger = PlatformAdLogger(level: config.logLevel);
+    final appearance = NativeAppearance(defaults: config.nativeColors);
     late final AdSession session;
     session = AdSession(
       config: config,
-      driver: driverForTesting ?? GoogleMobileAdsDriver(logger: _logger, analytics: config.analytics),
+      appearance: appearance,
+      driver:
+          driverForTesting ??
+          GoogleMobileAdsDriver(logger: _logger, analytics: config.analytics, appearance: appearance),
       consent: ConsentCoordinator(_logger),
       networkInfo: networkInfoForTesting ?? ConnectivityNetworkInfo(),
       logger: _logger!,
@@ -96,6 +109,14 @@ abstract final class AdmobKit {
     );
     _session = session;
     return session.initialize();
+  }
+
+  /// Replaces global or per-placement native colors without requesting new ads.
+  /// Empty colors restore inheritance. Throws on platform failure or no session.
+  static Future<void> setNativeColors(NativeAdColors colors, {NativePlacement? placement}) {
+    final session = _session;
+    if (session == null) return Future.error(StateError('Call initialize() before setNativeColors().'));
+    return session.setNativeColors(colors, placement: placement);
   }
 
   /// Stage 2: Registers and primes placements in the eager preloading pool.
@@ -138,23 +159,23 @@ abstract final class AdmobKit {
   }
 
   /// Whether an ad is primed, fresh, and ready for instant 0ms display.
-  static bool isReady(AdPlacement placement) {
-    return _pool?.isReady(placement) ?? false;
+  static bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) {
+    return _pool?.isReady(placement, bannerLayout: bannerLayout) ?? false;
   }
 
   /// Whether an ad is currently in-flight downloading in the priority queue.
-  static bool isLoading(AdPlacement placement) {
-    return _pool?.isLoading(placement) ?? false;
+  static bool isLoading(AdPlacement placement, {BannerLayout? bannerLayout}) {
+    return _pool?.isLoading(placement, bannerLayout: bannerLayout) ?? false;
   }
 
   /// Returns the current lifecycle state of [placement].
-  static AdPlacementState getState(AdPlacement placement) {
-    return _pool?.getState(placement) ?? AdPlacementState.unloaded;
+  static AdPlacementState getState(AdPlacement placement, {BannerLayout? bannerLayout}) {
+    return _pool?.getState(placement, bannerLayout: bannerLayout) ?? AdPlacementState.unloaded;
   }
 
   /// Observes state transitions for [placement] (e.g. for reactive splash waiting).
-  static Stream<AdPlacementState> watchState(AdPlacement placement) {
-    return _pool?.watchState(placement) ?? const Stream.empty();
+  static Stream<AdPlacementState> watchState(AdPlacement placement, {BannerLayout? bannerLayout}) {
+    return _pool?.watchState(placement, bannerLayout: bannerLayout) ?? const Stream.empty();
   }
 
   /// Deterministically awaits [placement] until it is ready, fails, or times out.
@@ -162,20 +183,17 @@ abstract final class AdmobKit {
   /// Returns `true` if the ad is ready in memory; `false` if failed, timed out, or user is premium.
   /// Waits for pending initialization/privacy resolution before loading. [timeout]
   /// applies to the ad wait, not to time spent resolving consent or the SDK.
-  static Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) {
-    return _session?.waitFor(placement, timeout: timeout) ??
-        _testPool?.waitFor(placement, timeout: timeout) ??
+  static Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) {
+    return _session?.waitFor(placement, timeout: timeout, bannerLayout: bannerLayout) ??
+        _testPool?.waitFor(placement, timeout: timeout, bannerLayout: bannerLayout) ??
         Future.value(false);
   }
 
   /// Manually requests an on-demand preload for a specific placement.
-  static void preload(AdPlacement placement) {
-    if (_session != null) {
-      unawaited(_session!.preload(placement));
-    } else {
-      _testPool?.preload(placement);
-    }
-  }
+  static Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) =>
+      _session?.preload(placement, bannerLayout: bannerLayout) ??
+      _testPool?.preload(placement, bannerLayout: bannerLayout) ??
+      Future<void>.value();
 
   /// Whether the user is currently entitled to an ad-free experience.
   static bool get isUserPremium => _session?.isPremium ?? _testPool?.isUserPremium ?? false;
@@ -213,15 +231,19 @@ abstract final class AdmobKit {
   /// Resolves with an exclusively-owned ad instance (buffered immediately or
   /// delivered on replenishment), or `null` on timeout / premium / failure.
   @internal
-  static Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) {
-    return _session?.leaseInlineAd(placement, timeout: timeout) ??
-        _testPool?.leaseInlineAd(placement, timeout: timeout) ??
+  static Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) {
+    return _session?.leaseInlineAd(placement, timeout: timeout, bannerLayout: bannerLayout) ??
+        _testPool?.leaseInlineAd(placement, timeout: timeout, bannerLayout: bannerLayout) ??
         Future<dynamic>.value(null);
   }
 
   /// Internal reference to logger.
   @internal
   static PlatformAdLogger? get logger => _logger;
+
+  /// Freshness limit for retained inline leases.
+  @internal
+  static Duration get inlineAdTtl => _pool?.adTtl ?? const Duration(minutes: 50);
 
   /// Internal reference to pool.
   @internal

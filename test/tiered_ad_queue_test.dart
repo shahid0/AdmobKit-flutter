@@ -43,7 +43,7 @@ void main() {
       int maxConcurrent = 0;
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           activeCount++;
           if (activeCount > maxConcurrent) {
             maxConcurrent = activeCount;
@@ -81,7 +81,7 @@ void main() {
       bool isSubsequentPhase = false;
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           activeCount++;
           if (!isSubsequentPhase) {
             if (activeCount > maxConcurrentInitial) {
@@ -138,7 +138,7 @@ void main() {
       final executionOrder = <String>[];
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           return Object();
         },
@@ -169,7 +169,7 @@ void main() {
       final executionOrder = <String>[];
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           return Object();
         },
@@ -205,7 +205,7 @@ void main() {
       final completerMap = <String, Completer<void>>{};
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           final c = Completer<void>();
           completerMap[placement.id] = c;
@@ -249,7 +249,7 @@ void main() {
       networkInfo.current = AdNetworkType.cellular;
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           await Future.delayed(const Duration(milliseconds: 80));
           return Object();
         },
@@ -281,7 +281,7 @@ void main() {
     test('Inline placements generate distinct slot keys while fullscreen deduplicates', () async {
       int execCount = 0;
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           execCount++;
           await Future.delayed(const Duration(milliseconds: 20));
           return Object();
@@ -312,7 +312,7 @@ void main() {
       final completers = <String, Completer<void>>{};
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executedIds.add(placement.id);
           final c = Completer<void>();
           completers[placement.id] = c;
@@ -360,7 +360,7 @@ void main() {
       final completers = <String, Completer<void>>{};
 
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executedIds.add(placement.id);
           final c = Completer<void>();
           completers[placement.id] = c;
@@ -404,7 +404,7 @@ void main() {
     test('TieredAdQueue.cancel marks in-flight tasks and discards completed result with error', () async {
       final completer = Completer<void>();
       final queue = TieredAdQueue(
-        executor: (placement) async {
+        executor: (placement, {bannerLayout, validateRequest}) async {
           await completer.future;
           return Object();
         },

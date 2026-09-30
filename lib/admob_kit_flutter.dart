@@ -3,6 +3,11 @@
 /// and rewarded ads.
 library;
 
+export 'src/domain/models/native_ad_colors.dart';
+
+export 'src/domain/models/banner_layout.dart';
+export 'src/domain/models/banner_sizing.dart';
+
 export 'src/presentation/admob_kit_facade.dart';
 export 'src/presentation/config/admob_kit_config.dart';
 

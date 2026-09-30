@@ -71,11 +71,7 @@ class CategoryTasksScreen extends StatelessWidget {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: category.color.withValues(alpha: 0.2)),
                                   ),
-                                  child: Icon(
-                                    category.icon,
-                                    color: category.color,
-                                    size: 26,
-                                  ),
+                                  child: Icon(category.icon, color: category.color, size: 26),
                                 ),
                                 const SizedBox(height: 16),
                                 const Text(
@@ -117,20 +113,17 @@ class CategoryTasksScreen extends StatelessWidget {
                             onTap: () {
                               void navigate() {
                                 if (context.mounted) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => TaskDetailScreen(taskId: task.id),
-                                    ),
-                                  );
+                                  Navigator.of(
+                                    context,
+                                  ).push(MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: task.id)));
                                 }
                               }
 
                               if (TaskStore.instance.checkInterval('task_detail_navigation', interval: 4)) {
-                                TaskStore.instance.appendLog('🔍 [Action] Task detail navigation threshold reached. Triggering Interstitial...');
-                                AdmobKit.show(
-                                  SampleAds.mainInterstitial,
-                                  onDismissed: navigate,
+                                TaskStore.instance.appendLog(
+                                  '🔍 [Action] Task detail navigation threshold reached. Triggering Interstitial...',
                                 );
+                                AdmobKit.show(SampleAds.mainInterstitial, onDismissed: navigate);
                               } else {
                                 navigate();
                               }
@@ -138,21 +131,17 @@ class CategoryTasksScreen extends StatelessWidget {
                             onDelete: () {
                               store.deleteTask(task.id);
                               if (TaskStore.instance.checkInterval('task_delete', interval: 3)) {
-                                TaskStore.instance.appendLog('🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...');
-                                AdmobKit.show(
-                                  SampleAds.mainInterstitial,
-                                  onDismissed: () {},
+                                TaskStore.instance.appendLog(
+                                  '🗑️ [Action] Task deletion threshold reached. Triggering Interstitial...',
                                 );
+                                AdmobKit.show(SampleAds.mainInterstitial, onDismissed: () {});
                               }
                             },
                           );
                         },
                       ),
               ),
-              if (!store.isPremium)
-                _buildNativeAdCard()
-              else
-                const SizedBox.shrink(),
+              if (!store.isPremium) _buildNativeAdCard() else const SizedBox.shrink(),
             ],
           ),
         );
@@ -198,9 +187,8 @@ class CategoryTasksScreen extends StatelessWidget {
             ),
             AdNativeView(
               placement: SampleAds.mediumNative,
-              height: 130,
               placeholder: Container(
-                height: 130,
+                height: NativeAdTemplate.medium1.height,
                 decoration: BoxDecoration(
                   color: TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(10),
