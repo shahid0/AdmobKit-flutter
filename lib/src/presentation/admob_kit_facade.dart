@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../domain/models/native_ad_colors.dart';
+import '../domain/models/native_ad_style.dart';
 import '../infrastructure/appearance/native_appearance.dart';
 import '../domain/models/banner_layout.dart';
 import 'package:flutter/foundation.dart';
@@ -88,7 +88,7 @@ abstract final class AdmobKit {
     }
     dispose();
     _logger = PlatformAdLogger(level: config.logLevel);
-    final appearance = NativeAppearance(defaults: config.nativeColors);
+    final appearance = NativeAppearance(defaults: config.nativeStyle);
     late final AdSession session;
     session = AdSession(
       config: config,
@@ -111,12 +111,12 @@ abstract final class AdmobKit {
     return session.initialize();
   }
 
-  /// Replaces global or per-placement native colors without requesting new ads.
-  /// Empty colors restore inheritance. Throws on platform failure or no session.
-  static Future<void> setNativeColors(NativeAdColors colors, {NativePlacement? placement}) {
+  /// Replaces global or per-placement native appearance without requesting new ads.
+  /// Empty style restores inheritance. Throws on platform failure or no session.
+  static Future<void> setNativeStyle(NativeAdStyle style, {NativePlacement? placement}) {
     final session = _session;
-    if (session == null) return Future.error(StateError('Call initialize() before setNativeColors().'));
-    return session.setNativeColors(colors, placement: placement);
+    if (session == null) return Future.error(StateError('Call initialize() before setNativeStyle().'));
+    return session.setNativeStyle(style, placement: placement);
   }
 
   /// Stage 2: Registers and primes placements in the eager preloading pool.

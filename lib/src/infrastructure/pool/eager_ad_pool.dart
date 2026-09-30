@@ -133,7 +133,7 @@ class EagerAdPool {
             (previous is BannerPlacement && placement is BannerPlacement && previous.sizing != placement.sizing) ||
             (previous is NativePlacement &&
                 placement is NativePlacement &&
-                (previous.template != placement.template || previous.colors != placement.colors)))) {
+                (previous.template != placement.template || previous.style != placement.style)))) {
       throw ArgumentError('Conflicting configuration for placement "${placement.id}". Use a distinct placement ID.');
     }
     _placements[placement.id] = placement;

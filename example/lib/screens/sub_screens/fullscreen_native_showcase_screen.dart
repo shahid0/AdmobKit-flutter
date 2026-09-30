@@ -35,10 +35,10 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
     });
   }
 
-  Future<void> _applyColors(NativeAdColors colors) async {
+  Future<void> _applyStyle(NativeAdStyle colors) async {
     setState(() => _updatingColors = true);
     try {
-      await AdmobKit.setNativeColors(colors, placement: _placement);
+      await AdmobKit.setNativeStyle(colors, placement: _placement);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,15 +151,15 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
             ],
           ),
           const Spacer(),
-          PopupMenuButton<NativeAdColors>(
+          PopupMenuButton<NativeAdStyle>(
             tooltip: 'Apply native colors',
             enabled: !_updatingColors,
             icon: const Icon(Icons.palette_outlined, color: TaskColors.accentPrimary),
-            onSelected: _applyColors,
+            onSelected: _applyStyle,
             itemBuilder: (_) => const [
-              PopupMenuItem(value: NativeAdColors(), child: Text('Reset to inherited colors')),
+              PopupMenuItem(value: NativeAdStyle(), child: Text('Reset to inherited colors')),
               PopupMenuItem(
-                value: NativeAdColors(
+                value: NativeAdStyle(
                   background: 0xFF14213D,
                   headline: 0xFFFFFFFF,
                   body: 0xFFE5E5E5,
@@ -169,7 +169,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
                 child: Text('Midnight / gold'),
               ),
               PopupMenuItem(
-                value: NativeAdColors(
+                value: NativeAdStyle(
                   background: 0xFFF0FDF4,
                   headline: 0xFF14532D,
                   body: 0xFF166534,

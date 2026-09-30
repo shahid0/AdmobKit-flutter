@@ -9,11 +9,11 @@ internal class NativeAppearanceStoreTest {
         val store = NativeAppearanceStore()
         store.startSession("old")
         store.startSession("new")
-        assertFailsWith<IllegalStateException> { store.applyColors("old", 9, emptyMap()) }
+        assertFailsWith<IllegalStateException> { store.applyStyle("old", 9, emptyMap()) }
         store.endSession("old")
-        store.applyColors("new", 1, emptyMap())
+        store.applyStyle("new", 1, emptyMap())
         store.endSession("new")
-        assertFailsWith<IllegalStateException> { store.applyColors("new", 2, emptyMap()) }
+        assertFailsWith<IllegalStateException> { store.applyStyle("new", 2, emptyMap()) }
     }
 
     @Test
@@ -21,8 +21,20 @@ internal class NativeAppearanceStoreTest {
         val store = NativeAppearanceStore()
         store.startSession("session")
         store.clear()
-        assertFailsWith<IllegalStateException> { store.applyColors("session", 1, emptyMap()) }
+        assertFailsWith<IllegalStateException> { store.applyStyle("session", 1, emptyMap()) }
         store.startSession("next")
-        store.applyColors("next", 1, emptyMap())
+        store.applyStyle("next", 1, emptyMap())
+    }
+
+    @Test
+    fun malformedRadiusDoesNotAdvanceRevision() {
+        val store = NativeAppearanceStore()
+        store.startSession("session")
+        for (radius in listOf(-1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            assertFailsWith<IllegalArgumentException> {
+                store.applyStyle("session", 2, mapOf("render" to NativeStyleData(callToActionCornerRadius = radius)))
+            }
+        }
+        store.applyStyle("session", 2, mapOf("render" to NativeStyleData(callToActionCornerRadius = 0.0)))
     }
 }

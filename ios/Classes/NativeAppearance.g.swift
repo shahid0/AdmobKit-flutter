@@ -185,28 +185,31 @@ private func nilOrValue<T>(_ value: Any?) -> T? {
 
 
 /// Generated class from Pigeon that represents data sent in messages.
-struct NativePalette: Hashable, CustomStringConvertible {
+struct NativeStyleData: Hashable, CustomStringConvertible {
   var background: Int64? = nil
   var headline: Int64? = nil
   var body: Int64? = nil
   var callToActionBackground: Int64? = nil
   var callToActionText: Int64? = nil
+  var callToActionCornerRadius: Double? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  static func fromList(_ pigeonVar_list: [Any?]) -> NativePalette? {
+  static func fromList(_ pigeonVar_list: [Any?]) -> NativeStyleData? {
     let background: Int64? = nilOrValue(pigeonVar_list[0])
     let headline: Int64? = nilOrValue(pigeonVar_list[1])
     let body: Int64? = nilOrValue(pigeonVar_list[2])
     let callToActionBackground: Int64? = nilOrValue(pigeonVar_list[3])
     let callToActionText: Int64? = nilOrValue(pigeonVar_list[4])
+    let callToActionCornerRadius: Double? = nilOrValue(pigeonVar_list[5])
 
-    return NativePalette(
+    return NativeStyleData(
       background: background,
       headline: headline,
       body: body,
       callToActionBackground: callToActionBackground,
-      callToActionText: callToActionText
+      callToActionText: callToActionText,
+      callToActionCornerRadius: callToActionCornerRadius
     )
   }
   func toList() -> [Any?] {
@@ -216,26 +219,28 @@ struct NativePalette: Hashable, CustomStringConvertible {
       body,
       callToActionBackground,
       callToActionText,
+      callToActionCornerRadius,
     ]
   }
-  static func == (lhs: NativePalette, rhs: NativePalette) -> Bool {
+  static func == (lhs: NativeStyleData, rhs: NativeStyleData) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return NativeAppearancePigeonInternal.deepEquals(lhs.background, rhs.background) && NativeAppearancePigeonInternal.deepEquals(lhs.headline, rhs.headline) && NativeAppearancePigeonInternal.deepEquals(lhs.body, rhs.body) && NativeAppearancePigeonInternal.deepEquals(lhs.callToActionBackground, rhs.callToActionBackground) && NativeAppearancePigeonInternal.deepEquals(lhs.callToActionText, rhs.callToActionText)
+    return NativeAppearancePigeonInternal.deepEquals(lhs.background, rhs.background) && NativeAppearancePigeonInternal.deepEquals(lhs.headline, rhs.headline) && NativeAppearancePigeonInternal.deepEquals(lhs.body, rhs.body) && NativeAppearancePigeonInternal.deepEquals(lhs.callToActionBackground, rhs.callToActionBackground) && NativeAppearancePigeonInternal.deepEquals(lhs.callToActionText, rhs.callToActionText) && NativeAppearancePigeonInternal.deepEquals(lhs.callToActionCornerRadius, rhs.callToActionCornerRadius)
   }
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine("NativePalette")
+    hasher.combine("NativeStyleData")
     NativeAppearancePigeonInternal.deepHash(value: background, hasher: &hasher)
     NativeAppearancePigeonInternal.deepHash(value: headline, hasher: &hasher)
     NativeAppearancePigeonInternal.deepHash(value: body, hasher: &hasher)
     NativeAppearancePigeonInternal.deepHash(value: callToActionBackground, hasher: &hasher)
     NativeAppearancePigeonInternal.deepHash(value: callToActionText, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: callToActionCornerRadius, hasher: &hasher)
   }
 
   public var description: String {
-    return "NativePalette(background: \(String(describing: background)), headline: \(String(describing: headline)), body: \(String(describing: body)), callToActionBackground: \(String(describing: callToActionBackground)), callToActionText: \(String(describing: callToActionText)))"
+    return "NativeStyleData(background: \(String(describing: background)), headline: \(String(describing: headline)), body: \(String(describing: body)), callToActionBackground: \(String(describing: callToActionBackground)), callToActionText: \(String(describing: callToActionText)), callToActionCornerRadius: \(String(describing: callToActionCornerRadius)))"
   }
 }
 
@@ -243,7 +248,7 @@ private class NativeAppearancePigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
     case 129:
-      return NativePalette.fromList(self.readValue() as! [Any?])
+      return NativeStyleData.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -252,7 +257,7 @@ private class NativeAppearancePigeonCodecReader: FlutterStandardReader {
 
 private class NativeAppearancePigeonCodecWriter: FlutterStandardWriter {
   override func writeValue(_ value: Any) {
-    if let value = value as? NativePalette {
+    if let value = value as? NativeStyleData {
       super.writeByte(129)
       super.writeValue(value.toList())
     } else {
@@ -280,7 +285,7 @@ class NativeAppearancePigeonCodec: FlutterStandardMessageCodec, @unchecked Senda
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol NativeAppearanceHost {
   func startSession(sessionId: String) throws
-  func applyColors(sessionId: String, revision: Int64, renders: [String: NativePalette]) throws
+  func applyStyle(sessionId: String, revision: Int64, renders: [String: NativeStyleData]) throws
   func endSession(sessionId: String) throws
 }
 
@@ -305,22 +310,22 @@ class NativeAppearanceHostSetup {
     } else {
       startSessionChannel.setMessageHandler(nil)
     }
-    let applyColorsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyColors\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let applyStyleChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyStyle\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
-      applyColorsChannel.setMessageHandler { message, reply in
+      applyStyleChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
         let sessionIdArg = args[0] as! String
         let revisionArg = args[1] as! Int64
-        let rendersArg = args[2] as! [String: NativePalette]
+        let rendersArg = args[2] as! [String: NativeStyleData]
         do {
-          try api.applyColors(sessionId: sessionIdArg, revision: revisionArg, renders: rendersArg)
+          try api.applyStyle(sessionId: sessionIdArg, revision: revisionArg, renders: rendersArg)
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))
         }
       }
     } else {
-      applyColorsChannel.setMessageHandler(nil)
+      applyStyleChannel.setMessageHandler(nil)
     }
     let endSessionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.endSession\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

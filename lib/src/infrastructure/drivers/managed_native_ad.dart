@@ -12,6 +12,7 @@ final class ManagedNativeAd extends NativeAd {
     required super.request,
     required super.listener,
     super.customOptions,
+    super.nativeAdOptions,
     this.releaseAppearance,
   });
 

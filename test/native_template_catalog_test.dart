@@ -60,10 +60,12 @@ void main() {
       expect(
         template.height,
         template.name.startsWith('small')
-            ? 112
+            ? 104
             : template.name.startsWith('medium')
-            ? 180
-            : 360,
+            ? 160
+            : template.isFullscreen
+            ? 320
+            : 340,
       );
     }
   });
@@ -76,6 +78,7 @@ void main() {
         final args = call.arguments as Map;
         factories.add(args['factoryId'] as String);
         final ad = instanceManager.adFor(args['adId'] as int)! as NativeAd;
+        expect(ad.nativeAdOptions?.adChoicesPlacement, AdChoicesPlacement.topRightCorner);
         ad.listener.onAdLoaded!(ad);
       }
       return null;
@@ -118,7 +121,7 @@ void main() {
       ),
     );
 
-    for (final bounds in [(319.0, 360.0), (320.0, 359.0)]) {
+    for (final bounds in [(319.0, 340.0), (320.0, 339.0)]) {
       testWidgets('invalid bounds $bounds fail before leasing or loading', (tester) async {
         await initialize();
         await tester.pumpWidget(host(placement(NativeAdTemplate.large1), width: bounds.$1, height: bounds.$2));
@@ -156,7 +159,7 @@ void main() {
       driver.pending.first.complete(Object());
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(tester.getSize(find.byType(AdNativeView)), const Size(320, 360));
+      expect(tester.getSize(find.byType(AdNativeView)), const Size(320, 340));
       expect(driver.requests.map((p) => (p as NativePlacement).template), [
         NativeAdTemplate.small1,
         NativeAdTemplate.large6,

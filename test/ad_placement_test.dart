@@ -48,13 +48,13 @@ void main() {
       const big = NativePlacement(template: NativeAdTemplate.large1, androidId: 'big_android', iosId: 'big_ios');
       expect(big.template.factoryId, 'admobKit.large1');
       expect(big.template, NativeAdTemplate.large1);
-      expect(big.template.height, 360.0);
+      expect(big.template.height, 340.0);
       expect(big.priority, AdPriority.medium);
 
       const medium = NativePlacement(template: NativeAdTemplate.medium1, androidId: 'med_android', iosId: 'med_ios');
       expect(medium.template.factoryId, 'admobKit.medium1');
       expect(medium.template, NativeAdTemplate.medium1);
-      expect(medium.template.height, 180.0);
+      expect(medium.template.height, 160.0);
 
       const small = NativePlacement(
         template: NativeAdTemplate.small1,
@@ -64,7 +64,7 @@ void main() {
       );
       expect(small.template.factoryId, 'admobKit.small1');
       expect(small.template, NativeAdTemplate.small1);
-      expect(small.template.height, 112.0);
+      expect(small.template.height, 104.0);
       expect(small.priority, AdPriority.splash);
     });
 

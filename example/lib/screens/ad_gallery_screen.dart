@@ -21,7 +21,11 @@ class AdGalleryScreen extends StatelessWidget {
     if (template.isFullscreen) {
       return 'Bounded fullscreen · live colors · video safe';
     }
-    return '${template.height.toInt()} px · ${template.name.startsWith("large") ? "content & media" : template.name.startsWith("medium") ? "compact card" : "inline strip"}';
+    return '${template.height.toInt()} px · ${template.name.startsWith("large")
+        ? "content & media"
+        : template.name.startsWith("medium")
+        ? "compact card"
+        : "inline strip"}';
   }
 
   @override
@@ -30,10 +34,7 @@ class AdGalleryScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: TaskColors.canvasGround,
-      appBar: AppBar(
-        title: const Text('Ad gallery'),
-        leading: const BackButton(),
-      ),
+      appBar: AppBar(title: const Text('Ad gallery'), leading: const BackButton()),
       body: ListView.builder(
         itemCount: totalTemplates + 3,
         itemBuilder: (context, index) {
@@ -47,7 +48,10 @@ class AdGalleryScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        StatusBadge.emerald('$totalTemplates TEMPLATES', icon: const Icon(Icons.auto_awesome_rounded, size: 12, color: TaskColors.emeraldText)),
+                        StatusBadge.emerald(
+                          '$totalTemplates TEMPLATES',
+                          icon: const Icon(Icons.auto_awesome_rounded, size: 12, color: TaskColors.emeraldText),
+                        ),
                         const SizedBox(width: 8),
                         const StatusBadge(
                           label: 'ON-DEMAND PREVIEWS',
@@ -60,11 +64,7 @@ class AdGalleryScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Text(
                       'Browse all native layouts and adaptive banners. Tap any template to inspect live asset bindings, dynamic palette switches, and layout constraints.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: TaskColors.textSlateMedium,
-                        height: 1.4,
-                      ),
+                      style: TextStyle(fontSize: 12, color: TaskColors.textSlateMedium, height: 1.4),
                     ),
                   ],
                 ),
@@ -85,31 +85,23 @@ class AdGalleryScreen extends StatelessWidget {
                 leading: Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(
-                    color: TaskColors.accentSubtle,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  decoration: BoxDecoration(color: TaskColors.accentSubtle, borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.view_agenda_outlined, color: TaskColors.accentPrimary, size: 18),
                 ),
                 title: Text(
                   inline ? 'Inline adaptive banner' : 'Anchored adaptive banner',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: TaskColors.textInkPrimary,
-                  ),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TaskColors.textInkPrimary),
                 ),
                 subtitle: Text(
-                  inline ? 'Inline maxHeight: 250 · Parent-derived width' : 'Anchored SDK height · Parent-derived width',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: TaskColors.textSlateMedium,
-                  ),
+                  inline
+                      ? 'Inline maxHeight: 250 · Parent-derived width'
+                      : 'Anchored SDK height · Parent-derived width',
+                  style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
                 ),
                 trailing: const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(builder: (_) => AdaptiveBannerScreen(inline: inline)),
-                ),
+                onTap: () => Navigator.of(
+                  context,
+                ).push<void>(MaterialPageRoute(builder: (_) => AdaptiveBannerScreen(inline: inline))),
               ),
             );
           }
@@ -131,22 +123,22 @@ class AdGalleryScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: template.isFullscreen
                       ? TaskColors.amberSurface
-                      : template.height == 360
-                          ? TaskColors.emeraldSurface
-                          : template.height == 180
-                              ? TaskColors.accentSubtle
-                              : TaskColors.surfaceSubtle,
+                      : template.height == 340
+                      ? TaskColors.emeraldSurface
+                      : template.height == 160
+                      ? TaskColors.accentSubtle
+                      : TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   _iconForTemplate(template),
                   color: template.isFullscreen
                       ? TaskColors.amberText
-                      : template.height == 360
-                          ? TaskColors.emeraldText
-                          : template.height == 180
-                              ? TaskColors.accentPrimary
-                              : TaskColors.slateText,
+                      : template.height == 340
+                      ? TaskColors.emeraldText
+                      : template.height == 160
+                      ? TaskColors.accentPrimary
+                      : TaskColors.slateText,
                   size: 18,
                 ),
               ),
@@ -161,20 +153,14 @@ class AdGalleryScreen extends StatelessWidget {
               ),
               subtitle: Text(
                 _descriptionForTemplate(template),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: TaskColors.textSlateMedium,
-                ),
+                style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: TaskColors.surfaceSubtle,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                    decoration: BoxDecoration(color: TaskColors.surfaceSubtle, borderRadius: BorderRadius.circular(4)),
                     child: Text(
                       template.isFullscreen ? 'FULL' : '${template.height.toInt()}px',
                       style: const TextStyle(
@@ -189,9 +175,9 @@ class AdGalleryScreen extends StatelessWidget {
                   const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
                 ],
               ),
-              onTap: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => NativeTemplateScreen(template: template)),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push<void>(MaterialPageRoute(builder: (_) => NativeTemplateScreen(template: template))),
             ),
           );
         },

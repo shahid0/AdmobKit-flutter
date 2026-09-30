@@ -3,7 +3,7 @@ import 'ad_format.dart';
 import 'ad_native_template.dart';
 import 'ad_priority.dart';
 import 'banner_sizing.dart';
-import 'native_ad_colors.dart';
+import 'native_ad_style.dart';
 
 /// Base class representing a type-safe ad placement configuration.
 @immutable
@@ -164,8 +164,8 @@ class BannerPlacement extends InlinePlacement {
 
 /// Type-safe placement for one built-in native template, mounted with AdNativeView.
 class NativePlacement extends InlinePlacement {
-  /// Initial per-placement colors. Live updates use AdmobKit.setNativeColors.
-  final NativeAdColors colors;
+  /// Initial per-placement appearance. Live updates use AdmobKit.setNativeStyle.
+  final NativeAdStyle style;
 
   /// Layout and factory identity. Use a distinct placement ID for each template.
   final NativeAdTemplate template;
@@ -176,7 +176,7 @@ class NativePlacement extends InlinePlacement {
     required super.androidId,
     required super.iosId,
     this.template = NativeAdTemplate.medium1,
-    this.colors = const NativeAdColors(),
+    this.style = const NativeAdStyle(),
     AdPriority? priority,
     super.isSplash = false,
     super.loadOnce = false,

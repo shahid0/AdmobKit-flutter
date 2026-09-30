@@ -49,8 +49,10 @@ class PrintingAnalyticsTracker implements AdAnalyticsTracker {
 
   @override
   void onPaidEvent(AdPlacement placement, AdRevenueValue revenue) {
-    _record('💰 [Analytics] Revenue Paid Event -> ${placement.id} | '
-        '${revenue.value.toStringAsFixed(6)} ${revenue.currencyCode} (${revenue.micros} micros)');
+    _record(
+      '💰 [Analytics] Revenue Paid Event -> ${placement.id} | '
+      '${revenue.value.toStringAsFixed(6)} ${revenue.currencyCode} (${revenue.micros} micros)',
+    );
   }
 }
 
@@ -61,7 +63,8 @@ class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
 
   @override
   void onDiagnosticReport(AdDiagnosticReport report) {
-    final msg = '🔍 [Diagnostics] [${report.eventType.name.toUpperCase()}] '
+    final msg =
+        '🔍 [Diagnostics] [${report.eventType.name.toUpperCase()}] '
         'Placement: ${report.placementId} | Network: ${report.networkType} | '
         'Elapsed: ${report.elapsed.inMilliseconds}ms'
         '${report.admobErrorCode != null ? " | Code: ${report.admobErrorCode}" : ""}'
@@ -82,22 +85,18 @@ void main() async {
       analytics: PrintingAnalyticsTracker(onLog: TaskStore.instance.appendLog),
       diagnostics: PrintingDiagnosticsTracker(onLog: TaskStore.instance.appendLog),
       testDeviceIds: const ['5836268AE16674B51B1B19E62E1B3401'],
-      nativeColors: const NativeAdColors(
+      nativeStyle: const NativeAdStyle(
         background: 0xFFFFFFFF,
         headline: 0xFF0F172A,
         body: 0xFF475569,
         callToActionBackground: 0xFF4338CA,
         callToActionText: 0xFFFFFFFF,
+        callToActionCornerRadius: 8,
       ),
     ),
   );
 
-  AdmobKit.registerPlacements(
-    SampleAds.allPlacements,
-    placementCapacities: {
-      'multi_widget_showcase': 2,
-    },
-  );
+  AdmobKit.registerPlacements(SampleAds.allPlacements, placementCapacities: {'multi_widget_showcase': 2});
 
   runApp(const TaskFlowApp());
 }

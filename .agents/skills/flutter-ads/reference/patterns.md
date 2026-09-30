@@ -107,7 +107,7 @@ Widget buildFeedNativeAd() {
   final template = AppAds.feedNative.template;
 
   return Container(
-    height: template.height, // 180 logical pixels; parent width must remain >=320
+    height: template.height, // 160 logical pixels; parent width must remain >=320
     width: double.infinity,
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     decoration: BoxDecoration(
@@ -169,18 +169,18 @@ Scaffold(
 )
 
 // In an async callback: updates the existing ad, without a new request.
-await AdmobKit.setNativeColors(
-  const NativeAdColors(background: 0xff14213d, headline: 0xffffffff,
+await AdmobKit.setNativeStyle(
+  const NativeAdStyle(background: 0xff14213d, headline: 0xffffffff,
     body: 0xffe5e5e5, callToActionBackground: 0xfffca311,
     callToActionText: 0xff14213d),
   placement: AppAds.fullscreenNative,
 );
 // Reset this placement to global/native defaults:
-await AdmobKit.setNativeColors(const NativeAdColors(), placement: AppAds.fullscreenNative);
+await AdmobKit.setNativeStyle(const NativeAdStyle(), placement: AppAds.fullscreenNative);
 ```
 
 Catch errors around awaited color updates and check `mounted` before showing UI afterward.
-Require at least 320 × 360 logical pixels for fullscreen hosts. Use `LayoutBuilder` to show non-ad content when the available space is insufficient. Loaded active fullscreen natives own the shared presentation lock; placeholders do not. No viewport inference: explicitly gate lazy/retained pages using the selected index.
+Require at least 320 × 320 logical pixels for fullscreen hosts. Use `LayoutBuilder` to show non-ad content when the available space is insufficient. Loaded active fullscreen natives own the shared presentation lock; placeholders do not. No viewport inference: explicitly gate lazy/retained pages using the selected index.
 
 ## Adaptive banners
 

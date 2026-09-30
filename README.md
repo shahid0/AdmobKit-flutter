@@ -31,7 +31,7 @@ Every part of the engine enforces these. Internalize them before writing ad code
 1. **The 0ms Show Contract** — `AdmobKit.show(placement, onDismissed: ...)` is strictly non-blocking. Ad in memory → displays instantly. Unready, expired, or offline → `onDismissed` fires immediately with **0ms delay**. User navigation is never stalled.
 2. **Deterministic Settlement** — Never guess when an ad arrives with `Timer()` or `Future.delayed()`. Use `await AdmobKit.waitFor(placement)` (returns `bool`), composed in `Future.wait` with auth/config futures.
 3. **Immediate-Display Priority** — The ad the user is looking at wins the network. Visible-screen leases and `waitFor` calls promote their placement to the `immediate` tier automatically, preempting background preloads.
-4. **Template-Bound Native Dimensions** — Choose one of 20 inline layouts on the placement. `AdNativeView` reserves its catalog height: small 112dp, medium 180dp, large 360dp.
+4. **Template-Bound Native Dimensions** — Choose one of 20 inline layouts on the placement. `AdNativeView` reserves its catalog height: small 104dp, medium 160dp, large 340dp.
 
 ---
 
@@ -270,10 +270,10 @@ All accept `priority:` to override, `loadOnce:` (one-time placements — set `tr
 
 | Templates | Height | Arrangements |
 | :--- | :--- | :--- |
-| `small1`–`small8` | 112dp | Compact rows with optional icon/metadata and compact or tall side CTA |
-| `medium1`–`medium6` | 180dp | Two media split-cards and four icon/content cards with top or bottom CTA |
-| `large1`–`large6` | 360dp | Media cards with different content and CTA positions |
-| `fullscreen1`–`fullscreen5` | Fill bounded height, minimum 360dp | Fullscreen content/media/CTA compositions |
+| `small1`–`small8` | 104dp | Compact rows with optional icon/metadata and pill CTAs |
+| `medium1`–`medium6` | 160dp | Two media split-cards and four icon/content cards with top or bottom CTA |
+| `large1`–`large6` | 340dp | Media cards with different content and CTA positions; `large1` is the media-first feed card |
+| `fullscreen1`–`fullscreen5` | Fill bounded height, minimum 320dp | Fullscreen content/media/CTA compositions |
 
 ```dart
 const articleAd = NativePlacement(
@@ -293,19 +293,24 @@ bounds fail before the widget requests an ad. There are no widget-level size or
 template overrides, custom factory IDs, or legacy small/medium/big constructors.
 A different template requires a distinct placement ID.
 
-Each layout reserves a separate attribution/AdChoices strip. Missing optional
-assets leave their reserved space empty; no substitute CTA or advertiser text is
-invented. The SDK owns asset clicks and impressions.
+There is no separate attribution/AdChoices strip. Media-first layouts overlay a
+neutral “Ad” badge at the top; other layouts share the first content/action line
+with the badge. Advertiser and optional rating/price sit below the body, not next
+to the badge. The SDK inserts its own top-right AdChoices overlay. Missing body,
+icon, advertiser and CTA assets collapse rather than leaving empty columns or
+buttons. Copy uses its measured height; remaining fullscreen space belongs to
+media. No substitute advertiser copy or CTA is invented. The SDK owns asset
+clicks, media controls and impressions.
 
-These are adaptations of the upstream arrangements, using its iOS variant
-ordering consistently across platforms. Sizes, asset binding and stack layouts
-are adapted to this package, not pixel-identical copies. See
+The layouts use shared typography, spacing and pill actions on both platforms.
+The catalog originated from upstream arrangements and has been redesigned for
+this package; it is not a pixel-identical copy. See
 [third-party attribution](THIRD_PARTY_NOTICES.md).
 
 ### Fullscreen native hosts
 
 Select a fullscreen template on a distinct placement and give the host bounded
-space (at least 320 × 360 logical pixels **after** safe areas and navigation).
+space (at least 320 × 320 logical pixels **after** safe areas and navigation).
 Fullscreen `template.height` is a minimum, not the rendered height. The example
 app's fullscreen menu demonstrates all five variants with an always-available
 close button outside the ad.
@@ -346,14 +351,14 @@ visibility is not inferred. Keep dismissal/navigation outside the ad assets;
 use safe areas and do not cover AdChoices or media controls.
 
 Variant 3 adapts the source overlay into a dedicated bottom panel, leaving media
-controls clear. Variant 4 splits the available content height evenly between
-media and content/CTA. Fullscreen natives share the same live color API.
+controls clear. Variant 4 places a compact side CTA in the bottom content row.
+Fullscreen natives share the same live style API.
 For production setup, follow Google's fullscreen native guidance for
 [Android](https://developers.google.com/admob/android/native/full-screen) and
 [iOS](https://developers.google.com/admob/ios/native/full-screen), including a
 dedicated fullscreen ad unit.
 
-### Native colors and live themes
+### Native styling and live themes
 
 All 25 native templates support `background`, `headline`,
 `body`, `callToActionBackground`, and `callToActionText`. Values are unsigned
@@ -361,44 +366,52 @@ ARGB integers (`0xAARRGGBB`); Flutter colors can use `color.toARGB32()`.
 The `body` slot also colors optional advertiser, rating and price text. Attribution
 and SDK-owned AdChoices styling are not overridden.
 
+`NativeAdStyle.callToActionCornerRadius` controls CTA roundness in logical
+pixels (Android dp / iOS points). Use `0` for square corners, `6` or `8` for
+gentle rounding, or a large value for a pill. Values are clamped to half the
+button height; negative, NaN and infinite values are rejected. Null inherits
+the next scope or restores the template default. Radius never changes the
+CTA's dimensions, SDK click handling or touch area.
+
 ```dart
 const feedNative = NativePlacement(
   template: NativeAdTemplate.medium1,
   id: 'feed',
   androidId: AdMobTestIds.nativeAndroid,
   iosId: AdMobTestIds.nativeIos,
-  colors: NativeAdColors(callToActionBackground: 0xff6750a4),
+  style: NativeAdStyle(callToActionBackground: 0xff6750a4, callToActionCornerRadius: 8),
 );
 
 await AdmobKit.initialize(config: const AdmobKitConfig(
   placements: [feedNative],
-  nativeColors: NativeAdColors(background: 0xff141416, headline: 0xffffffff),
+  nativeStyle: NativeAdStyle(background: 0xff141416, headline: 0xffffffff),
 ));
 
 // Apply a new global theme to pending, cached, and displayed native ads.
-await AdmobKit.setNativeColors(const NativeAdColors(
+await AdmobKit.setNativeStyle(const NativeAdStyle(
   background: 0xfffafafa,
   headline: 0xff161616,
   body: 0xff333333,
 ));
 
 // Replace this placement's overrides (not a merge with its previous overrides).
-await AdmobKit.setNativeColors(const NativeAdColors(
+await AdmobKit.setNativeStyle(const NativeAdStyle(
   callToActionBackground: 0xff2457c5,
   callToActionText: 0xffffffff,
+  callToActionCornerRadius: 0,
 ), placement: feedNative);
 
-// Remove its overrides, including the initial placement colors.
-await AdmobKit.setNativeColors(const NativeAdColors(), placement: feedNative);
+// Remove its overrides, including the initial placement style.
+await AdmobKit.setNativeStyle(const NativeAdStyle(), placement: feedNative);
 ```
 
-Precedence is per-placement overrides → global colors → template defaults.
-Null fields inherit; an empty global palette restores template defaults wherever
+Precedence is per-placement overrides → global style → template defaults.
+Null fields inherit; an empty global style restores template defaults wherever
 there is no placement override. Updates preserve the loaded ad, its age, layout,
 and click regions. They do not cause additional ad requests. Await the update:
-platform failures are reported through its future. The desired colors are retained
+platform failures are reported through its future. The desired style is retained
 and included in the next update/request; there is no hidden retry loop. Call
-`initialize()` before setting colors; updates do not wait for consent or request ads.
+`initialize()` before setting style; updates do not wait for consent or request ads.
 
 An inactive native host retains its ad, but checks the original load age before
 showing it again. Expired ads are disposed and replaced on reactivation.

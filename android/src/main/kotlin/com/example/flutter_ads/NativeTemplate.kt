@@ -8,9 +8,9 @@ internal enum class NativeTemplate {
     val isSmall get() = name.startsWith("small")
     val isMedium get() = name.startsWith("medium")
     val isFullscreen get() = name.startsWith("fullscreen")
-    val height get() = if (isSmall) 112 else if (isMedium) 180 else 360
+    val height get() = if (isSmall) 104 else if (isMedium) 160 else if (isFullscreen) 320 else 340
     val hasIcon get() = this !in setOf(small2, small5, small6, small7, small8)
     val hasMetadata get() = this !in setOf(small4, small6, small7, small8, medium1, medium2, medium5, medium6)
-    val tallButton get() = this in setOf(small3, small4, small5, small6, small7)
-    val bodyLines get() = if (this == small4 || this == small6 || isMedium || isFullscreen) 2 else 1
+    val headlineLines get() = 2
+    val bodyLines get() = if (isSmall && this !in setOf(small4, small5, small6, small7)) 1 else 2
 }

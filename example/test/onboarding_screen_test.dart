@@ -77,7 +77,6 @@ void main() {
           'Categorize initiatives, isolate deep work sessions, and track execution velocity across multiple domains.'),
       findsOneWidget,
     );
-    expect(find.text('SPONSORED RECOMMENDATION'), findsOneWidget);
     expect(find.byType(AdNativeView), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
 

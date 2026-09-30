@@ -97,13 +97,14 @@ int _deepHash(Object? value) {
 }
 
 
-class NativePalette {
-  NativePalette({
+class NativeStyleData {
+  NativeStyleData({
     this.background,
     this.headline,
     this.body,
     this.callToActionBackground,
     this.callToActionText,
+    this.callToActionCornerRadius,
   });
 
   int? background;
@@ -116,6 +117,8 @@ class NativePalette {
 
   int? callToActionText;
 
+  double? callToActionCornerRadius;
+
   List<Object?> _toList() {
     return <Object?>[
       background,
@@ -123,33 +126,35 @@ class NativePalette {
       body,
       callToActionBackground,
       callToActionText,
+      callToActionCornerRadius,
     ];
   }
 
   Object encode() {
     return _toList();  }
 
-  static NativePalette decode(Object result) {
+  static NativeStyleData decode(Object result) {
     result as List<Object?>;
-    return NativePalette(
+    return NativeStyleData(
       background: result[0] as int?,
       headline: result[1] as int?,
       body: result[2] as int?,
       callToActionBackground: result[3] as int?,
       callToActionText: result[4] as int?,
+      callToActionCornerRadius: result[5] as double?,
     );
   }
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! NativePalette || other.runtimeType != runtimeType) {
+    if (other is! NativeStyleData || other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(background, other.background) && _deepEquals(headline, other.headline) && _deepEquals(body, other.body) && _deepEquals(callToActionBackground, other.callToActionBackground) && _deepEquals(callToActionText, other.callToActionText);
+    return _deepEquals(background, other.background) && _deepEquals(headline, other.headline) && _deepEquals(body, other.body) && _deepEquals(callToActionBackground, other.callToActionBackground) && _deepEquals(callToActionText, other.callToActionText) && _deepEquals(callToActionCornerRadius, other.callToActionCornerRadius);
   }
 
   @override
@@ -158,7 +163,7 @@ class NativePalette {
 
   @override
   String toString() {
-    return 'NativePalette(background: $background, headline: $headline, body: $body, callToActionBackground: $callToActionBackground, callToActionText: $callToActionText)';
+    return 'NativeStyleData(background: $background, headline: $headline, body: $body, callToActionBackground: $callToActionBackground, callToActionText: $callToActionText, callToActionCornerRadius: $callToActionCornerRadius)';
   }
 }
 
@@ -170,7 +175,7 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    }    else if (value is NativePalette) {
+    }    else if (value is NativeStyleData) {
       buffer.putUint8(129);
       writeValue(buffer, value.encode());
     } else {
@@ -182,7 +187,7 @@ class _PigeonCodec extends StandardMessageCodec {
   Object? readValueOfType(int type, ReadBuffer buffer) {
     switch (type) {
       case 129:
-        return NativePalette.decode(readValue(buffer)!);
+        return NativeStyleData.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -221,8 +226,8 @@ class NativeAppearanceHost {
     ;
   }
 
-  Future<void> applyColors(String sessionId, int revision, Map<String, NativePalette> renders) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyColors$pigeonVar_messageChannelSuffix';
+  Future<void> applyStyle(String sessionId, int revision, Map<String, NativeStyleData> renders) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyStyle$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,

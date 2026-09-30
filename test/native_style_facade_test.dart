@@ -15,18 +15,21 @@ class _Network implements AdNetworkInfo {
 }
 
 void main() {
-  testWidgets('public colors update the same mounted SDK ad through generated transport', (tester) async {
-    const placement = NativePlacement(template: NativeAdTemplate.small1, 
+  testWidgets('public style updates colors and radius on the same mounted SDK ad through generated transport', (
+    tester,
+  ) async {
+    const placement = NativePlacement(
+      template: NativeAdTemplate.small1,
       id: 'feed',
       androidId: 'test',
       iosId: 'test',
       loadOnce: true,
-      colors: NativeAdColors(headline: 0xff001122),
+      style: NativeAdStyle(headline: 0xff001122, callToActionCornerRadius: 8),
     );
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     final manifests = <Map<Object?, Object?>>[];
     final channels = [
-      for (final name in ['startSession', 'applyColors', 'endSession'])
+      for (final name in ['startSession', 'applyStyle', 'endSession'])
         BasicMessageChannel<Object?>(
           'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.$name',
           NativeAppearanceHost.pigeonChannelCodec,
@@ -34,7 +37,7 @@ void main() {
     ];
     for (final channel in channels) {
       messenger.setMockDecodedMessageHandler<Object?>(channel, (message) async {
-        if (channel.name.endsWith('applyColors')) manifests.add((message! as List)[2] as Map<Object?, Object?>);
+        if (channel.name.endsWith('applyStyle')) manifests.add((message! as List)[2] as Map<Object?, Object?>);
         return <Object?>[];
       });
     }
@@ -63,7 +66,7 @@ void main() {
         requestConsent: false,
         initializeNativeGma: false,
         logLevel: AdLogLevel.none,
-        nativeColors: NativeAdColors(background: 0xff112233),
+        nativeStyle: NativeAdStyle(background: 0xff112233),
       ),
     );
     await tester.pumpWidget(const MaterialApp(home: AdNativeView(placement: placement)));
@@ -71,19 +74,28 @@ void main() {
     expect(ads, hasLength(1));
     final ad = ads.single;
     final render = ad.customOptions!['renderId'];
-    NativePalette colors() => manifests.last[render]! as NativePalette;
+    NativeStyleData colors() => manifests.last[render]! as NativeStyleData;
     expect(colors().background, 0xff112233);
     expect(colors().headline, 0xff001122);
-    await AdmobKit.setNativeColors(const NativeAdColors(background: 0xffabcdef));
+    expect(colors().callToActionCornerRadius, 8);
+    await AdmobKit.setNativeStyle(const NativeAdStyle(background: 0xffabcdef));
     ad.listener.onAdLoaded!(ad);
     await tester.pump();
     await tester.pump();
     expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
-    await AdmobKit.setNativeColors(const NativeAdColors(callToActionText: 0xffffffff), placement: placement);
+    await AdmobKit.setNativeStyle(
+      const NativeAdStyle(callToActionText: 0xffffffff, callToActionCornerRadius: 0),
+      placement: placement,
+    );
     await tester.pump();
     expect(colors().background, 0xffabcdef);
     expect(colors().headline, isNull);
     expect(colors().callToActionText, 0xffffffff);
+    expect(colors().callToActionCornerRadius, 0);
+    await AdmobKit.setNativeStyle(const NativeAdStyle(callToActionCornerRadius: 6.5), placement: placement);
+    expect(colors().callToActionCornerRadius, 6.5);
+    await AdmobKit.setNativeStyle(const NativeAdStyle(), placement: placement);
+    expect(colors().callToActionCornerRadius, isNull);
     expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
     expect(ads, hasLength(1));
     await tester.pumpWidget(const SizedBox());
@@ -92,6 +104,6 @@ void main() {
     expect(manifests.last, isEmpty);
     AdmobKit.dispose();
     await tester.pump();
-    await expectLater(AdmobKit.setNativeColors(const NativeAdColors()), throwsStateError);
+    await expectLater(AdmobKit.setNativeStyle(const NativeAdStyle()), throwsStateError);
   });
 }

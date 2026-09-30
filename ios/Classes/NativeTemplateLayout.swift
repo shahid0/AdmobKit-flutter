@@ -1,14 +1,22 @@
-// Arrangements adapted from flutter_monetization_kit, MIT (c) 2026 Hamza.
-// See THIRD_PARTY_NOTICES.md. SDK assets and clicks remain SDK-owned.
+// SDK assets and clicks remain SDK-owned. See THIRD_PARTY_NOTICES.md.
 import GoogleMobileAds
 import UIKit
 
-/// Stack-based inline compositions; no ad loading, caching or platform channels.
+private enum NativeTemplateStyle {
+  static let headline = UIColor(white: 15 / 255, alpha: 1)
+  static let secondary = UIColor(white: 96 / 255, alpha: 1)
+  static let action = UIColor(red: 6 / 255, green: 95 / 255, blue: 212 / 255, alpha: 1)
+  static let actionBackground = UIColor(red: 222 / 255, green: 241 / 255, blue: 1, alpha: 1)
+  static let inset: CGFloat = 8
+  static let gap: CGFloat = 8
+}
+
+/// Shared editorial typography, attribution and asset binding across the catalog.
 final class NativeTemplateLayout {
   private let template: NativeTemplate
   init(template: NativeTemplate) { self.template = template }
 
-  private func stack(_ axis: NSLayoutConstraint.Axis, _ views: [UIView], spacing: CGFloat = 8) -> UIStackView {
+  private func stack(_ axis: NSLayoutConstraint.Axis, _ views: [UIView], spacing: CGFloat = NativeTemplateStyle.gap) -> UIStackView {
     let result = UIStackView(arrangedSubviews: views)
     result.axis = axis
     result.spacing = spacing
@@ -16,11 +24,11 @@ final class NativeTemplateLayout {
     return result
   }
 
-  private func label(_ value: String?, size: CGFloat, lines: Int = 1) -> UILabel {
+  private func label(_ value: String?, size: CGFloat, lines: Int = 1, primary: Bool = false) -> UILabel {
     let label = UILabel()
     label.text = value
-    label.font = .systemFont(ofSize: size)
-    label.textColor = size >= 14 ? .black : .darkGray
+    label.font = .systemFont(ofSize: size, weight: primary ? .semibold : .regular)
+    label.textColor = primary ? NativeTemplateStyle.headline : NativeTemplateStyle.secondary
     label.numberOfLines = lines
     label.lineBreakMode = .byTruncatingTail
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -42,59 +50,85 @@ final class NativeTemplateLayout {
   func build(_ ad: NativeAd) -> NativeAdView {
     let view = NativeAdView()
     view.backgroundColor = .white
-    view.layer.cornerRadius = 8
+    view.layer.cornerRadius = 16
 
-    let badge = label("Ad", size: 10)
-    badge.textColor = .black
-    badge.backgroundColor = UIColor(red: 1, green: 0.8, blue: 0, alpha: 1)
+    let mediaFirst = [NativeTemplate.medium1, .large1, .large5, .fullscreen1, .fullscreen3, .fullscreen4].contains(template)
+    let actionFirst = [NativeTemplate.medium4, .medium6].contains(template)
+    let compactAction = template.isSmall || actionFirst || [NativeTemplate.medium1, .medium2, .large5, .large6, .fullscreen4].contains(template)
+
+    let badge = label("Ad", size: 11, primary: true)
+    badge.accessibilityLabel = "Advertisement"
+    badge.backgroundColor = .white
     badge.textAlignment = .center
-    let choices = AdChoicesView()
-    view.adChoicesView = choices
-    let attribution = stack(.horizontal, [badge, UIView(), choices])
-    attribution.alignment = .center
+    badge.layer.cornerRadius = 3
+    badge.layer.borderWidth = 1
+    badge.layer.borderColor = UIColor(white: 184 / 255, alpha: 1).cgColor
+    var metadataAssets: [UIView] = []
+    if let value = ad.advertiser, !value.isEmpty {
+      let advertiser = label(value, size: 12)
+      view.advertiserView = advertiser
+      metadataAssets.append(advertiser)
+    }
+    if template.hasMetadata {
+      if let value = ad.starRating {
+        let rating = label("\(value) ★", size: 12)
+        rating.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        view.starRatingView = rating
+        metadataAssets.append(rating)
+      }
+      if let value = ad.price, !value.isEmpty {
+        let price = label(value, size: 12)
+        price.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        view.priceView = price
+        metadataAssets.append(price)
+      }
+    }
+    // The SDK owns the top-right AdChoices overlay; no custom row or view.
     NSLayoutConstraint.activate([
-      attribution.heightAnchor.constraint(equalToConstant: 24),
-      badge.widthAnchor.constraint(equalToConstant: 24),
-      badge.heightAnchor.constraint(equalToConstant: 16),
-      choices.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
-      choices.heightAnchor.constraint(equalToConstant: 24)
+      badge.widthAnchor.constraint(equalToConstant: 26),
+      badge.heightAnchor.constraint(equalToConstant: 20)
     ])
 
-    let headline = label(ad.headline, size: template.isFullscreen ? 17 : 14, lines: template.isFullscreen ? 2 : 1)
-    headline.font = .boldSystemFont(ofSize: template.isFullscreen ? 17 : 14)
-    let body = label(ad.body, size: 12, lines: template.bodyLines)
+    let headlineSize: CGFloat = template.isSmall ? 14 : template.isMedium ? 15 : 17
+    let headline = label(ad.headline, size: headlineSize, lines: template.headlineLines, primary: true)
+    let body = label(ad.body, size: template.isSmall ? 12 : template.isMedium ? 13 : 14, lines: template.bodyLines)
+    body.isHidden = ad.body?.isEmpty != false
     view.headlineView = headline
     view.bodyView = body
-    let details = stack(.vertical, [headline, body], spacing: 0)
-    if template.hasMetadata {
-      let advertiser = label(ad.advertiser, size: 10)
-      let rating = label(ad.starRating.map { "\($0) ★" }, size: 10)
-      let price = label(ad.price, size: 10)
-      view.advertiserView = advertiser
-      view.starRatingView = rating
-      view.priceView = price
-      let metadata = stack(.horizontal, [advertiser, rating, price], spacing: 4)
-      metadata.heightAnchor.constraint(equalToConstant: 16).isActive = true
-      details.addArrangedSubview(metadata)
+    let title = stack(.horizontal, !mediaFirst && !actionFirst ? [badge, headline] : [headline], spacing: 6)
+    title.alignment = .top
+    var copyAssets: [UIView] = [title, body]
+    if !metadataAssets.isEmpty {
+      let metadata = stack(.horizontal, metadataAssets, spacing: 8)
+      metadata.alignment = .center
+      copyAssets.append(metadata)
     }
+    let details = stack(.vertical, copyAssets, spacing: 4)
+    details.setContentHuggingPriority(.required, for: .vertical)
 
     let button = UIButton(type: .custom)
     button.setTitle(ad.callToAction, for: .normal)
-    button.titleLabel?.font = .boldSystemFont(ofSize: 12)
+    button.titleLabel?.font = .systemFont(ofSize: template.isSmall ? 12 : 14, weight: .semibold)
+    button.titleLabel?.numberOfLines = 2
+    button.titleLabel?.textAlignment = .center
     button.titleLabel?.lineBreakMode = .byTruncatingTail
-    button.setTitleColor(.white, for: .normal)
-    button.backgroundColor = UIColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 1)
-    button.layer.cornerRadius = 8
+    button.setTitleColor(NativeTemplateStyle.action, for: .normal)
+    button.backgroundColor = NativeTemplateStyle.actionBackground
+    button.layer.cornerRadius = compactAction ? 20 : template.isFullscreen ? 24 : 22
     button.isHidden = ad.callToAction?.isEmpty != false
-    // Google Mobile Ads handles asset clicks, never application targets.
+    // Google Mobile Ads handles clicks; no application gesture/target is installed.
     button.isUserInteractionEnabled = false
     view.callToActionView = button
     let cta = UIView()
     pin(button, to: cta)
+    cta.isHidden = button.isHidden
 
-    func icon(_ size: CGFloat) -> UIImageView {
-      let image = UIImageView(image: ad.icon?.image)
+    func icon(_ size: CGFloat) -> UIImageView? {
+      guard template.hasIcon, let asset = ad.icon else { return nil }
+      let image = UIImageView(image: asset.image)
       image.contentMode = .scaleAspectFit
+      image.layer.cornerRadius = 10
+      image.clipsToBounds = true
       image.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
         image.widthAnchor.constraint(equalToConstant: size),
@@ -103,85 +137,106 @@ final class NativeTemplateLayout {
       view.iconView = image
       return image
     }
-    func content(sideButton: Bool = false, iconRight: Bool = false) -> UIStackView {
+    func content(sideButton: Bool = false, iconRight: Bool = false, buttonLeading: Bool = false) -> UIStackView {
       var children: [UIView] = [details]
-      if template.hasIcon {
-        let size: CGFloat = template.isFullscreen ? 56 : 48
-        if iconRight { children.append(icon(size)) } else { children.insert(icon(size), at: 0) }
+      if let icon = icon(template.isSmall ? 36 : 40) {
+        if iconRight { children.append(icon) } else { children.insert(icon, at: 0) }
       }
-      if sideButton {
-        children.append(cta)
-        cta.widthAnchor.constraint(equalToConstant: 84).isActive = true
-        if !template.tallButton { cta.heightAnchor.constraint(equalToConstant: 40).isActive = true }
+      if sideButton && !cta.isHidden {
+        if buttonLeading { children.insert(cta, at: 0) } else { children.append(cta) }
+        cta.widthAnchor.constraint(equalToConstant: 88).isActive = true
+        cta.heightAnchor.constraint(equalToConstant: 40).isActive = true
       }
-      let row = stack(.horizontal, children)
-      row.alignment = .center
-      if sideButton && template.tallButton {
-        NSLayoutConstraint.activate([
-          cta.topAnchor.constraint(equalTo: row.topAnchor),
-          cta.bottomAnchor.constraint(equalTo: row.bottomAnchor)
-        ])
+      let row = stack(.horizontal, children, spacing: 8)
+      row.alignment = template.isSmall || template.isMedium ? .center : .top
+      if !mediaFirst && !actionFirst && template != .medium2 {
+        row.isLayoutMarginsRelativeArrangement = true
+        // AdChoices is top-right, not semantic trailing, including in RTL.
+        row.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 24)
       }
+      row.setContentHuggingPriority(.required, for: .vertical)
       return row
     }
-    func media() -> MediaView {
+    func media() -> UIView {
       let media = MediaView()
       media.mediaContent = ad.mediaContent
       media.contentMode = .scaleAspectFit
       view.mediaView = media
-      media.heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
-      return media
+      let container = UIView()
+      container.translatesAutoresizingMaskIntoConstraints = false
+      pin(media, to: container)
+      container.heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
+      if mediaFirst {
+        container.addSubview(badge)
+        NSLayoutConstraint.activate([
+          badge.leftAnchor.constraint(equalTo: container.leftAnchor, constant: 4),
+          badge.topAnchor.constraint(equalTo: container.topAnchor, constant: 4)
+        ])
+      }
+      return container
     }
 
     let layout: UIStackView
     if template.isFullscreen {
-      let row = content()
+      let row = content(sideButton: template == .fullscreen4, iconRight: template == .fullscreen3)
       let media = media()
-      cta.heightAnchor.constraint(equalToConstant: 52).isActive = true
-      if template != .fullscreen4 { row.heightAnchor.constraint(equalToConstant: 96).isActive = true }
+      if !cta.isHidden && template != .fullscreen4 { cta.heightAnchor.constraint(equalToConstant: 48).isActive = true }
       switch template {
-      case .fullscreen1: layout = stack(.vertical, [row, media, cta])
-      case .fullscreen2: layout = stack(.vertical, [cta, row, media])
-      // Dedicated bottom content keeps SDK video controls unobstructed.
-      case .fullscreen3: layout = stack(.vertical, [media, row, cta])
+      case .fullscreen1, .fullscreen3: layout = stack(.vertical, [media, row, cta])
+      case .fullscreen2: layout = stack(.vertical, [row, media, cta])
       case .fullscreen4:
-        let bottom = stack(.vertical, [row, cta])
-        layout = stack(.vertical, [media, bottom])
-        media.heightAnchor.constraint(equalTo: bottom.heightAnchor).isActive = true
-      case .fullscreen5: layout = stack(.vertical, [cta, media, row])
+        layout = stack(.vertical, [media, row])
+      case .fullscreen5: layout = stack(.vertical, [row, cta, media])
       default: preconditionFailure("Unexpected fullscreen template")
       }
     } else if template.isSmall {
-      layout = content(sideButton: true)
+      layout = content(sideButton: true, iconRight: template == .small3,
+                       buttonLeading: template == .small7 || template == .small8)
     } else if template == .medium1 || template == .medium2 {
       let media = media()
-      let action = stack(.horizontal, [icon(32), cta])
-      action.alignment = .center
-      action.heightAnchor.constraint(equalToConstant: 44).isActive = true
-      cta.heightAnchor.constraint(equalToConstant: 44).isActive = true
-      let spacer = UIView()
-      let copy = stack(.vertical, [details, spacer, action], spacing: 0)
-      spacer.setContentHuggingPriority(.defaultLow, for: .vertical)
+      details.isLayoutMarginsRelativeArrangement = true
+      details.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 24)
+      if !cta.isHidden { cta.heightAnchor.constraint(equalToConstant: 40).isActive = true }
+      let copy = stack(.vertical, [details, cta], spacing: 8)
       layout = stack(.horizontal, template == .medium1 ? [media, copy] : [copy, media])
-      // 45% of the available width after the inter-column gap.
-      media.widthAnchor.constraint(equalTo: layout.widthAnchor, multiplier: 0.45, constant: -3.6).isActive = true
+      layout.alignment = .top
+      media.widthAnchor.constraint(equalToConstant: 120).isActive = true
+      media.bottomAnchor.constraint(equalTo: layout.bottomAnchor).isActive = true
     } else {
-      let row = content(sideButton: template == .large5 || template == .large6, iconRight: template == .large4)
-      if !template.isMedium { row.heightAnchor.constraint(equalToConstant: 64).isActive = true }
-      if template != .large5 && template != .large6 { cta.heightAnchor.constraint(equalToConstant: 44).isActive = true }
+      let side = template == .large5 || template == .large6
+      let row = content(sideButton: side, iconRight: template == .large4)
+      if !side && !cta.isHidden { cta.heightAnchor.constraint(equalToConstant: 44).isActive = true }
       switch template {
       case .medium3, .medium5: layout = stack(.vertical, [row, cta])
-      case .medium4, .medium6: layout = stack(.vertical, [cta, row])
-      case .large1: layout = stack(.vertical, [row, media(), cta])
-      case .large2, .large4: layout = stack(.vertical, [cta, row, media()])
+      case .medium4, .medium6:
+        let cornerSpace = UIView()
+        cornerSpace.widthAnchor.constraint(equalToConstant: 24).isActive = true
+        let action = stack(.horizontal, [badge, cta, cornerSpace], spacing: 6)
+        action.alignment = .center
+        layout = stack(.vertical, [action, row])
+      case .large1: layout = stack(.vertical, [media(), row, cta])
+      case .large2, .large4: layout = stack(.vertical, [row, media(), cta])
       case .large3: layout = stack(.vertical, [row, cta, media()])
       case .large5: layout = stack(.vertical, [media(), row])
       case .large6: layout = stack(.vertical, [row, media()])
       default: preconditionFailure("Unexpected inline template")
       }
     }
-    let panel = stack(.vertical, [attribution, layout], spacing: 0)
-    pin(panel, to: view, inset: 8)
+    // Compact compositions hug content; only the media fills remaining height.
+    let panel = UIView()
+    pin(panel, to: view, inset: NativeTemplateStyle.inset)
+    layout.translatesAutoresizingMaskIntoConstraints = false
+    panel.addSubview(layout)
+    NSLayoutConstraint.activate([
+      layout.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+      layout.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+      layout.topAnchor.constraint(equalTo: panel.topAnchor)
+    ])
+    if template.isMedium && template != .medium1 && template != .medium2 {
+      layout.bottomAnchor.constraint(lessThanOrEqualTo: panel.bottomAnchor).isActive = true
+    } else {
+      layout.bottomAnchor.constraint(equalTo: panel.bottomAnchor).isActive = true
+    }
     view.nativeAd = ad
     return view
   }

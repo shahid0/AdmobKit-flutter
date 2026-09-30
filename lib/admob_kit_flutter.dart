@@ -3,7 +3,7 @@
 /// and rewarded ads.
 library;
 
-export 'src/domain/models/native_ad_colors.dart';
+export 'src/domain/models/native_ad_style.dart';
 
 export 'src/domain/models/banner_layout.dart';
 export 'src/domain/models/banner_sizing.dart';

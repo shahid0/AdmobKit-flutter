@@ -3,6 +3,18 @@
 All notable changes to the `admob_kit_flutter` package will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- Fix Android native card corners being density-scaled twice. Initial styling, live color updates and reset now preserve the template's original pixel geometry on high-density devices.
+
+- Replace the colors-only API with `NativeAdStyle`, `NativePlacement(style:)`, `AdmobKitConfig(nativeStyle:)` and `AdmobKit.setNativeStyle`. Add nullable `callToActionCornerRadius` with global/placement inheritance, live updates and reset on Android/iOS through the existing generated appearance bridge. No ad reload or compatibility alias.
+
+- Removed the native attribution header strip on Android/iOS. The Ad badge shares existing content/media space, SDK AdChoices uses its corner overlay, and advertiser/rating/price follow the body. Reduced inline heights to 104/160/340 and fullscreen minimum height to 320 logical pixels; copy blocks hug content.
+
+- Redesign the native catalog with media-first feed layouts, neutral Ad badges, clearer typography, separated metadata, pill CTAs and collapsed missing assets on Android/iOS.
+- Bind layout to the selected template rather than hardcoded heights.
+- Add a dark feed palette to the gallery and native rendering/geometry regressions with real Android font metrics.
+
 ## 0.0.2
 
 Hardening release: eliminates three classes of silent production failures (multi-widget ad collisions, splash presentation races, and AdMob request storms), removes the legacy `FlutterAds` facade alias, and overhauls the README and AI-agent skill with a complete API reference, behavioral guarantees, and a table of contents.
@@ -51,4 +63,3 @@ Initial public release of **AdmobKit-flutter** (`admob_kit_flutter`) — a deter
   - Diagnostic monitoring and health telemetry (`AdDiagnosticsTracker`, `AdDiagnosticReport`).
   - Production logger contracts (`AdLogger`) with zero spam.
   - Full support for Banner, Interstitial, Rewarded, Rewarded Interstitial, Native, and App Open ad formats.
-

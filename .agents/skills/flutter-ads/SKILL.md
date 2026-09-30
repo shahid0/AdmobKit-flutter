@@ -27,7 +27,7 @@ Found a bug or undocumented edge case? **Do not patch around it** — no timers,
 1. **0ms Show Contract** — `AdmobKit.show(placement, onDismissed: …)` never blocks. Ready → instant display; unready/offline → `onDismissed` fires immediately. Never stall navigation.
 2. **Deterministic Settlement** — Never guess readiness with `Timer`/`Future.delayed`. `await AdmobKit.waitFor(placement)` → `bool`; compose in `Future.wait`.
 3. **Immediate-Display Priority** — The visible screen's ad wins the network. `waitFor` and widget leases auto-promote to the `immediate` tier over background preloads.
-4. **Template-Bound Dimensions** — The placement owns the template. Inline families reserve 112/180/360 logical pixels; fullscreen variants fill bounded height (minimum 360). All require bounded width >=320. Never override template dimensions.
+4. **Template-Bound Dimensions** — The placement owns the template. Inline families reserve 104/160/340 logical pixels; fullscreen variants fill bounded height (minimum 320). All require bounded width >=320. Never override template dimensions.
 
 ## Integration Workflow
 
@@ -120,7 +120,7 @@ Maintainer-only (modifying the package itself, not integrating it): no app-UI de
 3. No `Timer`/`Future.delayed` for ad readiness; `waitFor` used and its `bool` result handled.
 4. Stage 1 in `main()`, Stage 2 after IDs resolve; nothing displayed before consent resolves.
 5. One-time screens: placements registered conditionally (loadOnce trap respected).
-6. Native containers have width >=320; inline height uses the catalog, fullscreen has bounded height >=360. Do not put fullscreen natives in an unbounded scroll axis.
+6. Native containers have width >=320; inline height uses the catalog, fullscreen has bounded height >=320. Do not put fullscreen natives in an unbounded scroll axis.
 7. Multi-widget placements have matching `placementCapacities` entries (and nowhere else).
 8. Tab-hosted ads: deferral verified (`IndexedStack` native, or explicit `TickerMode`/`Visibility` for `TabBarView`/`PageView`).
 9. Paywall guarded against hardware back **and** close button.

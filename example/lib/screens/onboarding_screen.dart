@@ -208,16 +208,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'SPONSORED RECOMMENDATION',
-                  style: TextStyle(
-                    color: TaskColors.textMutedCaption,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 10),
                 AdNativeView(
                   placement: SampleAds.onboardingBigNative,
                   placeholder: Container(

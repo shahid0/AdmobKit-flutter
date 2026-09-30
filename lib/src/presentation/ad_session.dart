@@ -1,6 +1,6 @@
 import 'dart:async';
 import '../domain/models/banner_layout.dart';
-import '../domain/models/native_ad_colors.dart';
+import '../domain/models/native_ad_style.dart';
 import '../infrastructure/appearance/native_appearance.dart';
 
 import '../domain/contracts/ad_network_info.dart';
@@ -58,9 +58,9 @@ class AdSession {
   bool get _isResolving => !_settled.isCompleted;
 
   /// Applies initial or live appearance independently of consent/ad requests.
-  Future<void> setNativeColors(NativeAdColors colors, {NativePlacement? placement}) {
+  Future<void> setNativeStyle(NativeAdStyle style, {NativePlacement? placement}) {
     if (isDisposed || appearance == null) return Future.error(StateError('No active native appearance session.'));
-    return appearance!.setColors(colors, placement: placement);
+    return appearance!.setStyle(style, placement: placement);
   }
 
   EagerAdPool _createPool() => EagerAdPool(

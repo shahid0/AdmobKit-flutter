@@ -193,22 +193,24 @@ class FlutterError (
 ) : RuntimeException()
 
 /** Generated class from Pigeon that represents data sent in messages. */
-data class NativePalette (
+data class NativeStyleData (
   val background: Long? = null,
   val headline: Long? = null,
   val body: Long? = null,
   val callToActionBackground: Long? = null,
-  val callToActionText: Long? = null
+  val callToActionText: Long? = null,
+  val callToActionCornerRadius: Double? = null
 )
  {
   companion object {
-    fun fromList(pigeonVar_list: List<Any?>): NativePalette {
+    fun fromList(pigeonVar_list: List<Any?>): NativeStyleData {
       val background = pigeonVar_list[0] as Long?
       val headline = pigeonVar_list[1] as Long?
       val body = pigeonVar_list[2] as Long?
       val callToActionBackground = pigeonVar_list[3] as Long?
       val callToActionText = pigeonVar_list[4] as Long?
-      return NativePalette(background, headline, body, callToActionBackground, callToActionText)
+      val callToActionCornerRadius = pigeonVar_list[5] as Double?
+      return NativeStyleData(background, headline, body, callToActionBackground, callToActionText, callToActionCornerRadius)
     }
   }
   fun toList(): List<Any?> {
@@ -218,6 +220,7 @@ data class NativePalette (
       body,
       callToActionBackground,
       callToActionText,
+      callToActionCornerRadius,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -227,8 +230,8 @@ data class NativePalette (
     if (this === other) {
       return true
     }
-    val other = other as NativePalette
-    return NativeAppearancePigeonUtils.deepEquals(this.background, other.background) && NativeAppearancePigeonUtils.deepEquals(this.headline, other.headline) && NativeAppearancePigeonUtils.deepEquals(this.body, other.body) && NativeAppearancePigeonUtils.deepEquals(this.callToActionBackground, other.callToActionBackground) && NativeAppearancePigeonUtils.deepEquals(this.callToActionText, other.callToActionText)
+    val other = other as NativeStyleData
+    return NativeAppearancePigeonUtils.deepEquals(this.background, other.background) && NativeAppearancePigeonUtils.deepEquals(this.headline, other.headline) && NativeAppearancePigeonUtils.deepEquals(this.body, other.body) && NativeAppearancePigeonUtils.deepEquals(this.callToActionBackground, other.callToActionBackground) && NativeAppearancePigeonUtils.deepEquals(this.callToActionText, other.callToActionText) && NativeAppearancePigeonUtils.deepEquals(this.callToActionCornerRadius, other.callToActionCornerRadius)
   }
 
   override fun hashCode(): Int {
@@ -238,10 +241,11 @@ data class NativePalette (
     result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.body)
     result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.callToActionBackground)
     result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.callToActionText)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.callToActionCornerRadius)
     return result
   }
   override fun toString(): String {
-    return "NativePalette(background=$background, headline=$headline, body=$body, callToActionBackground=$callToActionBackground, callToActionText=$callToActionText)"
+    return "NativeStyleData(background=$background, headline=$headline, body=$body, callToActionBackground=$callToActionBackground, callToActionText=$callToActionText, callToActionCornerRadius=$callToActionCornerRadius)"
   }
 }
 private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
@@ -249,7 +253,7 @@ private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
     return when (type) {
       129.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          NativePalette.fromList(it)
+          NativeStyleData.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -257,7 +261,7 @@ private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
   }
   override fun writeValue(stream: ByteArrayOutputStream, value: Any?)   {
     when (value) {
-      is NativePalette -> {
+      is NativeStyleData -> {
         stream.write(129)
         writeValue(stream, value.toList())
       }
@@ -273,7 +277,7 @@ private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
  */
 interface NativeAppearanceHost {
   fun startSession(sessionId: String)
-  fun applyColors(sessionId: String, revision: Long, renders: Map<String, NativePalette>)
+  fun applyStyle(sessionId: String, revision: Long, renders: Map<String, NativeStyleData>)
   fun endSession(sessionId: String)
 
   companion object {
@@ -304,15 +308,15 @@ interface NativeAppearanceHost {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyColors$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.applyStyle$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val sessionIdArg = args[0] as String
             val revisionArg = args[1] as Long
-            val rendersArg = args[2] as Map<String, NativePalette>
+            val rendersArg = args[2] as Map<String, NativeStyleData>
             val wrapped: List<Any?> = try {
-              api.applyColors(sessionIdArg, revisionArg, rendersArg)
+              api.applyStyle(sessionIdArg, revisionArg, rendersArg)
               listOf(null)
             } catch (exception: Throwable) {
               NativeAppearancePigeonUtils.wrapError(exception)

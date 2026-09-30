@@ -6,7 +6,7 @@ import UIKit
 final class NativeAppearanceStore: NativeAppearanceHost {
   private var session: String?
   private var revision: Int64 = -1
-  private var palettes: [String: NativePalette] = [:]
+  private var palettes: [String: NativeStyleData] = [:]
   private var views: [String: StyledNativeView] = [:]
 
   func startSession(sessionId: String) {
@@ -14,16 +14,22 @@ final class NativeAppearanceStore: NativeAppearanceHost {
     session = sessionId
   }
 
-  func applyColors(sessionId: String, revision: Int64, renders: [String: NativePalette]) throws {
+  func applyStyle(sessionId: String, revision: Int64, renders: [String: NativeStyleData]) throws {
     guard session == sessionId else {
       throw PigeonError(code: "stale-session", message: "Native appearance session is no longer active", details: nil)
     }
     guard revision > self.revision else { return }
+    guard renders.values.allSatisfy({ style in
+      guard let radius = style.callToActionCornerRadius else { return true }
+      return radius.isFinite && radius >= 0
+    }) else {
+      throw PigeonError(code: "invalid-style", message: "CTA radius must be finite and non-negative", details: nil)
+    }
     self.revision = revision
     palettes = renders
     views = views.filter { renders[$0.key] != nil }
     for (id, view) in views {
-      if let colors = renders[id] { view.apply(colors) }
+      if let style = renders[id] { view.apply(style) }
     }
   }
 
@@ -55,6 +61,7 @@ private final class StyledNativeView {
   private let secondaryDefaults: [UIColor]
   private let ctaBackground: UIColor?
   private let ctaText: UIColor?
+  private let ctaRadius: CGFloat?
 
   init(_ view: NativeAdView) {
     self.view = view
@@ -63,17 +70,21 @@ private final class StyledNativeView {
     secondaryDefaults = Self.secondaryText(view).map { $0.textColor }
     ctaBackground = view.callToActionView?.backgroundColor
     ctaText = (view.callToActionView as? UIButton)?.titleColor(for: .normal)
+    ctaRadius = view.callToActionView?.layer.cornerRadius
   }
 
-  func apply(_ colors: NativePalette) {
+  func apply(_ style: NativeStyleData) {
     guard let view = view else { return }
-    view.backgroundColor = color(colors.background) ?? background
-    (view.headlineView as? UILabel)?.textColor = color(colors.headline) ?? headline
+    view.backgroundColor = color(style.background) ?? background
+    (view.headlineView as? UILabel)?.textColor = color(style.headline) ?? headline
     for (label, original) in zip(Self.secondaryText(view), secondaryDefaults) {
-      label.textColor = color(colors.body) ?? original
+      label.textColor = color(style.body) ?? original
     }
-    view.callToActionView?.backgroundColor = color(colors.callToActionBackground) ?? ctaBackground
-    (view.callToActionView as? UIButton)?.setTitleColor(color(colors.callToActionText) ?? ctaText, for: .normal)
+    view.callToActionView?.backgroundColor = color(style.callToActionBackground) ?? ctaBackground
+    (view.callToActionView as? UIButton)?.setTitleColor(color(style.callToActionText) ?? ctaText, for: .normal)
+    if let original = ctaRadius {
+      view.callToActionView?.layer.cornerRadius = min(style.callToActionCornerRadius.map { CGFloat($0) } ?? original, original)
+    }
   }
 
   private static func secondaryText(_ view: NativeAdView) -> [UILabel] {

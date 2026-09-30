@@ -120,6 +120,7 @@ class GoogleMobileAdsDriver {
     nativeAd = ManagedNativeAd(
       adUnitId: adUnitId,
       factoryId: placement.template.factoryId,
+      nativeAdOptions: NativeAdOptions(adChoicesPlacement: AdChoicesPlacement.topRightCorner),
       customOptions: renderId == null ? null : {'sessionId': _appearance!.sessionId, 'renderId': renderId},
       releaseAppearance: renderId == null
           ? null

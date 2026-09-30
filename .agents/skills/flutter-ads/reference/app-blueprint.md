@@ -89,7 +89,7 @@ Widget mount (splash layout is app-owned):
 ```dart
 // splash_screen.dart — bottom of the splash layout
 SizedBox(
-  height: AppAds.splashBigNative.template.height, // 360 logical pixels
+  height: AppAds.splashBigNative.template.height, // 340 logical pixels
   width: double.infinity,
   child: const AdNativeView(
     placement: AppAds.splashBigNative,
@@ -172,7 +172,7 @@ Tab content with a native card (works the same in a pushed sub-screen):
 ```dart
 // feed_tab.dart — SDK usage only; list layout is app-owned
 Container(
-  height: AppAds.tabNative.template.height, // medium1–medium6: 180 logical pixels
+  height: AppAds.tabNative.template.height, // medium1–medium6: 160 logical pixels
   child: const AdNativeView(
     placement: AppAds.tabNative,
   ),

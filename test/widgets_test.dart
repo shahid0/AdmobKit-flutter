@@ -82,7 +82,7 @@ void main() {
       );
 
       final sizedBox = tester.widget<SizedBox>(find.byType(SizedBox).first);
-      expect(sizedBox.height, 360.0);
+      expect(sizedBox.height, 340.0);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
       completer.complete(Object());

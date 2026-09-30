@@ -32,32 +32,33 @@ IDs identify immutable configuration; use different IDs for different templates/
 
 - `InterstitialPlacement`, `AppOpenPlacement`, `RewardedPlacement`, `RewardedInterstitialPlacement`.
 - `BannerPlacement(sizing: BannerSizing.anchoredAdaptive())` (default) or `BannerSizing.inlineAdaptive(maxHeight:)`.
-- `NativePlacement(template: NativeAdTemplate.medium1, colors: NativeAdColors())` (defaults).
+- `NativePlacement(template: NativeAdTemplate.medium1, style: NativeAdStyle())` (defaults).
 - `loadOnce: true` stops background replenishment after consumption. New inline demand may load again; this is not an install-level impression limit.
 - Test unit IDs: `AdMobTestIds.interstitialAndroid`, `.bannerIos`, `.nativeAndroid`, etc.
 
-## Native catalog and colors
+## Native catalog and styling
 
 | Templates | Height (logical pixels) |
 | --- | --- |
-| `small1`–`small8` | 112 |
-| `medium1`–`medium6` | 180 |
-| `large1`–`large6` | 360 |
-| `fullscreen1`–`fullscreen5` | Fill bounded parent, minimum 360 |
+| `small1`–`small8` | 104 |
+| `medium1`–`medium6` | 160 |
+| `large1`–`large6` | 340 |
+| `fullscreen1`–`fullscreen5` | Fill bounded parent, minimum 320 |
 
 All require bounded width >=320. Inline height is `placement.template.height`. Fullscreen hosts must also have bounded height; don't mount them directly in a scrolling axis. Keep dismissal outside SDK assets. Use `active:` for retained pages whose selected index is app-owned; Flutter Visibility/TickerMode and app lifecycle are also honored. No viewport detector is installed.
 
-`NativeAdColors` contains nullable unsigned ARGB ints: `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`.
-Precedence: per-placement override → global colors → native defaults. `body` also styles advertiser/rating/price assets.
+`NativeAdStyle` contains nullable unsigned ARGB ints: `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`.
+It also accepts `double? callToActionCornerRadius`: finite, non-negative logical pixels; 0 is square, null inherits, and values above half the CTA height clamp to a pill. Radius does not alter dimensions or click regions.
+Precedence: per-placement override → global style → native defaults. `body` also styles advertiser/rating/price assets.
 
-- Initial global colors: `AdmobKitConfig(nativeColors:)`.
-- Initial placement colors: `NativePlacement(colors:)`.
-- Live replacement: `await AdmobKit.setNativeColors(colors, placement: placement)`; omit placement for global defaults. Updates pending/cached/displayed ads without reloading.
-- `const NativeAdColors()` resets that scope to inheritance. Calls replace overrides, not merge them. Catch platform failures; don't assume an update succeeded before awaiting it.
+- Initial global style: `AdmobKitConfig(nativeStyle:)`.
+- Initial placement style: `NativePlacement(style:)`.
+- Live replacement: `await AdmobKit.setNativeStyle(style, placement: placement)`; omit placement for global defaults. Updates pending/cached/displayed ads without reloading.
+- `const NativeAdStyle()` resets that scope to inheritance. Calls replace overrides, not merge them. Catch platform failures; don't assume an update succeeded before awaiting it.
 
 ## Configuration
 
-`AdmobKitConfig`: `placements`, `requestConsent`, `isPremium`, `initialConcurrency`, `subsequentConcurrency`, `placementCapacities`, `adTtl`, `analytics`, `diagnostics`, `logLevel`, `timeouts`, `testDeviceIds`, `consentTestConfig`, `initializeNativeGma`, `nativeColors`.
+`AdmobKitConfig`: `placements`, `requestConsent`, `isPremium`, `initialConcurrency`, `subsequentConcurrency`, `placementCapacities`, `adTtl`, `analytics`, `diagnostics`, `logLevel`, `timeouts`, `testDeviceIds`, `consentTestConfig`, `initializeNativeGma`, `nativeStyle`.
 Defaults include concurrency 1 and TTL 50 minutes. Retained inline ads are revalidated on reactivation, not replaced while being viewed. Rebuild hosts when premium entitlement changes; the callback is not a subscription.
 
 Placement state: `unloaded → loading → ready → leased/consumed → unloaded`, or `loading → error`.

@@ -22,7 +22,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final channels = [
-    for (final name in ['startSession', 'applyColors', 'endSession'])
+    for (final name in ['startSession', 'applyStyle', 'endSession'])
       BasicMessageChannel<Object?>(
         'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.$name',
         NativeAppearanceHost.pigeonChannelCodec,
@@ -40,7 +40,7 @@ void main() {
     failColors = false;
     for (final channel in channels) {
       messenger.setMockDecodedMessageHandler<Object?>(channel, (message) async {
-        if (channel.name.endsWith('applyColors')) {
+        if (channel.name.endsWith('applyStyle')) {
           if (failColors) return <Object?>['test-error', 'Color transport failed', null];
           manifests.add((message! as List)[2] as Map<Object?, Object?>);
         }
@@ -135,20 +135,25 @@ void main() {
     final ad = ads.single;
     final renderId = ad.customOptions!['renderId'];
     Future<void> select(String label) async {
-      await tester.tap(find.byTooltip('Apply native colors'));
+      await tester.tap(find.byTooltip('Apply native style'));
       await tester.pumpAndSettle();
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
     }
 
     await select('Midnight / gold');
-    expect((manifests.last[renderId] as NativePalette).background, 0xff14213d);
+    expect((manifests.last[renderId] as NativeStyleData).background, 0xff14213d);
     expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
-    await select('Reset to inherited colors');
-    expect((manifests.last[renderId] as NativePalette).background, isNull);
+    await select('Square CTA / inherited colors');
+    expect((manifests.last[renderId] as NativeStyleData).callToActionCornerRadius, 0);
+    await select('Rounded CTA / inherited colors');
+    expect((manifests.last[renderId] as NativeStyleData).callToActionCornerRadius, 6.5);
+    await select('Reset to inherited style');
+    expect((manifests.last[renderId] as NativeStyleData).background, isNull);
+    expect((manifests.last[renderId] as NativeStyleData).callToActionCornerRadius, isNull);
     failColors = true;
     await select('Forest / light');
-    expect(find.textContaining('Color update failed:'), findsOneWidget);
+    expect(find.textContaining('Style update failed:'), findsOneWidget);
     expect(ads, hasLength(1));
     failColors = false;
     await tester.pumpWidget(const SizedBox());

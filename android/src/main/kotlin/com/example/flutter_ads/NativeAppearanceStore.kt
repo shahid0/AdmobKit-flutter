@@ -2,6 +2,7 @@ package com.example.flutter_ads
 
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.TextView
 import com.google.android.gms.ads.nativead.NativeAdView
@@ -11,7 +12,7 @@ import java.lang.ref.WeakReference
 internal class NativeAppearanceStore : NativeAppearanceHost {
     private var session: String? = null
     private var revision = -1L
-    private var palettes = emptyMap<String, NativePalette>()
+    private var palettes = emptyMap<String, NativeStyleData>()
     private val views = mutableMapOf<String, StyledNativeView>()
 
     override fun startSession(sessionId: String) {
@@ -19,9 +20,12 @@ internal class NativeAppearanceStore : NativeAppearanceHost {
         session = sessionId
     }
 
-    override fun applyColors(sessionId: String, revision: Long, renders: Map<String, NativePalette>) {
+    override fun applyStyle(sessionId: String, revision: Long, renders: Map<String, NativeStyleData>) {
         check(session == sessionId) { "Native appearance session is no longer active" }
         if (revision <= this.revision) return
+        require(renders.values.all { it.callToActionCornerRadius?.let { radius -> radius.isFinite() && radius >= 0 } != false }) {
+            "CTA radius must be finite and non-negative"
+        }
         this.revision = revision
         palettes = renders.toMap()
         views.keys.retainAll(renders.keys)
@@ -57,16 +61,25 @@ private class StyledNativeView(view: NativeAdView) {
     private val secondaryDefaults = secondaryText(view).map { it.textColors }
     private val cta = (view.callToActionView as? TextView)?.textColors
     private val ctaBackground = view.callToActionView?.let(::BackgroundDefaults)
+    private val ctaRadius = (view.callToActionView?.background as? GradientDrawable)?.cornerRadius
 
-    fun apply(colors: NativePalette) {
+    fun apply(style: NativeStyleData) {
         val ad = view.get() ?: return
-        background.apply(ad.findViewById<View>(R.id.ad_card_container) ?: ad, colors.background)
-        (ad.headlineView as? TextView)?.setTextColor(colors.headline?.let { ColorStateList.valueOf(it.toInt()) } ?: headline)
+        background.apply(ad.findViewById<View>(R.id.ad_card_container) ?: ad, style.background)
+        (ad.headlineView as? TextView)?.setTextColor(style.headline?.let { ColorStateList.valueOf(it.toInt()) } ?: headline)
         for ((text, original) in secondaryText(ad).zip(secondaryDefaults)) {
-            text.setTextColor(colors.body?.let { ColorStateList.valueOf(it.toInt()) } ?: original)
+            text.setTextColor(style.body?.let { ColorStateList.valueOf(it.toInt()) } ?: original)
         }
-        (ad.callToActionView as? TextView)?.setTextColor(colors.callToActionText?.let { ColorStateList.valueOf(it.toInt()) } ?: cta)
-        ad.callToActionView?.let { ctaBackground?.apply(it, colors.callToActionBackground) }
+        (ad.callToActionView as? TextView)?.setTextColor(style.callToActionText?.let { ColorStateList.valueOf(it.toInt()) } ?: cta)
+        ad.callToActionView?.let {
+            ctaBackground?.apply(it, style.callToActionBackground)
+            if (ctaRadius != null) {
+                val requested = style.callToActionCornerRadius?.let { value ->
+                    (value * it.resources.displayMetrics.density).toFloat().coerceAtMost(ctaRadius)
+                } ?: ctaRadius
+                (it.background as? GradientDrawable)?.cornerRadius = requested
+            }
+        }
     }
 
     private fun secondaryText(ad: NativeAdView) =
@@ -78,7 +91,8 @@ private class BackgroundDefaults(view: View) {
     private val tint = view.backgroundTintList
 
     fun apply(view: View, color: Long?) {
-        view.background = drawable?.newDrawable(view.resources)?.mutate()
+        // Template geometry is already in device pixels; Resources would scale it again.
+        view.background = drawable?.newDrawable()?.mutate()
         view.backgroundTintList = tint
         if (color != null) {
             if (view.background == null) view.setBackgroundColor(color.toInt())

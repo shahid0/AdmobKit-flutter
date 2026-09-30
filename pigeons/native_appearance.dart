@@ -8,19 +8,27 @@ import 'package:pigeon/pigeon.dart';
     swiftOut: 'ios/Classes/NativeAppearance.g.swift',
   ),
 )
-class NativePalette {
-  NativePalette({this.background, this.headline, this.body, this.callToActionBackground, this.callToActionText});
+class NativeStyleData {
+  NativeStyleData({
+    this.background,
+    this.headline,
+    this.body,
+    this.callToActionBackground,
+    this.callToActionText,
+    this.callToActionCornerRadius,
+  });
   int? background;
   int? headline;
   int? body;
   int? callToActionBackground;
   int? callToActionText;
+  double? callToActionCornerRadius;
 }
 
 /// Complete render manifest, not a delta: omitted renders are released.
 @HostApi()
 abstract class NativeAppearanceHost {
   void startSession(String sessionId);
-  void applyColors(String sessionId, int revision, Map<String, NativePalette> renders);
+  void applyStyle(String sessionId, int revision, Map<String, NativeStyleData> renders);
   void endSession(String sessionId);
 }

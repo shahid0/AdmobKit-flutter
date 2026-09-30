@@ -28,7 +28,7 @@ Verification: 128 tests passing, analyzer clean, performance heuristic clean. Pl
 
 ## Implemented: native appearance and retained freshness
 
-- Added `NativeAdColors`, global `AdmobKitConfig.nativeColors`, initial `NativePlacement.colors`, and awaited `AdmobKit.setNativeColors` global/per-placement replacement APIs. Five shared template slots use unsigned ARGB values; empty overrides restore inheritance.
+- Added `NativeAdStyle`, global `AdmobKitConfig.nativeStyle`, initial `NativePlacement.colors`, and awaited `AdmobKit.setNativeStyle` global/per-placement replacement APIs. Five shared template slots use unsigned ARGB values; empty overrides restore inheritance.
 - Generated internal Dart/Kotlin/Swift transport from `pigeons/native_appearance.dart`. Regenerate with `dart run pigeon --input pigeons/native_appearance.dart`. Pigeon 27.3.0 is pinned because 29.0.4's analyzer dependency conflicts with this Flutter SDK's pinned meta package; no dependency overrides.
 - Session-owned render manifests cover pending, cached, and leased native ads. Serialized full snapshots and native revisions prevent out-of-order updates; session IDs prevent old cleanup from affecting a new lifetime. Platform update failures propagate; the next snapshot carries retained desired colors.
 - Android/iOS factories apply colors on creation and update existing views on the main thread. Registries hold weak view references and preserve original template defaults for resets. The SDK still owns ad creation and rendering; no alternate platform-view engine.
@@ -71,6 +71,32 @@ Verification: 169 Flutter tests pass; analyzer and performance heuristic are cle
 - Added five example widget tests covering catalog demand/navigation, every template preview at phone bounds, insufficient width, live color/reset/error behavior without reload, and adaptive-banner width changes. The example declares its existing Google Ads SDK as a direct dev dependency for transport tests; no runtime dependency was added.
 
 Verification: 169 package tests plus 64 example tests (including the five new gallery tests); analyzer, skill validation, and gallery performance heuristic pass. Eight Android unit tests pass and the debug APK builds. Existing Gradle/Mockito deprecation warnings remain. Full iOS simulator build was retried and stops before compilation because the installed CocoaPods/Ruby setup is invalid. No Android device is connected. These tests use mocked ad transport, not live SDK rendering.
+
+## Implemented: native visual redesign
+
+- Reworked the shared Android/iOS compositions using the supplied YouTube reference: neutral outlined Ad attribution, readable two-line headlines, larger body text on media cards, separated advertiser/rating/price, rounded icon treatment and compact pill CTAs. Removed the tall CTA rails and the duplicate onboarding sponsorship heading.
+- `large1` and `fullscreen1` are media-first feed compositions. Other variants retain distinct content/media/action arrangements; fullscreen3 uses a trailing icon and fullscreen4 a compact side CTA. Following the spacing revision, inline heights are 104/160/340 logical pixels and fullscreen minimum height is 320. Insets/gaps are 8; copy uses measured content height rather than fixed-height blocks. Template-bound examples and integration references were updated.
+- There is no attribution/AdChoices header strip. The neutral 26 × 20 Ad badge overlays the media in media-first cards and shares the initial content/action line elsewhere. Advertiser/rating/price follow the body; absent assets collapse. SDK-owned top-right AdChoices is explicitly selected in native load options; no custom AdChoicesView is installed. Corner clearance is checked in LTR/RTL, with the media badge attached to its actual media container. No custom video, caption, menu, secondary action or click controls were added. The badge remains independent of caller color overrides.
+- Added a gallery Feed / dark palette using the existing live-color API. Pool, consent, lease, presentation ownership and generated appearance transport are unchanged by the visual redesign.
+- All Android layout tests now use native graphics/font measurement. Added regressions for wrapped copy, rating/price separation, missing-icon collapse and text fitting its measured bounds, plus reproducible rendered fixtures for all 25 templates and light/dark large1. Images are emitted under `android/build/reports/native-design/`; SDK creative/binder and AdChoices content remain simulated in these fixtures.
+
+Verification: 169 package and 64 example tests pass after the compact height revision. Thirteen Android tests pass with real font metrics and 320/400px LTR/RTL asset bounds, fullscreen resizing down to 320px, media non-overlap, badge placement, SDK corner clearance and absent-metadata checks. Analyzer and performance scan pass. Swift sources type-check against installed Flutter/GMA headers. Android debug APK builds. Visual fixtures were inspected; actual SDK rendering, iOS runtime geometry and accessibility font scaling remain device-validation work, not certified by these tests.
+
+## Implemented: CTA radius in native styling
+
+- Replaced the unreleased colors-only model/facade with `NativeAdStyle`, `NativePlacement(style:)`, `AdmobKitConfig(nativeStyle:)` and `setNativeStyle`. No deprecated alias or second styling engine. Colors and CTA radius share per-field inheritance and complete, ordered render manifests.
+- Added nullable `callToActionCornerRadius` in logical pixels. Zero is square; null restores inheritance/defaults; finite non-negative values are clamped at half the CTA height. Initial/pending/live views use the same generated Pigeon contract. Android drawable and iOS layer updates preserve button bounds, badge/AdChoices styling, SDK clicks, original ad identity and load age.
+- Regenerated Dart/Kotlin/Swift transport from its schema. Added validation, zero/fractional/inheritance/reset/invalid-intent and generated-channel coverage; facade and gallery tests assert no new ad load. Android tests cover all 25 layouts, simultaneous color/radius updates, default reset, stale revisions, oversized values, invalid manifests and high-density logical pixel conversion.
+- Gallery includes square/rounded CTA presets and reset; the example app defaults to an 8px CTA radius through its global native style. Public docs and integration references use the new API.
+
+Verification: 171 package, 64 example and 16 Android tests pass. Swift sources type-check and Android debug APK builds. Performance scan is clean. Live iOS rendering is still not certified by compilation/tests.
+
+## Implemented: Android native density preservation
+
+- Fixed the appearance registry cloning programmatic backgrounds with `Resources`, which density-scaled already-pixel-sized template geometry a second time. Clones now preserve captured geometry and remain independently mutable. Card corners stay at 16 logical pixels through attachment, live styling and default reset; CTA customization is unchanged. No Flutter gallery wrapper or iOS layout change is needed for this Android-specific defect.
+- Added regressions covering all 25 templates at 2× and 3× density, including initial attachment, successive background/CTA updates, reset and unchanged bounds. Both tests failed before the fix (32px became 64px and 48px became 144px) and pass afterward.
+
+Verification: all 18 Android unit tests pass and the example debug APK builds. Device rendering remains part of the validation below.
 
 ## Remaining verification
 

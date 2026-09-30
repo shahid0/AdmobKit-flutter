@@ -19,18 +19,18 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
     template: widget.template,
     loadOnce: true,
   );
-  bool _updatingColors = false;
+  bool _updatingStyle = false;
 
-  Future<void> _applyColors(NativeAdColors colors) async {
-    setState(() => _updatingColors = true);
+  Future<void> _applyStyle(NativeAdStyle style) async {
+    setState(() => _updatingStyle = true);
     try {
-      await AdmobKit.setNativeColors(colors, placement: _placement);
+      await AdmobKit.setNativeStyle(style, placement: _placement);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Color update failed: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Style update failed: $error')));
       }
     } finally {
-      if (mounted) setState(() => _updatingColors = false);
+      if (mounted) setState(() => _updatingStyle = false);
     }
   }
 
@@ -39,9 +39,7 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: TaskColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -69,7 +67,7 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
             const SizedBox(height: 6),
             Text(
               'Minimum constraints: ${template.minWidth.toInt()} × ${template.height.toInt()} logical pixels.\n'
-              'Placement owns template identity. Colors apply over native Android/iOS views via Pigeon without ad reloads.',
+              'Placement owns template identity. Colors and CTA radius update native Android/iOS views via Pigeon without ad reloads.',
               style: const TextStyle(fontSize: 13, color: TaskColors.textSlateMedium, height: 1.4),
             ),
             const SizedBox(height: 16),
@@ -93,15 +91,33 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
             tooltip: 'Template Specs',
             onPressed: _showInfoSheet,
           ),
-          PopupMenuButton<NativeAdColors>(
-            tooltip: 'Apply native colors',
-            enabled: !_updatingColors,
+          PopupMenuButton<NativeAdStyle>(
+            tooltip: 'Apply native style',
+            enabled: !_updatingStyle,
             icon: const Icon(Icons.palette_outlined),
-            onSelected: _applyColors,
+            onSelected: _applyStyle,
             itemBuilder: (_) => const [
-              PopupMenuItem(value: NativeAdColors(), child: Text('Reset to inherited colors')),
+              PopupMenuItem(value: NativeAdStyle(), child: Text('Reset to inherited style')),
               PopupMenuItem(
-                value: NativeAdColors(
+                value: NativeAdStyle(callToActionCornerRadius: 0),
+                child: Text('Square CTA / inherited colors'),
+              ),
+              PopupMenuItem(
+                value: NativeAdStyle(callToActionCornerRadius: 6.5),
+                child: Text('Rounded CTA / inherited colors'),
+              ),
+              PopupMenuItem(
+                value: NativeAdStyle(
+                  background: 0xff0f0f0f,
+                  headline: 0xfff1f1f1,
+                  body: 0xffaaaaaa,
+                  callToActionBackground: 0xfff1f1f1,
+                  callToActionText: 0xff0f0f0f,
+                ),
+                child: Text('Feed / dark'),
+              ),
+              PopupMenuItem(
+                value: NativeAdStyle(
                   background: 0xff14213d,
                   headline: 0xffffffff,
                   body: 0xffe5e5e5,
@@ -111,7 +127,7 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
                 child: Text('Midnight / gold'),
               ),
               PopupMenuItem(
-                value: NativeAdColors(
+                value: NativeAdStyle(
                   background: 0xfff0fdf4,
                   headline: 0xff14532d,
                   body: 0xff166534,
@@ -121,7 +137,7 @@ class _NativeTemplateScreenState extends State<NativeTemplateScreen> {
                 child: Text('Forest / light'),
               ),
               PopupMenuItem(
-                value: NativeAdColors(
+                value: NativeAdStyle(
                   background: 0xff0f172a,
                   headline: 0xfff8fafc,
                   body: 0xff94a3b8,
