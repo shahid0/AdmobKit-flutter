@@ -1,5 +1,6 @@
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:flutter/material.dart';
+import '../theme/task_theme.dart';
 
 class AdaptiveBannerScreen extends StatefulWidget {
   final bool inline;
@@ -26,7 +27,11 @@ class _AdaptiveBannerScreenState extends State<AdaptiveBannerScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.inline ? 'Inline adaptive' : 'Anchored adaptive')),
+    backgroundColor: TaskColors.canvasGround,
+    appBar: AppBar(
+      title: Text(widget.inline ? 'Inline adaptive' : 'Anchored adaptive'),
+      leading: const BackButton(),
+    ),
     body: SafeArea(
       child: ListView(
         children: [

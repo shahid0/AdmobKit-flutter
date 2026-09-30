@@ -9,7 +9,9 @@ import 'tabs/categories_tab.dart';
 import 'tabs/focus_tab.dart';
 import 'tabs/analytics_tab.dart';
 import 'tabs/settings_tab.dart';
+import '../widgets/sdk_status_badge.dart';
 import 'ad_gallery_screen.dart';
+import 'sub_screens/placement_state_monitor_screen.dart';
 
 class MainTabsScreen extends StatefulWidget {
   const MainTabsScreen({super.key});
@@ -29,6 +31,85 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     SettingsTab(),
   ];
 
+  void _showSdkInfoSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TaskColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'AdmobKit Status & Controls',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                    color: TaskColors.textInkPrimary,
+                  ),
+                ),
+                const Spacer(),
+                const SdkStatusBadge(),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'canRequestAds: ${AdmobKit.canRequestAds} · isShowingAd: ${AdmobKit.isShowingAd} · isUserPremium: ${AdmobKit.isUserPremium}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: TaskColors.textSlateMedium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.speed_rounded, color: TaskColors.accentPrimary),
+              title: const Text('Placement State Monitor', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text('Real-time watchState stream & on-demand preloading', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PlacementStateMonitorScreen()),
+                );
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.bug_report_outlined, color: TaskColors.amberText),
+              title: const Text('AdMob Inspector', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text('Device ad verification & adapter health', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                AdmobKit.openAdInspector();
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.privacy_tip_outlined, color: TaskColors.emeraldText),
+              title: const Text('Privacy & Consent Options', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text('Google UMP GDPR privacy form', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                AdmobKit.showPrivacyOptionsForm();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
 
   @override
@@ -45,6 +126,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             title: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 32,
@@ -78,6 +160,12 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
               ],
             ),
             actions: [
+              Center(
+                child: SdkStatusBadge(
+                  onTap: () => _showSdkInfoSheet(context),
+                ),
+              ),
+              const SizedBox(width: 2),
               IconButton(
                 tooltip: 'Ad gallery',
                 icon: const Icon(Icons.view_quilt_outlined),
@@ -85,35 +173,12 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                   MaterialPageRoute(builder: (_) => const AdGalleryScreen()),
                 ),
               ),
-              TactileButton(
-                onTap: () => AppDrawerConsole.show(context),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: TaskColors.surfaceCard,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: TaskColors.borderSubtle),
-                    boxShadow: TaskColors.cardShadow,
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.terminal_rounded, color: TaskColors.accentPrimary, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'Diagnostics',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: TaskColors.textInkPrimary,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              IconButton(
+                tooltip: 'Diagnostics',
+                icon: const Icon(Icons.terminal_rounded, color: TaskColors.accentPrimary),
+                onPressed: () => AppDrawerConsole.show(context),
               ),
+              const SizedBox(width: 8),
             ],
           ),
           body: IndexedStack(

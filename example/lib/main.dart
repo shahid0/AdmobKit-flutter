@@ -82,10 +82,22 @@ void main() async {
       analytics: PrintingAnalyticsTracker(onLog: TaskStore.instance.appendLog),
       diagnostics: PrintingDiagnosticsTracker(onLog: TaskStore.instance.appendLog),
       testDeviceIds: const ['5836268AE16674B51B1B19E62E1B3401'],
+      nativeColors: const NativeAdColors(
+        background: 0xFFFFFFFF,
+        headline: 0xFF0F172A,
+        body: 0xFF475569,
+        callToActionBackground: 0xFF4338CA,
+        callToActionText: 0xFFFFFFFF,
+      ),
     ),
   );
 
-  AdmobKit.registerPlacements(SampleAds.allPlacements);
+  AdmobKit.registerPlacements(
+    SampleAds.allPlacements,
+    placementCapacities: {
+      'multi_widget_showcase': 2,
+    },
+  );
 
   runApp(const TaskFlowApp());
 }

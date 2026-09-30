@@ -80,6 +80,34 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.nativeIos,
   );
 
+  static const multiWidgetNative = NativePlacement(
+    template: NativeAdTemplate.medium2,
+    id: 'multi_widget_showcase',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+  );
+
+  static const fullscreenNative = NativePlacement(
+    template: NativeAdTemplate.fullscreen1,
+    id: 'fullscreen_native_showcase',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+  );
+
+  static const inlineAdaptiveBanner = BannerPlacement(
+    id: 'inline_adaptive_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.inlineAdaptive(maxHeight: 250),
+  );
+
+  static const anchoredAdaptiveBanner = BannerPlacement(
+    id: 'anchored_adaptive_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.anchoredAdaptive(),
+  );
+
   static const allPlacements = [
     splashBigNative,
     splashBanner,
@@ -87,9 +115,14 @@ abstract final class SampleAds {
     onboardingBigNative,
     mainInterstitial,
     rewardedBonus,
+    rewardedInterstitial,
     appOpen,
     bigNative,
     mediumNative,
     smallNative,
+    multiWidgetNative,
+    fullscreenNative,
+    inlineAdaptiveBanner,
+    anchoredAdaptiveBanner,
   ];
 }

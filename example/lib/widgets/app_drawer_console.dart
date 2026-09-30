@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+import '../screens/sub_screens/placement_state_monitor_screen.dart';
 import '../state/task_store.dart';
 import '../theme/task_theme.dart';
+import 'sdk_status_badge.dart';
 
 class AppDrawerConsole extends StatefulWidget {
   const AppDrawerConsole({super.key});
@@ -66,6 +68,16 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SdkStatusBadge(),
+                  IconButton(
+                    icon: const Icon(Icons.speed_rounded, size: 20, color: TaskColors.accentPrimary),
+                    tooltip: 'Placement State Monitor',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PlacementStateMonitorScreen()),
+                      );
+                    },
+                  ),
                   IconButton(
                     icon: const Icon(Icons.bug_report_outlined, size: 20, color: TaskColors.amberText),
                     tooltip: 'Open AdMob Inspector',
@@ -77,6 +89,16 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                           store.appendLog('🔍 AdMob Inspector opened successfully.');
                         }
                       });
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, size: 18, color: TaskColors.textSlateMedium),
+                    tooltip: 'Copy Logs',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: store.liveLogs.value.join('\n')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Logs copied to clipboard')),
+                      );
                     },
                   ),
                   IconButton(
@@ -101,6 +123,8 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                     _buildFilterChip('ANALYTICS'),
                     const SizedBox(width: 8),
                     _buildFilterChip('DIAGNOSTICS'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('REVENUE'),
                   ],
                 ),
               ),
@@ -115,6 +139,7 @@ class _AppDrawerConsoleState extends State<AppDrawerConsole> {
                   final filtered = logs.where((l) {
                     if (_filter == 'ANALYTICS') return l.contains('[Analytics]');
                     if (_filter == 'DIAGNOSTICS') return l.contains('[Diagnostics]');
+                    if (_filter == 'REVENUE') return l.contains('Revenue') || l.contains('Paid');
                     return true;
                   }).toList();
 
