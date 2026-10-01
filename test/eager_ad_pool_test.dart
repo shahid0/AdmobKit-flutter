@@ -332,7 +332,7 @@ void main() {
     test('Inline loadOnce: leaseInlineAd consumes placement and skips replenishment', () async {
       final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
-      const oneOffNative = NativePlacement(template: NativeAdTemplate.large1, id: 'splash_native', androidId: '3', iosId: '3', loadOnce: true);
+      const oneOffNative = NativePlacement(template: NativeAdTemplate.feedMediaFirst, id: 'splash_native', androidId: '3', iosId: '3', loadOnce: true);
 
       // Preload inline ad
       await pool.preload(oneOffNative);
@@ -503,7 +503,7 @@ void main() {
       final pool = EagerAdPool(driver: driver, mutex: mutex, networkInfo: networkInfo);
 
       const oneOffNative = NativePlacement(
-        template: NativeAdTemplate.large1,
+        template: NativeAdTemplate.feedMediaFirst,
         id: 'splash_native_saturation',
         androidId: '3',
         iosId: '3',

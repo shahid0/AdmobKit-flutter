@@ -73,7 +73,7 @@ void main() {
         config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
       );
 
-      const bigNative = NativePlacement(template: NativeAdTemplate.large1, androidId: '1', iosId: '1');
+      const bigNative = NativePlacement(template: NativeAdTemplate.feedMediaFirst, androidId: '1', iosId: '1');
 
       await tester.pumpWidget(
         const MaterialApp(

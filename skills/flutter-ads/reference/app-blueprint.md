@@ -47,17 +47,13 @@ void registerAdPlacements() {
     AppAds.tabNative,
     AppAds.clickInterstitial,
     AppAds.modeSwitchInterstitial,
-    AppAds.featureRewarded,
-    AppAds.featureRewardedInterstitial,
     // Remote-gated rewarded format: RC picks the variant at feature-use time,
     // so register BOTH (each shows only when its trigger fires).
     AppAds.featureRewarded,
     AppAds.featureRewardedInterstitial,
 
-    // — First-run-only surfaces: THE loadOnce trap in action —
-    // loadOnce consumption is permanent per install. Registering these
-    // unconditionally wastes a load on every returning user and leaves
-    // phantom consumed state if the flow is skipped.
+    // Only preload reachable first-run surfaces. loadOnce suppresses background
+    // replenishment, not future inline demand, and is not persisted per install.
     if (rc.isFirstLaunch) ...[
       AppAds.onboardingNative,
       AppAds.onboardingInterstitial,
@@ -78,12 +74,13 @@ Native at bottom — the widget owns everything. Both splash placements ride the
 
 ```dart
 // app_ads.dart — SDK usage only
-static const splashBigNative = NativePlacement.big(
+static const splashBigNative = NativePlacement(
+  template: NativeAdTemplate.feedMediaFirst,
   id: 'splash_big_native',
   androidId: AdMobTestIds.nativeAndroid,
   iosId: AdMobTestIds.nativeIos,
   isSplash: true,   // splash tier — loads before/alongside the gate
-  loadOnce: true,   // one splash per install → one native load, ever
+  loadOnce: true,   // no background replenishment after this ad is consumed
 );
 ```
 
@@ -92,11 +89,10 @@ Widget mount (splash layout is app-owned):
 ```dart
 // splash_screen.dart — bottom of the splash layout
 SizedBox(
-  height: NativeAdTemplate.big.height, // 300dp — reserved, zero CLS
+  height: AppAds.splashBigNative.template.height, // 340 logical pixels
   width: double.infinity,
-  child: const AdNativeView.templated(
+  child: const AdNativeView(
     placement: AppAds.splashBigNative,
-    template: NativeAdTemplate.big,
   ),
 )
 ```
@@ -124,15 +120,15 @@ AdmobKit.show(
 
 ## Onboarding — new users only
 
-Cards get natives; one interstitial fires mid-flow (e.g. after step 2 of 3). Both placements exist in `AppAds` but were registered **only for first-run installs** — on every other install these calls are no-ops (premium-style pass-through: `show` → immediate `onDismissed`), so the same screen code is safe everywhere.
+Cards get natives; one interstitial fires mid-flow (e.g. after step 2 of 3). Register their placements only when onboarding is reachable. Registration controls preloading, not access: a mounted inline host can demand an ad without prior registration. The app must not mount first-run screens for returning users. A new host can request a replacement after a `loadOnce` native is consumed.
 
 ```dart
 // onboarding_card.dart — SDK usage only; carousel logic is app-owned
 SizedBox(
-  height: NativeAdTemplate.big.height,
-  child: const AdNativeView.templated(
+  height: AppAds.onboardingNative.template.height,
+  child: AdNativeView(
     placement: AppAds.onboardingNative,
-    template: NativeAdTemplate.big,
+    active: pageIndex == currentPage,
   ),
 )
 ```
@@ -176,10 +172,9 @@ Tab content with a native card (works the same in a pushed sub-screen):
 ```dart
 // feed_tab.dart — SDK usage only; list layout is app-owned
 Container(
-  height: NativeAdTemplate.medium.height, // 130dp
-  child: const AdNativeView.templated(
+  height: AppAds.tabNative.template.height, // Split & Card family: 160 logical pixels
+  child: const AdNativeView(
     placement: AppAds.tabNative,
-    template: NativeAdTemplate.medium,
   ),
 )
 ```
@@ -327,27 +322,26 @@ class AppOpenCoordinator with WidgetsBindingObserver {
     final cooldownOk = _lastShownAt == null ||
         DateTime.now().difference(_lastShownAt!) >= const Duration(minutes: 3); // app policy
 
-    if (enoughDwell && cooldownOk && !AdmobKit.isShowingAd) {       // ← SDK gate
-      _lastShownAt = DateTime.now();
-      AdmobKit.show(AppAds.appOpen);                                 // ← SDK seam
+    if (enoughDwell && cooldownOk && appPolicyAllowsResumeAd && !AdmobKit.isShowingAd) {
+      AdmobKit.show(AppAds.appOpen, onDisplayed: () => _lastShownAt = DateTime.now());
     }
   }
 }
 ```
 
-Three SDK requirements live in that one condition: a **real** pause preceded the resume, `AdmobKit.isShowingAd` is false (no firing over another fullscreen, no firing over a modal/paywall), and the coordinator holds its own cooldown. Register the observer in the root widget's state; also suppress on first launch — the splash gate already covers cold start.
+The app owns dwell, cooldown, and `appPolicyAllowsResumeAd` (including modal/paywall/consent exclusions). `AdmobKit.isShowingAd` detects SDK fullscreen and fullscreen-native ownership, not arbitrary app overlays. Register/remove the observer with the root widget's lifecycle; suppress cold-start duplication. Only successful display starts the cooldown.
 
 ---
 
 ## Premium is one callback
 
 ```dart
-await AdmobKit.initialize(config: const AdmobKitConfig(
+await AdmobKit.initialize(config: AdmobKitConfig(
   isPremium: () => PurchaseService.hasEntitlement, // app logic
 ));
 ```
 
-Every surface above then behaves correctly with zero per-screen branches: preloads skipped, `show` → immediate `onDismissed` (flows proceed), widgets collapse to `SizedBox.shrink`, `AdPaywallGuard` passes through.
+Preloads are skipped, `show` immediately dismisses, and widgets collapse when rebuilt. The callback is queried, not subscribed to: rebuild ad hosts when entitlement changes. `AdPaywallGuard` passes through for premium users.
 
 ---
 

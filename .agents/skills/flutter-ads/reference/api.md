@@ -32,18 +32,20 @@ IDs identify immutable configuration; use different IDs for different templates/
 
 - `InterstitialPlacement`, `AppOpenPlacement`, `RewardedPlacement`, `RewardedInterstitialPlacement`.
 - `BannerPlacement(sizing: BannerSizing.anchoredAdaptive())` (default) or `BannerSizing.inlineAdaptive(maxHeight:)`.
-- `NativePlacement(template: NativeAdTemplate.medium1, style: NativeAdStyle())` (defaults).
+- `NativePlacement(template: NativeAdTemplate.splitMediaLeft, style: NativeAdStyle())` (defaults).
 - `loadOnce: true` stops background replenishment after consumption. New inline demand may load again; this is not an install-level impression limit.
 - Test unit IDs: `AdMobTestIds.interstitialAndroid`, `.bannerIos`, `.nativeAndroid`, etc.
 
 ## Native catalog and styling
 
-| Templates | Height (logical pixels) |
-| --- | --- |
-| `small1`–`small8` | 104 |
-| `medium1`–`medium6` | 160 |
-| `large1`–`large6` | 340 |
-| `fullscreen1`–`fullscreen5` | Fill bounded parent, minimum 320 |
+| Template Family | Canonical Preset | Height (dp) | Semantic Variants |
+| --- | --- | --- | --- |
+| **Row** (8) | `NativeAdTemplate.compactRow` | 104 | `rowWithLeadingIcon`, `rowTextOnly`, `rowWithTrailingIcon`, `rowExpandedText`, `rowTextOnlyExpanded`, `rowMinimalText`, `rowLeadingCta`, `rowLeadingCtaCompact` |
+| **Split & Card** (6) | `NativeAdTemplate.splitMedia`, `stackedCard` | 160 | `splitMediaLeft`, `splitMediaRight`, `cardContentTop`, `cardActionTop`, `cardCleanContentTop`, `cardCleanActionTop` |
+| **Feed Card** (6) | `NativeAdTemplate.feedCard` | 340 | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon`, `feedMediaTopSideCta`, `feedContentTopSideCta` |
+| **Fullscreen** (5) | `NativeAdTemplate.fullscreen` | Fill bounded parent, min 320 | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenTrailingIcon`, `fullscreenMediaSideCta`, `fullscreenActionMiddle` |
+
+> Legacy `small1`..`small8`, `medium1`..`medium6`, `large1`..`large6`, `fullscreen1`..`fullscreen5` are retained as `@Deprecated` aliases.
 
 All require bounded width >=320. Inline height is `placement.template.height`. Fullscreen hosts must also have bounded height; don't mount them directly in a scrolling axis. Keep dismissal outside SDK assets. Use `active:` for retained pages whose selected index is app-owned; Flutter Visibility/TickerMode and app lifecycle are also honored. No viewport detector is installed.
 

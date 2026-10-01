@@ -10,7 +10,7 @@ abstract final class SampleAds {
   );
 
   static const splashBigNative = NativePlacement(
-    template: NativeAdTemplate.large1,
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'splash_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -27,7 +27,7 @@ abstract final class SampleAds {
   );
 
   static const onboardingBigNative = NativePlacement(
-    template: NativeAdTemplate.large1,
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -60,35 +60,35 @@ abstract final class SampleAds {
   );
 
   static const bigNative = NativePlacement(
-    template: NativeAdTemplate.large1,
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'native_big_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const mediumNative = NativePlacement(
-    template: NativeAdTemplate.medium1,
+    template: NativeAdTemplate.splitMediaLeft,
     id: 'native_medium_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const smallNative = NativePlacement(
-    template: NativeAdTemplate.small1,
+    template: NativeAdTemplate.rowWithLeadingIcon,
     id: 'native_small_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const multiWidgetNative = NativePlacement(
-    template: NativeAdTemplate.medium2,
+    template: NativeAdTemplate.splitMediaRight,
     id: 'multi_widget_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const fullscreenNative = NativePlacement(
-    template: NativeAdTemplate.fullscreen1,
+    template: NativeAdTemplate.fullscreenMediaFirst,
     id: 'fullscreen_native_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,

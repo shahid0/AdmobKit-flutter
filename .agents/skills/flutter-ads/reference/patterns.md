@@ -18,7 +18,7 @@ abstract final class AppAds {
   );
 
   static const onboardingNative = NativePlacement(
-    template: NativeAdTemplate.large1,
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'onboarding_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -27,7 +27,7 @@ abstract final class AppAds {
   );
 
   static const feedNative = NativePlacement(
-    template: NativeAdTemplate.medium1,
+    template: NativeAdTemplate.splitMediaLeft,
     id: 'feed_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -159,7 +159,7 @@ AdNativeView(placement: AppAds.onboardingNative, active: pageIndex == currentInd
 
 ## Fullscreen native and live colors
 
-Declare a distinct `NativePlacement(template: NativeAdTemplate.fullscreen1, ...)`.
+Declare a distinct `NativePlacement(template: NativeAdTemplate.fullscreen, ...)`.
 Mount in bounded space, with navigation outside the SDK assets:
 
 ```dart

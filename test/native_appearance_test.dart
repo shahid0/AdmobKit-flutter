@@ -13,7 +13,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_mobile_ads/src/ad_instance_manager.dart' show instanceManager;
 
 const placement = NativePlacement(
-  template: NativeAdTemplate.small1,
+  template: NativeAdTemplate.rowWithLeadingIcon,
   id: 'native',
   androidId: 'test',
   iosId: 'test',
@@ -276,7 +276,7 @@ void main() {
       final release = Completer<void>();
       final ad = ManagedNativeAd(
         adUnitId: 'test',
-        factoryId: 'admobKit.small1',
+        factoryId: 'admobKit.rowWithLeadingIcon',
         request: const AdRequest(),
         listener: NativeAdListener(),
         releaseAppearance: () => release.future,

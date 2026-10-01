@@ -52,7 +52,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.mediumNative,
-                                      height: NativeAdTemplate.medium1.height,
+                                      height: NativeAdTemplate.splitMediaLeft.height,
                                     );
                                   }
 
@@ -62,7 +62,7 @@ class _TasksListTabState extends State<TasksListTab> {
                                     }
                                     return _buildNativeAdCard(
                                       placement: SampleAds.bigNative,
-                                      height: NativeAdTemplate.large1.height,
+                                      height: NativeAdTemplate.feedMediaFirst.height,
                                     );
                                   }
 

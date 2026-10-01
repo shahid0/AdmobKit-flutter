@@ -95,7 +95,7 @@ class NativeTemplateLayoutTest {
             }
             assertFalse(Rect.intersects(badgeBounds, sdkCorner), "${template.name}: badge covers SDK AdChoices corner")
             assertNull(view.adChoicesView, "AdChoices placement belongs to the SDK, not a custom row")
-            val expectedMedia = !template.isSmall && (template == NativeTemplate.medium1 || template == NativeTemplate.medium2 || !template.isMedium)
+            val expectedMedia = !template.isSmall && (template == NativeTemplate.splitMediaLeft || template == NativeTemplate.splitMediaRight || !template.isMedium)
             assertEquals(expectedMedia, view.mediaView != null, template.name)
             view.mediaView?.let {
                 val density = context.resources.displayMetrics.density
@@ -114,8 +114,8 @@ class NativeTemplateLayoutTest {
 
     @Test
     fun readableCopyAndSeparatedMetadataReplaceTheSingleLineLayout() {
-        val view = NativeTemplateLayout(context, NativeTemplate.large1).build(ad(true))
-        layout(view, 320, NativeTemplate.large1.height)
+        val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(true))
+        layout(view, 320, NativeTemplate.feedMediaFirst.height)
         val headline = view.headlineView as TextView
         val body = view.bodyView as TextView
         assertTrue(headline.layout.lineCount >= 2)
@@ -133,16 +133,16 @@ class NativeTemplateLayoutTest {
     }
 
     @Test fun missingIconDoesNotLeaveAReservedBlankColumn() {
-        val view = NativeTemplateLayout(context, NativeTemplate.large1).build(ad(false))
-        layout(view, 320, NativeTemplate.large1.height)
+        val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(false))
+        layout(view, 320, NativeTemplate.feedMediaFirst.height)
         assertNull(view.iconView)
         assertTrue(view.headlineView!!.width >= 280 * context.resources.displayMetrics.density)
         view.destroy()
     }
 
     @Test fun attributionDoesNotReserveAHeaderAndMetadataFollowsBody() {
-        val view = NativeTemplateLayout(context, NativeTemplate.large1).build(ad(true))
-        layout(view, 320, NativeTemplate.large1.height)
+        val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(true))
+        layout(view, 320, NativeTemplate.feedMediaFirst.height)
         fun bounds(asset: View): Rect = Rect(0, 0, asset.width, asset.height).also {
             view.offsetDescendantRectToMyCoords(asset, it)
         }
@@ -216,13 +216,13 @@ class NativeTemplateLayoutTest {
             val y = gutter + (index / 5) * cellHeight
             sheetCanvas.drawText(template.name, x.toFloat(), y + 16 * density, titlePaint)
             sheetCanvas.drawBitmap(bitmap, x.toFloat(), y + 28 * density, null)
-            if (template == NativeTemplate.large1) {
+            if (template == NativeTemplate.feedMediaFirst) {
                 store.applyStyle("visual", 2, mapOf("card" to NativeStyleData(
                     background = 0xff0f0f0f, headline = 0xfff1f1f1, body = 0xffaaaaaa,
                     callToActionBackground = 0xfff1f1f1, callToActionText = 0xff0f0f0f)))
                 val dark = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(dark))
-                File(output, "large1-dark.png").outputStream().use { dark.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                File(output, "feedMediaFirst-dark.png").outputStream().use { dark.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
             view.destroy()
         }
@@ -299,10 +299,10 @@ class NativeTemplateLayoutTest {
                     assertFalse(Rect.intersects(media, bounds(asset)), "${template.name}: media overlap")
                 }
                 when (template) {
-                    NativeTemplate.fullscreen1, NativeTemplate.fullscreen3 -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
-                    NativeTemplate.fullscreen4 -> assertTrue(media.bottom <= headline.top && media.bottom <= button.top)
-                    NativeTemplate.fullscreen2 -> assertTrue(headline.bottom <= media.top && media.bottom <= button.top)
-                    NativeTemplate.fullscreen5 -> assertTrue(headline.bottom <= button.top && button.bottom <= media.top)
+                    NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
+                    NativeTemplate.fullscreenMediaSideCta -> assertTrue(media.bottom <= headline.top && media.bottom <= button.top)
+                    NativeTemplate.fullscreenContentFirst -> assertTrue(headline.bottom <= media.top && media.bottom <= button.top)
+                    NativeTemplate.fullscreenActionMiddle -> assertTrue(headline.bottom <= button.top && button.bottom <= media.top)
                     else -> error("Not fullscreen")
                 }
             }
@@ -329,7 +329,7 @@ class NativeTemplateLayoutTest {
         val store = NativeAppearanceStore()
         store.startSession("session")
         store.applyStyle("session", 1, mapOf("render" to NativeStyleData(headline = 0xff00ff00)))
-        val view = NativeTemplateFactory(context, NativeTemplate.small1, store).createNativeAd(
+        val view = NativeTemplateFactory(context, NativeTemplate.rowWithLeadingIcon, store).createNativeAd(
             ad(true), mutableMapOf("sessionId" to "session", "renderId" to "render"))
         assertEquals(Color.GREEN, (view.headlineView as TextView).currentTextColor)
         store.applyStyle("session", 3, mapOf("render" to NativeStyleData(headline = 0xffff0000)))
@@ -420,7 +420,7 @@ class NativeTemplateLayoutTest {
         val store = NativeAppearanceStore()
         store.startSession("density")
         store.applyStyle("density", 1, mapOf("render" to NativeStyleData(callToActionCornerRadius = 6.5)))
-        val view = NativeTemplateFactory(context, NativeTemplate.small1, store).createNativeAd(ad(true),
+        val view = NativeTemplateFactory(context, NativeTemplate.rowWithLeadingIcon, store).createNativeAd(ad(true),
             mutableMapOf("sessionId" to "density", "renderId" to "render"))
         assertEquals(2f, context.resources.displayMetrics.density)
         assertEquals(13f, (view.callToActionView!!.background as GradientDrawable).cornerRadius)

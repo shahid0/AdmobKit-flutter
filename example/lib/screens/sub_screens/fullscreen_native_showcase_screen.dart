@@ -12,7 +12,7 @@ class FullscreenNativeShowcaseScreen extends StatefulWidget {
 }
 
 class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcaseScreen> {
-  NativeAdTemplate _selectedTemplate = NativeAdTemplate.fullscreen1;
+  NativeAdTemplate _selectedTemplate = NativeAdTemplate.fullscreenMediaFirst;
   bool _updatingColors = false;
 
   late NativePlacement _placement = _createPlacement(_selectedTemplate);
@@ -187,11 +187,11 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
 
   Widget _buildTemplateSelector() {
     const templates = [
-      NativeAdTemplate.fullscreen1,
-      NativeAdTemplate.fullscreen2,
-      NativeAdTemplate.fullscreen3,
-      NativeAdTemplate.fullscreen4,
-      NativeAdTemplate.fullscreen5,
+      NativeAdTemplate.fullscreenMediaFirst,
+      NativeAdTemplate.fullscreenContentFirst,
+      NativeAdTemplate.fullscreenTrailingIcon,
+      NativeAdTemplate.fullscreenMediaSideCta,
+      NativeAdTemplate.fullscreenActionMiddle,
     ];
 
     return SingleChildScrollView(

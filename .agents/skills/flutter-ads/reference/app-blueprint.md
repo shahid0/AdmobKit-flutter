@@ -75,7 +75,7 @@ Native at bottom — the widget owns everything. Both splash placements ride the
 ```dart
 // app_ads.dart — SDK usage only
 static const splashBigNative = NativePlacement(
-  template: NativeAdTemplate.large1,
+  template: NativeAdTemplate.feedMediaFirst,
   id: 'splash_big_native',
   androidId: AdMobTestIds.nativeAndroid,
   iosId: AdMobTestIds.nativeIos,
@@ -172,7 +172,7 @@ Tab content with a native card (works the same in a pushed sub-screen):
 ```dart
 // feed_tab.dart — SDK usage only; list layout is app-owned
 Container(
-  height: AppAds.tabNative.template.height, // medium1–medium6: 160 logical pixels
+  height: AppAds.tabNative.template.height, // Split & Card family: 160 logical pixels
   child: const AdNativeView(
     placement: AppAds.tabNative,
   ),

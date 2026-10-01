@@ -211,7 +211,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 AdNativeView(
                   placement: SampleAds.onboardingBigNative,
                   placeholder: Container(
-                    height: NativeAdTemplate.large1.height,
+                    height: NativeAdTemplate.feedMediaFirst.height,
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: TaskColors.surfaceSubtle,

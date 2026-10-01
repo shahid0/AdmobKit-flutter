@@ -33,10 +33,31 @@ void main() {
 
   test('Dart, Kotlin and Swift expose the same 25 unique templates', () {
     final expected = [
-      for (var i = 1; i <= 8; i++) 'small$i',
-      for (var i = 1; i <= 6; i++) 'medium$i',
-      for (var i = 1; i <= 6; i++) 'large$i',
-      for (var i = 1; i <= 5; i++) 'fullscreen$i',
+      'rowWithLeadingIcon',
+      'rowTextOnly',
+      'rowWithTrailingIcon',
+      'rowExpandedText',
+      'rowTextOnlyExpanded',
+      'rowMinimalText',
+      'rowLeadingCta',
+      'rowLeadingCtaCompact',
+      'splitMediaLeft',
+      'splitMediaRight',
+      'cardContentTop',
+      'cardActionTop',
+      'cardCleanContentTop',
+      'cardCleanActionTop',
+      'feedMediaFirst',
+      'feedContentFirst',
+      'feedActionMiddle',
+      'feedTrailingIcon',
+      'feedMediaTopSideCta',
+      'feedContentTopSideCta',
+      'fullscreenMediaFirst',
+      'fullscreenContentFirst',
+      'fullscreenTrailingIcon',
+      'fullscreenMediaSideCta',
+      'fullscreenActionMiddle',
     ];
     expect(NativeAdTemplate.values.map((t) => t.name), expected);
     expect(NativeAdTemplate.values.map((t) => t.factoryId).toSet(), hasLength(25));
@@ -44,13 +65,13 @@ void main() {
     final swift = File('ios/Classes/NativeTemplate.swift').readAsStringSync();
     expect(
       RegExp(
-        r'\b(?:small|medium|large|fullscreen)\d+\b',
+        r'\b(?:row|split|card|feed|fullscreen)[A-Za-z0-9]+\b',
       ).allMatches(kotlin.split('enum class NativeTemplate {').last.split(';').first).map((m) => m[0]),
       expected,
     );
     expect(
       RegExp(
-        r'\b(?:small|medium|large|fullscreen)\d+\b',
+        r'\b(?:row|split|card|feed|fullscreen)[A-Za-z0-9]+\b',
       ).allMatches(swift.split('var factoryId').first).map((m) => m[0]),
       expected,
     );
@@ -59,9 +80,9 @@ void main() {
       expect(template.minWidth, 320);
       expect(
         template.height,
-        template.name.startsWith('small')
+        template.name.startsWith('row')
             ? 104
-            : template.name.startsWith('medium')
+            : (template.name.startsWith('split') || template.name.startsWith('card'))
             ? 160
             : template.isFullscreen
             ? 320
@@ -124,7 +145,7 @@ void main() {
     for (final bounds in [(319.0, 340.0), (320.0, 339.0)]) {
       testWidgets('invalid bounds $bounds fail before leasing or loading', (tester) async {
         await initialize();
-        await tester.pumpWidget(host(placement(NativeAdTemplate.large1), width: bounds.$1, height: bounds.$2));
+        await tester.pumpWidget(host(placement(NativeAdTemplate.feedMediaFirst), width: bounds.$1, height: bounds.$2));
         expect(tester.takeException(), isA<FlutterError>());
         expect(driver.requests, isEmpty);
       });
@@ -135,7 +156,7 @@ void main() {
         MaterialApp(
           home: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: AdNativeView(placement: placement(NativeAdTemplate.small1)),
+            child: AdNativeView(placement: placement(NativeAdTemplate.rowWithLeadingIcon)),
           ),
         ),
       );
@@ -153,16 +174,16 @@ void main() {
     });
     testWidgets('changing template and placement invalidates the old pending lease', (tester) async {
       await initialize();
-      await tester.pumpWidget(host(placement(NativeAdTemplate.small1)));
+      await tester.pumpWidget(host(placement(NativeAdTemplate.rowWithLeadingIcon)));
       await tester.pump();
-      await tester.pumpWidget(host(placement(NativeAdTemplate.large6, id: 'large')));
+      await tester.pumpWidget(host(placement(NativeAdTemplate.feedContentTopSideCta, id: 'large')));
       driver.pending.first.complete(Object());
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(tester.getSize(find.byType(AdNativeView)), const Size(320, 340));
       expect(driver.requests.map((p) => (p as NativePlacement).template), [
-        NativeAdTemplate.small1,
-        NativeAdTemplate.large6,
+        NativeAdTemplate.rowWithLeadingIcon,
+        NativeAdTemplate.feedContentTopSideCta,
       ]);
       driver.pending.last.complete(Object());
       await tester.pump();
@@ -170,9 +191,9 @@ void main() {
     });
     testWidgets('changing template with the same identity rejects the incompatible reuse', (tester) async {
       await initialize();
-      await tester.pumpWidget(host(placement(NativeAdTemplate.small1)));
+      await tester.pumpWidget(host(placement(NativeAdTemplate.rowWithLeadingIcon)));
       await tester.pump();
-      await tester.pumpWidget(host(placement(NativeAdTemplate.large1)));
+      await tester.pumpWidget(host(placement(NativeAdTemplate.feedMediaFirst)));
       expect(tester.takeException(), isArgumentError);
       expect(driver.requests, hasLength(1));
       driver.pending.first.complete(Object());

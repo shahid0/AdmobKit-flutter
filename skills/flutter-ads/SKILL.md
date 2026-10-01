@@ -1,127 +1,240 @@
 ---
 name: flutter-ads
 description: >-
-  Integrate production-grade AdMob ads in Flutter with admob_kit_flutter. Use when adding
-  splash/interstitial/rewarded/app-open ads, banner or native ad widgets, paywall exit guards,
-  GDPR/UMP consent, tab-deferred ad loading, or ad revenue/analytics wiring. Enforces the
-  0ms show contract, deterministic settlement (waitFor), two-stage initialization,
+  Production-grade Google Mobile Ads (AdMob) orchestration in Flutter with admob_kit_flutter.
+  Use when integrating splash, interstitial, rewarded, app-open, adaptive banner, or native ads,
+  paywall exit guards, GDPR/UMP consent, tab-deferred loading, or ad revenue/analytics wiring.
+  Enforces the 0ms show contract, deterministic settlement (waitFor), two-stage initialization,
   priority-tiered preloading, and zero-CLS template-bound native containers.
 ---
 
-# AdmobKit Integration
+# AdmobKit Integration Runbook
 
 **Package:** `admob_kit_flutter` · **Facade:** `AdmobKit` · **Widgets:** `AdBannerView`, `AdNativeView`, `AdPaywallGuard`
-
-**The one import that always works:**
 
 ```dart
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 ```
 
-**Always emit `AdmobKit` and this import. No other facade or import path exists.**
+Always use this exact import and the `AdmobKit` facade.
 
-Found a bug or undocumented edge case? **Do not patch around it** — no timers, delays, or hand-rolled ad instantiation as workarounds. Band-aid fixes hide real bugs and reintroduce the races this package eliminates. Tell the user to [open a GitHub issue](https://github.com/shahid0/AdmobKit-flutter/issues/new/choose) with the placement config and logs, and keep the integration on documented contracts.
+---
 
-## The 4 Laws
+## The 4 Architectural Laws
 
-1. **0ms Show Contract** — `AdmobKit.show(placement, onDismissed: …)` never blocks. Ready → instant display; unready/offline → `onDismissed` fires immediately. Never stall navigation.
-2. **Deterministic Settlement** — Never guess readiness with `Timer`/`Future.delayed`. `await AdmobKit.waitFor(placement)` → `bool`; compose in `Future.wait`.
-3. **Immediate-Display Priority** — The visible screen's ad wins the network. `waitFor` and widget leases auto-promote to the `immediate` tier over background preloads.
-4. **Template-Bound Dimensions** — Native sizes are owned by native layouts (`small` 74dp, `medium` 130dp, `big` 300dp). Bind `template.height`; never guess pixels.
+1. **0ms Show Contract** — `AdmobKit.show(placement, onDismissed: …)` is strictly non-blocking. If cached in memory, it displays instantly. If unready, expired, or offline, `onDismissed` fires immediately (0ms delay). Never block user navigation on an ad request.
+2. **Deterministic Settlement** — Never guess ad readiness with `Timer` or `Future.delayed`. Await `AdmobKit.waitFor(placement)` (returns `Future<bool>`), composed with auth/config futures via `Future.wait`.
+3. **Immediate-Display Priority** — The on-screen ad always wins network priority. Visible widget leases and `waitFor` calls automatically promote to the `immediate` tier, preempting background preloads.
+4. **Template-Bound Dimensions (Zero CLS)** — Placements bind to pre-dimensioned templates (Row: 104dp, Split/Card: 160dp, Feed Card: 340dp, Fullscreen: min 320dp). Always provide bounded parent width >= 320dp. Never guess container heights.
 
-## Integration Workflow
+---
 
-**Step 1 — Plan the placements.** Decide what mounts where (decision table below), then write one placements file (see `reference/patterns.md` § Placements file). For a full production-shaped screen-by-screen blueprint — splash with native + remote-controlled gate, first-run onboarding, tab shells, click-threshold and mode-switch interstitials, rewarded gates, paywall exit, and lifecycle-gated App Open — read `reference/app-blueprint.md`. Apply the **loadOnce registration rule**: a screen only first-run users reach must have its placement registered conditionally (`if (isFirstLaunch) …`) — registered placements are primed at Stage 2 whether or not the user arrives, and `loadOnce` consumption is permanent per install.
+## 5-Step Implementation Workflow
 
-**Step 2 — Stage 1 in `main()`.** Consent + SDK at cold boot, never behind Remote Config. Two-stage scaffold in `reference/patterns.md`.
+### Step 1: Declare Placements (`lib/ads/app_ads.dart`)
 
-**Step 3 — Stage 2 on IDs.** `registerPlacements(...)` when Remote Config resolves. The list mirrors what can actually be *shown* on this install — not the app's static inventory.
+```dart
+import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 
-**Step 4 — Mount widgets.** Use the decision table; do not hand-roll `NativeAd`/`BannerAd`/`AdWidget`.
+abstract final class AppAds {
+  static const splashInterstitial = InterstitialPlacement(
+    id: 'splash_interstitial',
+    androidId: AdMobTestIds.interstitialAndroid,
+    iosId: AdMobTestIds.interstitialIos,
+    isSplash: true,
+    loadOnce: true,
+  );
 
-**Step 5 — Wire fullscreen triggers.** Splash via deterministic settlement; interval/rewarded via `show`; App Open gated by `!AdmobKit.isShowingAd`.
+  static const feedNative = NativePlacement(
+    id: 'feed_native',
+    template: NativeAdTemplate.splitMediaLeft,
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+    style: NativeAdStyle(
+      callToActionBackground: 0xFF2563EB,
+      callToActionText: 0xFFFFFFFF,
+      callToActionCornerRadius: 8,
+    ),
+  );
 
-**Step 6 — Validate.** Run the verification checklist at the bottom. Fix every failing item before declaring done.
+  static const bottomBanner = BannerPlacement(
+    id: 'bottom_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+  );
 
-Copy this checklist and check items off as you go:
+  static const paywallExitInterstitial = InterstitialPlacement(
+    id: 'paywall_exit_interstitial',
+    androidId: AdMobTestIds.interstitialAndroid,
+    iosId: AdMobTestIds.interstitialIos,
+  );
+}
+```
 
-- [ ] Placement list mirrors showable screens (one-time screens registered conditionally)
-- [ ] Stage 1 in `main()`, Stage 2 after IDs resolve
-- [ ] Widgets mounted per decision table (no hand-rolled ad instantiation)
-- [ ] Fullscreen triggers wired (splash settle, App Open gate, paywall guard)
-- [ ] Verification checklist passes
+### Step 2: Stage 1 Cold Boot (`lib/main.dart`)
 
-## Decision Table — What Do I Mount Where?
+Initialize consent and GMA SDK at cold boot, before any route mounts:
 
-| Situation | Use |
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final boot = AdmobKit.initialize(
+    config: AdmobKitConfig(
+      initialConcurrency: 1,
+      subsequentConcurrency: 1,
+      isPremium: () => UserStore.isVip, // Universal VIP suppression
+    ),
+  );
+
+  runApp(const MyApp());
+
+  try {
+    await boot;
+  } catch (error, stack) {
+    FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+  }
+}
+```
+
+### Step 3: Stage 2 Placement Registration
+
+Register placements when IDs resolve (e.g. Remote Config). Register one-time placements (onboarding/splash) conditionally:
+
+```dart
+void onRemoteConfigLoaded({required bool isFirstLaunch}) {
+  AdmobKit.registerPlacements([
+    AppAds.splashInterstitial,
+    AppAds.feedNative,
+    AppAds.bottomBanner,
+    if (isFirstLaunch) AppAds.onboardingNative, // loadOnce placement
+  ]);
+}
+```
+
+### Step 4: Mount Widgets & Wire Triggers
+
+Use the Decision Table below to mount appropriate widgets or fullscreen triggers.
+
+### Step 5: Verify against Invariant Constraints
+
+Audit against the negative constraints and run the verification checklist.
+
+---
+
+## Decision Table — What to Mount Where
+
+| Surface / Goal | SDK Pattern |
 | :--- | :--- |
-| Fullscreen at a transition (splash, exit, interval) | `AdmobKit.show(placement, onDismissed: …)` · splash/onboarding get `isSplash: true, loadOnce: true` |
-| Banner in an app shell | `AdBannerView(placement: …)` |
-| In-content card | `AdNativeView.templated(placement:, template:)` in a pre-sized `Container(height: template.height)` |
-| Two widgets, same placement, simultaneously visible | Same as above **plus** `placementCapacities: {'id': visibleCount}` — the only case for capacities |
-| Unlock feature / bonus | `RewardedPlacement` + `onRewardGranted` |
-| Cold/resume branding | `AppOpenPlacement` gated by `!AdmobKit.isShowingAd` |
-| Paywall with exit ad | `AdPaywallGuard(placement:, onDismiss:, builder:)` |
-| Ads inside tabs | `IndexedStack` works as-is; `TabBarView`/`PageView` pages need explicit `TickerMode(enabled: i == current)` or `Visibility(visible: i == current)` |
-| Ad on a click threshold / mode switch | Apply the action first, then `AdmobKit.show(interstitial)` — never block the UX on the ad |
-| Feature behind rewarded (fixed or RC-chosen) | `AdmobKit.show(rewarded, onRewardGranted: unlock, onDismissed: refresh)` — unlock ONLY in `onRewardGranted` |
-| App Open on resume | Real-background-dwell gate + cooldown + `!AdmobKit.isShowingAd` — see `reference/app-blueprint.md` |
-| User upgraded to VIP | Nothing — `isPremium` callback suppresses everything |
+| **Cold-start splash** | `await AdmobKit.waitFor(splash)` + `AdmobKit.show(splash, onDismissed: next)` (`isSplash: true, loadOnce: true`) |
+| **Sticky screen banner** | `AdBannerView(placement: bottomBanner)` |
+| **In-feed banner** | `BannerPlacement(sizing: BannerSizing.inlineAdaptive(maxHeight: 160))` + `AdBannerView` |
+| **In-content native card** | `AdNativeView(placement: feedNative)` (Container height matches `template.height`) |
+| **Fullscreen native** | `NativePlacement(template: NativeAdTemplate.fullscreen)` + `AdNativeView` in bounded `Scaffold` |
+| **Feature / Reward unlock** | `AdmobKit.show(rewarded, onRewardGranted: (amt, type) => grant(), onDismissed: refresh)` |
+| **Paywall close & back** | `AdPaywallGuard(placement: exitPlacement, onDismiss: () => Navigator.pop(context), builder: ...)` |
+| **Tab / PageView ads** | `IndexedStack` (automatic deferral) or pass `active: pageIndex == currentPage` on `AdNativeView` |
+| **App Open on resume** | Gate inside `didChangeAppLifecycleState`: `state == resumed && !AdmobKit.isShowingAd` |
+| **VIP / In-App Purchases** | Set `isPremium: () => hasActiveSub` in `AdmobKitConfig` — auto-collapses all ads |
 
-## What the Engine Guarantees (so you never hand-roll it)
+---
 
-- Two widgets, one placement → each gets its own exclusive ad instance; `AdWidget` collisions impossible.
-- Hidden `IndexedStack` tabs defer ad loads until visible; offline-failed tabs retry on reactivation.
-- Concurrent fullscreen triggers: second is rejected, its `onDismissed` fires immediately.
-- No-fill / network failure: backoff retries (≤4; fatal code 1 never retried); waiting inline leases settle fast — render an empty state, never an infinite spinner.
-- Premium users: zero ad traffic anywhere; widgets collapse to `SizedBox.shrink`.
-- Ads expire from buffer after 50min (`adTtl`) and reload transparently.
+## Key Recipes
 
-Full contract table: `reference/api.md`.
+### Deterministic Splash Sequence
 
-## Invariant Constraints (violating any is a bug)
+```dart
+Future<void> handleSplashSequence(BuildContext context) async {
+  await Future.wait([
+    RemoteConfigService.instance.fetch(),
+    AuthService.instance.restoreSession(),
+    AdmobKit.waitFor(AppAds.splashInterstitial),
+  ]);
 
-- ❌ **No `Timer`/`Future.delayed` for ad readiness or splash navigation** — use `waitFor`.
-- ❌ **No band-aid workarounds** for misbehavior — surface it as a GitHub issue instead.
-- ❌ **No one-time-screen placement registered unconditionally** (the loadOnce trap).
-- ❌ **No ads fired before or over the UMP consent form.**
-- ❌ **No facade/import names other than `AdmobKit` / `package:admob_kit_flutter/admob_kit_flutter.dart`.**
-- ❌ **No `leaseInlineAd` calls from app code** — the widgets own the lease lifecycle.
-- ❌ **No guessed native container heights** — bind `template.height`.
-- ❌ **No paywall exit tied solely to the close button** — `AdPaywallGuard` must also intercept hardware back.
-- ❌ **No delaying `initialize()` behind Remote Config** — two-stage boot.
-- ❌ **No App Open on resume from a fullscreen ad or over a modal/paywall** — check `isShowingAd`.
-- ❌ **No `loadOnce: false` on one-time placements** (splash, onboarding).
-- ❌ **No speculative `placementCapacities`** — default depth 1 is correct for almost every app.
-- ❌ **No hand-rolled `NativeAd`/`BannerAd` instantiation or `AdWidget` mounting.**
-- ❌ **No spinners without an exit** — every async path settles; render terminal states.
+  if (!context.mounted) return;
 
-Maintainer-only (modifying the package itself, not integrating it): no app-UI dependencies in the root package (`google_mobile_ads`, `connectivity_plus` only); no fluff comments.
+  AdmobKit.show(
+    AppAds.splashInterstitial,
+    onDismissed: () => Navigator.pushReplacementNamed(context, '/home'),
+  );
+}
+```
 
-## Reference Files (read on demand)
+### Zero-CLS Native Feed Card
 
-- **`reference/api.md`** — full facade/config/placement/template tables, state machine. Read when writing any integration code.
-- **`reference/patterns.md`** — complete working code: placements file, two-stage boot, splash, native card, paywall guard, tabs, App Open gating, analytics + diagnostics trackers, consent testing. Read for the pattern you're implementing.
-- **`reference/app-blueprint.md`** — full reference-app architecture: every screen shape mapped to its SDK call (splash native + remote-controlled gate, first-run-only onboarding, tab shells, click-threshold/mode-switch interstitials, rewarded + remote-gated rewarded formats, paywall exit, real-background-dwell App Open). Read when designing a whole app's ad architecture or when the screen shape isn't covered by patterns.md.
+```dart
+Widget buildFeedNativeAd() {
+  return Container(
+    height: AppAds.feedNative.template.height, // 160 logical px
+    width: double.infinity,
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: const AdNativeView(placement: AppAds.feedNative),
+  );
+}
+```
 
-## Observability — Which Dependency?
+### Live Dynamic Theming / Dark Mode
 
-- Revenue/LTV/funnels (Firebase, AppsFlyer, Adjust) → implement `AdAnalyticsTracker`; `onPaidEvent` carries `AdRevenueValue` (micros + currency + precision).
-- Engineering health (Sentry, Crashlytics, Datadog) → implement `AdDiagnosticsTracker`; watch `timeout`, `circuitBroken`, `blackHoleSuspected`.
-- Revenue-targeting app → both. Pre-revenue/QA → diagnostics only. Neither → rely on `AdLogLevel`.
-- Working implementations: `reference/patterns.md` § Analytics/Diagnostics.
+```dart
+await AdmobKit.setNativeStyle(
+  const NativeAdStyle(
+    background: 0xFF1E293B,
+    headline: 0xFFF8FAFC,
+    body: 0xFF94A3B8,
+    callToActionBackground: 0xFF3B82F6,
+    callToActionText: 0xFFFFFFFF,
+    callToActionCornerRadius: 100, // Pill button
+  ),
+);
+```
 
-## Verification Checklist (complete before finishing any ad task)
+### Paywall Exit Guard
 
-1. `flutter analyze` — 0 issues.
-2. Single import: `package:admob_kit_flutter/admob_kit_flutter.dart`; facade spelled `AdmobKit` everywhere.
-3. No `Timer`/`Future.delayed` for ad readiness; `waitFor` used and its `bool` result handled.
-4. Stage 1 in `main()`, Stage 2 after IDs resolve; nothing displayed before consent resolves.
-5. One-time screens: placements registered conditionally (loadOnce trap respected).
-6. Native containers bound to `template.height`; zero guessed pixel sizes.
-7. Multi-widget placements have matching `placementCapacities` entries (and nowhere else).
-8. Tab-hosted ads: deferral verified (`IndexedStack` native, or explicit `TickerMode`/`Visibility` for `TabBarView`/`PageView`).
-9. Paywall guarded against hardware back **and** close button.
-10. One-time placements declare `loadOnce: true`; App Open gated by `isShowingAd`.
-11. Every async ad path renders a terminal UI state (ad, empty, or retry) — no infinite spinners.
-12. Manual smoke test with `AdMobTestIds` passed on device/emulator.
+```dart
+AdPaywallGuard(
+  placement: AppAds.paywallExitInterstitial,
+  onDismiss: () => Navigator.of(context).pop(),
+  builder: (context, triggerDismiss) => Scaffold(
+    appBar: AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: triggerDismiss,
+      ),
+    ),
+    body: const PaywallContent(),
+  ),
+);
+```
+
+---
+
+## Invariant Negative Constraints (Anti-Patterns)
+
+- ❌ **NEVER use `Timer` or `Future.delayed` for ad readiness** — use `AdmobKit.waitFor(placement)`.
+- ❌ **NEVER manually instantiate `NativeAd`, `BannerAd`, or `AdWidget`** — use `AdNativeView` / `AdBannerView`.
+- ❌ **NEVER call `leaseInlineAd` from application code** — widgets handle leasing internally.
+- ❌ **NEVER fire ads before or over the UMP consent form**.
+- ❌ **NEVER guess native container heights** — always bind to `placement.template.height`.
+- ❌ **NEVER register one-time (`loadOnce: true`) placements unconditionally on subsequent app launches**.
+- ❌ **NEVER trigger App Open ads without checking `!AdmobKit.isShowingAd`**.
+- ❌ **NEVER mount `AdNativeView` or `AdBannerView` inside unbounded horizontal constraints**.
+
+---
+
+## Verification Checklist
+
+1. `flutter analyze` passes with 0 issues.
+2. Single import: `import 'package:admob_kit_flutter/admob_kit_flutter.dart';`.
+3. Deterministic settlement: `waitFor` used for splash/gates, returning a handled `bool`.
+4. Stage 1 in `main()`, Stage 2 after IDs resolve.
+5. All native ad hosts have bounded width >= 320dp and match template height.
+6. Fullscreen natives mounted in bounded `Scaffold` with custom dismiss control outside ad assets.
+7. Paywall guarded against both hardware back and close button via `AdPaywallGuard`.
+8. App Open gated by `!AdmobKit.isShowingAd`.
+9. `flutter test` passes.

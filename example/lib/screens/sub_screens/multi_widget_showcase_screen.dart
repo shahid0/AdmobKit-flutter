@@ -142,7 +142,7 @@ class _NativeCardContainer extends StatelessWidget {
                 ),
                 const Spacer(),
                 const Text(
-                  'template: medium2 (180px)',
+                  'template: splitMediaRight (160px)',
                   style: TextStyle(
                     fontSize: 11,
                     color: TaskColors.textSlateMedium,

@@ -271,7 +271,7 @@ class TaskDetailScreen extends StatelessWidget {
                     child: AdNativeView(
                       placement: SampleAds.bigNative,
                       placeholder: Container(
-                        height: NativeAdTemplate.large1.height,
+                        height: NativeAdTemplate.feedMediaFirst.height,
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: TaskColors.surfaceSubtle,

@@ -65,11 +65,11 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         adView.addView(panel, ViewGroup.LayoutParams(-1, -1))
 
         // Attribution uses the first asset's existing height, never a separate strip.
-        val mediaFirst = template in setOf(NativeTemplate.medium1, NativeTemplate.large1,
-            NativeTemplate.large5, NativeTemplate.fullscreen1, NativeTemplate.fullscreen3, NativeTemplate.fullscreen4)
-        val actionFirst = template in setOf(NativeTemplate.medium4, NativeTemplate.medium6)
-        val compactAction = template.isSmall || actionFirst || template in setOf(NativeTemplate.medium1,
-            NativeTemplate.medium2, NativeTemplate.large5, NativeTemplate.large6, NativeTemplate.fullscreen4)
+        val mediaFirst = template in setOf(NativeTemplate.splitMediaLeft, NativeTemplate.feedMediaFirst,
+            NativeTemplate.feedMediaTopSideCta, NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon, NativeTemplate.fullscreenMediaSideCta)
+        val actionFirst = template in setOf(NativeTemplate.cardActionTop, NativeTemplate.cardCleanActionTop)
+        val compactAction = template.isSmall || actionFirst || template in setOf(NativeTemplate.splitMediaLeft,
+            NativeTemplate.splitMediaRight, NativeTemplate.feedMediaTopSideCta, NativeTemplate.feedContentTopSideCta, NativeTemplate.fullscreenMediaSideCta)
         val badge = text(11f, NativeTemplateStyle.headline).apply {
             id = R.id.ad_attribution_badge
             text = "Ad"
@@ -150,7 +150,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             if (icon != null && iconRight) { gap(row, 8); add(row, icon, size, size) }
             if (hasAction && !buttonLeading) { gap(row, 8); add(row, cta, 88, 40) }
             // Content-first cards leave the SDK's corner clear without a header row.
-            if (!mediaFirst && !actionFirst && template != NativeTemplate.medium2) {
+            if (!mediaFirst && !actionFirst && template != NativeTemplate.splitMediaRight) {
                 row.setPadding(0, 0, dp(24), 0)
             }
             return row
@@ -172,38 +172,38 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         val layout: LinearLayout
         if (template.isFullscreen) {
             layout = stack(true)
-            val row = content(sideButton = template == NativeTemplate.fullscreen4,
-                iconRight = template == NativeTemplate.fullscreen3)
+            val row = content(sideButton = template == NativeTemplate.fullscreenMediaSideCta,
+                iconRight = template == NativeTemplate.fullscreenTrailingIcon)
             fun copy() { add(layout, row) }
             fun button() { add(layout, cta, height = if (ad.callToAction.isNullOrEmpty()) 0 else 48) }
             fun image() { add(layout, media(), height = 0, weight = 1f) }
             when (template) {
-                NativeTemplate.fullscreen1, NativeTemplate.fullscreen3 -> { image(); gap(layout); copy(); gap(layout); button() }
-                NativeTemplate.fullscreen2 -> { copy(); gap(layout); image(); gap(layout); button() }
-                NativeTemplate.fullscreen4 -> { image(); gap(layout); copy() }
-                NativeTemplate.fullscreen5 -> { copy(); gap(layout); button(); gap(layout); image() }
+                NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon -> { image(); gap(layout); copy(); gap(layout); button() }
+                NativeTemplate.fullscreenContentFirst -> { copy(); gap(layout); image(); gap(layout); button() }
+                NativeTemplate.fullscreenMediaSideCta -> { image(); gap(layout); copy() }
+                NativeTemplate.fullscreenActionMiddle -> { copy(); gap(layout); button(); gap(layout); image() }
                 else -> error("Unexpected fullscreen template: $template")
             }
         } else if (template.isSmall) {
             // Compact CTA is always a pill, never an oversized vertical rail.
-            layout = content(sideButton = true, iconRight = template == NativeTemplate.small3,
-                buttonLeading = template == NativeTemplate.small7 || template == NativeTemplate.small8)
-        } else if (template == NativeTemplate.medium1 || template == NativeTemplate.medium2) {
+            layout = content(sideButton = true, iconRight = template == NativeTemplate.rowWithTrailingIcon,
+                buttonLeading = template == NativeTemplate.rowLeadingCta || template == NativeTemplate.rowLeadingCtaCompact)
+        } else if (template == NativeTemplate.splitMediaLeft || template == NativeTemplate.splitMediaRight) {
             layout = stack(false)
             details.setPadding(0, 0, dp(24), 0)
             val copy = stack(true)
             add(copy, details)
             gap(copy, 8)
             add(copy, cta, height = if (ad.callToAction.isNullOrEmpty()) 0 else 40)
-            if (template == NativeTemplate.medium1) {
+            if (template == NativeTemplate.splitMediaLeft) {
                 add(layout, media(), 120, -1); gap(layout); add(layout, copy, 0, -1, 1f)
             } else {
                 add(layout, copy, 0, -1, 1f); gap(layout); add(layout, media(), 120, -1)
             }
         } else {
             layout = stack(true)
-            val side = template == NativeTemplate.large5 || template == NativeTemplate.large6
-            val row = content(sideButton = side, iconRight = template == NativeTemplate.large4)
+            val side = template == NativeTemplate.feedMediaTopSideCta || template == NativeTemplate.feedContentTopSideCta
+            val row = content(sideButton = side, iconRight = template == NativeTemplate.feedTrailingIcon)
             fun button() {
                 if (actionFirst) {
                     val action = stack(false)
@@ -216,13 +216,13 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             fun copy() { add(layout, row) }
             fun image() { add(layout, media(), height = 0, weight = 1f) }
             when (template) {
-                NativeTemplate.medium3, NativeTemplate.medium5 -> { copy(); gap(layout); button() }
-                NativeTemplate.medium4, NativeTemplate.medium6 -> { button(); gap(layout); copy() }
-                NativeTemplate.large1 -> { image(); gap(layout); copy(); gap(layout); button() }
-                NativeTemplate.large2, NativeTemplate.large4 -> { copy(); gap(layout); image(); gap(layout); button() }
-                NativeTemplate.large3 -> { copy(); gap(layout); button(); gap(layout); image() }
-                NativeTemplate.large5 -> { image(); gap(layout); copy() }
-                NativeTemplate.large6 -> { copy(); gap(layout); image() }
+                NativeTemplate.cardContentTop, NativeTemplate.cardCleanContentTop -> { copy(); gap(layout); button() }
+                NativeTemplate.cardActionTop, NativeTemplate.cardCleanActionTop -> { button(); gap(layout); copy() }
+                NativeTemplate.feedMediaFirst -> { image(); gap(layout); copy(); gap(layout); button() }
+                NativeTemplate.feedContentFirst, NativeTemplate.feedTrailingIcon -> { copy(); gap(layout); image(); gap(layout); button() }
+                NativeTemplate.feedActionMiddle -> { copy(); gap(layout); button(); gap(layout); image() }
+                NativeTemplate.feedMediaTopSideCta -> { image(); gap(layout); copy() }
+                NativeTemplate.feedContentTopSideCta -> { copy(); gap(layout); image() }
                 else -> error("Unexpected template: $template")
             }
         }

@@ -17,7 +17,8 @@ abstract final class AppAds {
     loadOnce: true,
   );
 
-  static const onboardingNative = NativePlacement.big(
+  static const onboardingNative = NativePlacement(
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'onboarding_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -25,7 +26,8 @@ abstract final class AppAds {
     loadOnce: true,
   );
 
-  static const feedNative = NativePlacement.medium(
+  static const feedNative = NativePlacement(
+    template: NativeAdTemplate.splitMediaLeft,
     id: 'feed_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -52,13 +54,19 @@ abstract final class AppAds {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await AdmobKit.initialize(config: const AdmobKitConfig(
+  final boot = AdmobKit.initialize(config: AdmobKitConfig(
     initialConcurrency: 1,
     subsequentConcurrency: 1,
     isPremium: () => UserStore.isVip,
   ));
 
   runApp(const MyApp());
+  try {
+    await boot;
+  } catch (error, stack) {
+    // Report startup failure; the app is already mounted and can continue without ads.
+    FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+  }
 }
 
 // remote_config_service.dart — Stage 2: register when IDs resolve.
@@ -96,10 +104,10 @@ Future<void> handleSplashSequence(BuildContext context) async {
 
 ```dart
 Widget buildFeedNativeAd() {
-  final template = NativeAdTemplate.medium;
+  final template = AppAds.feedNative.template;
 
   return Container(
-    height: template.height, // 130dp — never guess
+    height: template.height, // 160 logical pixels; parent width must remain >=320
     width: double.infinity,
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     decoration: BoxDecoration(
@@ -108,9 +116,8 @@ Widget buildFeedNativeAd() {
       border: Border.all(color: const Color(0xFFE2E8F0)),
     ),
     clipBehavior: Clip.antiAlias,
-    child: AdNativeView.templated(
+    child: const AdNativeView(
       placement: AppAds.feedNative,
-      template: template,
     ),
   );
 }
@@ -146,6 +153,49 @@ IndexedStack(
 // TabBarView / PageView: gate each page explicitly.
 TickerMode(enabled: currentIndex == 0, child: PageOne())
 // or: Visibility(visible: currentIndex == 0, child: PageOne())
+// Or gate the ad directly, especially in retained PageView children:
+AdNativeView(placement: AppAds.onboardingNative, active: pageIndex == currentIndex)
+```
+
+## Fullscreen native and live colors
+
+Declare a distinct `NativePlacement(template: NativeAdTemplate.fullscreen, ...)`.
+Mount in bounded space, with navigation outside the SDK assets:
+
+```dart
+Scaffold(
+  appBar: AppBar(leading: const CloseButton()),
+  body: SafeArea(child: AdNativeView(placement: AppAds.fullscreenNative)),
+)
+
+// In an async callback: updates the existing ad, without a new request.
+await AdmobKit.setNativeStyle(
+  const NativeAdStyle(background: 0xff14213d, headline: 0xffffffff,
+    body: 0xffe5e5e5, callToActionBackground: 0xfffca311,
+    callToActionText: 0xff14213d),
+  placement: AppAds.fullscreenNative,
+);
+// Reset this placement to global/native defaults:
+await AdmobKit.setNativeStyle(const NativeAdStyle(), placement: AppAds.fullscreenNative);
+```
+
+Catch errors around awaited color updates and check `mounted` before showing UI afterward.
+Require at least 320 × 320 logical pixels for fullscreen hosts. Use `LayoutBuilder` to show non-ad content when the available space is insufficient. Loaded active fullscreen natives own the shared presentation lock; placeholders do not. No viewport inference: explicitly gate lazy/retained pages using the selected index.
+
+## Adaptive banners
+
+The default `BannerPlacement` uses anchored adaptive sizing. For in-content use, declare a separate placement with `sizing: BannerSizing.inlineAdaptive(maxHeight: 250)`.
+
+```dart
+// A bounded width is enough: do not impose a guessed height.
+SafeArea(child: AdBannerView(placement: AppAds.bottomBanner))
+
+// Only when explicitly preloading before the widget mounts:
+final ready = await AdmobKit.waitFor(
+  AppAds.bottomBanner,
+  bannerLayout: const BannerLayout(width: 360, orientation: BannerOrientation.portrait),
+);
+// Use the actual future host width/orientation, not 360 as a universal value.
 ```
 
 ## App Open gating
@@ -153,11 +203,13 @@ TickerMode(enabled: currentIndex == 0, child: PageOne())
 ```dart
 @override
 void didChangeAppLifecycleState(AppLifecycleState state) {
-  if (state == AppLifecycleState.resumed && !AdmobKit.isShowingAd) {
+  if (state == AppLifecycleState.resumed && appPolicyAllowsResumeAd && !AdmobKit.isShowingAd) {
     AdmobKit.show(AppAds.appOpen);
   }
 }
 ```
+
+`appPolicyAllowsResumeAd` is app-owned: exclude permission/consent interruptions, dialogs, paywalls and short background transitions. See the blueprint for dwell/cooldown handling.
 
 ## Analytics tracker (revenue / funnels)
 

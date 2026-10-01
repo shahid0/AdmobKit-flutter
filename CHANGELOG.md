@@ -3,17 +3,41 @@
 All notable changes to the `admob_kit_flutter` package will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.0
 
-- Fix Android native card corners being density-scaled twice. Initial styling, live color updates and reset now preserve the template's original pixel geometry on high-density devices.
+Major feature milestone: replaces legacy XML/XIB layout bindings with 25 built-in native ad templates, introduces the `NativeAdStyle` engine with live theming and CTA corner radius via Pigeon, adds adaptive banner sizing, and stabilizes presentation lifecycle locks with `AdSession`.
 
-- Replace the colors-only API with `NativeAdStyle`, `NativePlacement(style:)`, `AdmobKitConfig(nativeStyle:)` and `AdmobKit.setNativeStyle`. Add nullable `callToActionCornerRadius` with global/placement inheritance, live updates and reset on Android/iOS through the existing generated appearance bridge. No ad reload or compatibility alias.
+### Breaking Changes
 
-- Removed the native attribution header strip on Android/iOS. The Ad badge shares existing content/media space, SDK AdChoices uses its corner overlay, and advertiser/rating/price follow the body. Reduced inline heights to 104/160/340 and fullscreen minimum height to 320 logical pixels; copy blocks hug content.
+- **Removed XML/XIB native factories**: Removed Android XML (`big_native_ad.xml`, etc.) and iOS XIB layout bindings. All native ads now render through 25 built-in, platform-native templates.
+- **Replaced `NativeAdColors` with `NativeAdStyle`**: Replaced colors-only styling with `NativeAdStyle` (adds `callToActionCornerRadius` alongside `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`).
+- **Updated `NativePlacement` signature**: Replaced `colors:` with `style:`. Layout template is now configured via `template:` (`NativeAdTemplate.splitMediaLeft` by default).
+- **Semantic Native Template Naming**: Renamed all 25 native templates from ambiguous indices (`small1`..`small8`, etc.) to self-documenting semantic visual topologies (`rowWithLeadingIcon`, `splitMediaLeft`, `feedMediaFirst`, `fullscreenMediaFirst`, etc.). Added 5 canonical presets: `compactRow`, `splitMedia`, `feedCard`, `stackedCard`, `fullscreen`. Legacy indices remain supported via `@Deprecated` aliases.
+- **Adaptive Banner Sizing**: `BannerPlacement` now uses `BannerSizing` (`BannerSizing.anchoredAdaptive()` default or `BannerSizing.inlineAdaptive(maxHeight:)`). Removed fixed height property.
 
-- Redesign the native catalog with media-first feed layouts, neutral Ad badges, clearer typography, separated metadata, pill CTAs and collapsed missing assets on Android/iOS.
-- Bind layout to the selected template rather than hardcoded heights.
-- Add a dark feed palette to the gallery and native rendering/geometry regressions with real Android font metrics.
+### Added
+
+- **25 Built-in Native Templates**: Categorized into Row (104dp), Split & Card (160dp), Feed Card (340dp), and Fullscreen (min 320dp) with zero cumulative layout shift (CLS).
+- **5 Canonical Template Presets**: `NativeAdTemplate.compactRow`, `splitMedia`, `feedCard`, `stackedCard`, `fullscreen`.
+- **Live Dynamic Native Styling**: `AdmobKit.setNativeStyle(style, placement:)` instantly updates cached, pending, and rendered native ads without triggering reloads.
+- **Configurable CTA Corner Radius**: `callToActionCornerRadius` supports square (0), rounded (6/8), or pill buttons via native canvas clipping.
+- **Fullscreen Native Placement**: Added full-screen native host support (`fullscreenMediaFirst`–`fullscreenActionMiddle`) with exclusive presentation mutex integration.
+- **Adaptive Banner Support**: Width and orientation-aware anchored and inline adaptive banners via `BannerLayout` and SDK native sizing.
+- **Initialization State Machine**: Added `AdInitializationState` and `AdmobKit.initializationStateListenable` for reactive UI monitoring without polling.
+- **Explicit Viewport Gating**: Added `active:` flag on `AdNativeView` and `AdBannerView` for manual activation control in retained `PageView` or tab containers.
+- **Interactive Showcase Gallery**: Full gallery screen in example app demonstrating all 25 native templates, adaptive banners, live palette switcher, and diagnostics console.
+
+### Changed
+
+- **Clean Native Ad Badging**: Removed separate attribution header strip on Android/iOS. "Ad" badge shares media or content row space, with automatic asset collapsing for missing fields.
+- **Platform Alignment**: Aligned with Google Mobile Ads 25.4.0 (Android) and 13.7.0 (iOS). Example app targets iOS 15.0+; core plugin continues to support iOS 13.0+.
+
+### Fixed
+
+- **Android High-Density Corner Scaling**: Fixed bug where card corners were density-scaled twice on high-DPI Android devices.
+- **Deterministic Splash Settlement**: Prevented presentation mutex race condition when awaiting splash ads during cold-start.
+- **Multi-Widget Memory Isolation**: Guaranteed distinct native ad instances when multiple widgets share a placement, eliminating `This AdWidget is already in the Widget tree` crashes.
+- **Stale Session Cleanup**: Auto-evicted expired cached ads on route deactivation.
 
 ## 0.0.2
 

@@ -86,15 +86,15 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AdGalleryScreen()));
     expect(ads, isEmpty);
     expect(banners, isEmpty);
-    await tester.tap(find.text('small1'));
+    await tester.tap(find.text('rowWithLeadingIcon'));
     await tester.pumpAndSettle();
     expect(ads, hasLength(1));
-    expect(ads.single.factoryId, NativeAdTemplate.small1.factoryId);
+    expect(ads.single.factoryId, NativeAdTemplate.rowWithLeadingIcon.factoryId);
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('fullscreen5'), 400);
+    await tester.scrollUntilVisible(find.text('fullscreenActionMiddle'), 400);
     expect(ads, hasLength(1));
-    await tester.tap(find.text('fullscreen5'));
+    await tester.tap(find.text('fullscreenActionMiddle'));
     await tester.pumpAndSettle();
     expect(ads, hasLength(2));
     expect(AdmobKit.isShowingAd, isTrue);
@@ -121,7 +121,7 @@ void main() {
     expect(ads, hasLength(25));
     await tester.pumpWidget(const SizedBox());
     await tester.binding.setSurfaceSize(const Size(300, 800));
-    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.fullscreen1)));
+    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.fullscreenMediaFirst)));
     await tester.pumpAndSettle();
     expect(find.textContaining('needs at least'), findsOneWidget);
     expect(ads, hasLength(25));
@@ -130,7 +130,7 @@ void main() {
 
   testWidgets('live palette and reset keep the ad; transport errors are visible', (tester) async {
     await boot();
-    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.small1)));
+    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.rowWithLeadingIcon)));
     await tester.pumpAndSettle();
     final ad = ads.single;
     final renderId = ad.customOptions!['renderId'];

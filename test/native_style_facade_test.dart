@@ -19,7 +19,7 @@ void main() {
     tester,
   ) async {
     const placement = NativePlacement(
-      template: NativeAdTemplate.small1,
+      template: NativeAdTemplate.rowWithLeadingIcon,
       id: 'feed',
       androidId: 'test',
       iosId: 'test',

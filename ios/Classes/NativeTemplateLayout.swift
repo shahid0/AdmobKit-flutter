@@ -52,9 +52,9 @@ final class NativeTemplateLayout {
     view.backgroundColor = .white
     view.layer.cornerRadius = 16
 
-    let mediaFirst = [NativeTemplate.medium1, .large1, .large5, .fullscreen1, .fullscreen3, .fullscreen4].contains(template)
-    let actionFirst = [NativeTemplate.medium4, .medium6].contains(template)
-    let compactAction = template.isSmall || actionFirst || [NativeTemplate.medium1, .medium2, .large5, .large6, .fullscreen4].contains(template)
+    let mediaFirst = [NativeTemplate.splitMediaLeft, .feedMediaFirst, .feedMediaTopSideCta, .fullscreenMediaFirst, .fullscreenTrailingIcon, .fullscreenMediaSideCta].contains(template)
+    let actionFirst = [NativeTemplate.cardActionTop, .cardCleanActionTop].contains(template)
+    let compactAction = template.isSmall || actionFirst || [NativeTemplate.splitMediaLeft, .splitMediaRight, .feedMediaTopSideCta, .feedContentTopSideCta, .fullscreenMediaSideCta].contains(template)
 
     let badge = label("Ad", size: 11, primary: true)
     badge.accessibilityLabel = "Advertisement"
@@ -149,7 +149,7 @@ final class NativeTemplateLayout {
       }
       let row = stack(.horizontal, children, spacing: 8)
       row.alignment = template.isSmall || template.isMedium ? .center : .top
-      if !mediaFirst && !actionFirst && template != .medium2 {
+      if !mediaFirst && !actionFirst && template != .splitMediaRight {
         row.isLayoutMarginsRelativeArrangement = true
         // AdChoices is top-right, not semantic trailing, including in RTL.
         row.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 24)
@@ -178,47 +178,47 @@ final class NativeTemplateLayout {
 
     let layout: UIStackView
     if template.isFullscreen {
-      let row = content(sideButton: template == .fullscreen4, iconRight: template == .fullscreen3)
+      let row = content(sideButton: template == .fullscreenMediaSideCta, iconRight: template == .fullscreenTrailingIcon)
       let media = media()
-      if !cta.isHidden && template != .fullscreen4 { cta.heightAnchor.constraint(equalToConstant: 48).isActive = true }
+      if !cta.isHidden && template != .fullscreenMediaSideCta { cta.heightAnchor.constraint(equalToConstant: 48).isActive = true }
       switch template {
-      case .fullscreen1, .fullscreen3: layout = stack(.vertical, [media, row, cta])
-      case .fullscreen2: layout = stack(.vertical, [row, media, cta])
-      case .fullscreen4:
+      case .fullscreenMediaFirst, .fullscreenTrailingIcon: layout = stack(.vertical, [media, row, cta])
+      case .fullscreenContentFirst: layout = stack(.vertical, [row, media, cta])
+      case .fullscreenMediaSideCta:
         layout = stack(.vertical, [media, row])
-      case .fullscreen5: layout = stack(.vertical, [row, cta, media])
+      case .fullscreenActionMiddle: layout = stack(.vertical, [row, cta, media])
       default: preconditionFailure("Unexpected fullscreen template")
       }
     } else if template.isSmall {
-      layout = content(sideButton: true, iconRight: template == .small3,
-                       buttonLeading: template == .small7 || template == .small8)
-    } else if template == .medium1 || template == .medium2 {
+      layout = content(sideButton: true, iconRight: template == .rowWithTrailingIcon,
+                       buttonLeading: template == .rowLeadingCta || template == .rowLeadingCtaCompact)
+    } else if template == .splitMediaLeft || template == .splitMediaRight {
       let media = media()
       details.isLayoutMarginsRelativeArrangement = true
       details.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 24)
       if !cta.isHidden { cta.heightAnchor.constraint(equalToConstant: 40).isActive = true }
       let copy = stack(.vertical, [details, cta], spacing: 8)
-      layout = stack(.horizontal, template == .medium1 ? [media, copy] : [copy, media])
+      layout = stack(.horizontal, template == .splitMediaLeft ? [media, copy] : [copy, media])
       layout.alignment = .top
       media.widthAnchor.constraint(equalToConstant: 120).isActive = true
       media.bottomAnchor.constraint(equalTo: layout.bottomAnchor).isActive = true
     } else {
-      let side = template == .large5 || template == .large6
-      let row = content(sideButton: side, iconRight: template == .large4)
+      let side = template == .feedMediaTopSideCta || template == .feedContentTopSideCta
+      let row = content(sideButton: side, iconRight: template == .feedTrailingIcon)
       if !side && !cta.isHidden { cta.heightAnchor.constraint(equalToConstant: 44).isActive = true }
       switch template {
-      case .medium3, .medium5: layout = stack(.vertical, [row, cta])
-      case .medium4, .medium6:
+      case .cardContentTop, .cardCleanContentTop: layout = stack(.vertical, [row, cta])
+      case .cardActionTop, .cardCleanActionTop:
         let cornerSpace = UIView()
         cornerSpace.widthAnchor.constraint(equalToConstant: 24).isActive = true
         let action = stack(.horizontal, [badge, cta, cornerSpace], spacing: 6)
         action.alignment = .center
         layout = stack(.vertical, [action, row])
-      case .large1: layout = stack(.vertical, [media(), row, cta])
-      case .large2, .large4: layout = stack(.vertical, [row, media(), cta])
-      case .large3: layout = stack(.vertical, [row, cta, media()])
-      case .large5: layout = stack(.vertical, [media(), row])
-      case .large6: layout = stack(.vertical, [row, media()])
+      case .feedMediaFirst: layout = stack(.vertical, [media(), row, cta])
+      case .feedContentFirst, .feedTrailingIcon: layout = stack(.vertical, [row, media(), cta])
+      case .feedActionMiddle: layout = stack(.vertical, [row, cta, media()])
+      case .feedMediaTopSideCta: layout = stack(.vertical, [media(), row])
+      case .feedContentTopSideCta: layout = stack(.vertical, [row, media()])
       default: preconditionFailure("Unexpected inline template")
       }
     }
@@ -232,7 +232,7 @@ final class NativeTemplateLayout {
       layout.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
       layout.topAnchor.constraint(equalTo: panel.topAnchor)
     ])
-    if template.isMedium && template != .medium1 && template != .medium2 {
+    if template.isMedium && template != .splitMediaLeft && template != .splitMediaRight {
       layout.bottomAnchor.constraint(lessThanOrEqualTo: panel.bottomAnchor).isActive = true
     } else {
       layout.bottomAnchor.constraint(equalTo: panel.bottomAnchor).isActive = true
