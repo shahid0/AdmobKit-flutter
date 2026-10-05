@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-orange.svg)](https://flutter.dev)
 [![skills.sh](https://skills.sh/b/shahid0/AdmobKit-flutter)](https://skills.sh/shahid0/AdmobKit-flutter)
 
-**AdmobKit** is a Google Mobile Ads (AdMob) orchestration engine for Flutter with eager preloading, deterministic readiness, exclusive fullscreen presentation, nine content-sized native compositions, and GDPR/UMP consent handling.
+**AdmobKit** is a Google Mobile Ads (AdMob) orchestration engine for Flutter with eager preloading, deterministic readiness, exclusive fullscreen presentation, 19 content-sized native compositions, and GDPR/UMP consent handling.
 
 > **Package Import:**
 > ```dart
@@ -23,7 +23,7 @@ Standard `google_mobile_ads` implementations frequently suffer from blank flashe
 | **Native Ad Sizing** | Native assets are measured before mounting. Loading estimates reserve initial space, but content-dependent heights can change it. |
 | **`AdWidget already in tree` crash** | Demand-based instance leasing guarantees each widget receives an exclusively-owned ad object. |
 | **Stuttered UI / Navigation Hangs** | **0ms Show Contract**: memory-cached ads render instantly; unready ads dismiss immediately with 0ms delay. |
-| **Complex Native Android XML / iOS XIB** | 9 built-in native compositions rendered directly by native platforms with zero custom native code required. |
+| **Complex Native Android XML / iOS XIB** | 19 built-in native compositions rendered directly by native platforms with zero custom native code required. |
 | **Splash Presentation Races** | Deterministic `waitFor(placement)` settlement composed with app startup tasks in `Future.wait`. |
 | **GDPR / ATT Consent Boilerplate** | Automated two-stage initialization pipeline with built-in UMP consent collection. |
 
@@ -33,7 +33,7 @@ Standard `google_mobile_ads` implementations frequently suffer from blank flashe
 
 - [Quickstart](#quickstart)
 - [Ad Formats & Code Examples](#ad-formats--code-examples)
-  - [Native Ads & 9 Built-in Templates](#native-ads--9-built-in-templates)
+  - [Native Ads & 19 Built-in Templates](#native-ads--19-built-in-templates)
   - [Fullscreen Native Ads](#fullscreen-native-ads)
   - [Adaptive Banners](#adaptive-banners)
   - [Interstitial & Splash Ads](#interstitial--splash-ads)
@@ -150,19 +150,25 @@ AdmobKit.show(
 
 ## Ad Formats & Code Examples
 
-### Native Ads & 9 Built-in Templates
+### Native Ads & 19 Built-in Templates
 
-AdmobKit eliminates the need to author Android XML or iOS XIB files. Choose from **9 pre-built platform-rendered native templates** grouped by visual topology:
+AdmobKit eliminates the need to author Android XML or iOS XIB files. Choose from **19 pre-built platform-rendered native templates** grouped by visual topology:
 
 | Family | Loading estimate | Layout Topology | Canonical Preset |
 | :--- | :--- | :--- | :--- |
+| **Row** (3 variants) | **80 logical px** | `rowWithLeadingIcon`, `rowWithTrailingIcon`, `rowLeadingCta` | `NativeAdTemplate.compactRow` |
+| **Smart Media / Medium** (2 variants) | **160 logical px** | `splitMediaLeft`, `splitMediaRight` | `NativeAdTemplate.smartMedia` |
 | **Card** (3 variants) | **132 logical px** | `cardContentTop`, `cardActionTop`, `cardContentTopTrailingIcon` | `NativeAdTemplate.stackedCard` |
-| **Feed Card** (3 variants) | **340 logical px** | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle` | `NativeAdTemplate.feedCard` |
-| **Fullscreen** (3 variants) | **Bounded parent (min 320px)** | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle` | `NativeAdTemplate.fullscreen` |
+| **Feed Card** (6 variants) | **340 logical px** (280 side-CTA) | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon`, `feedMediaTopSideCta`, `feedContentTopSideCta` | `NativeAdTemplate.feedCard` |
+| **Fullscreen** (5 variants) | **Bounded parent (min 320px)** | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle`, `fullscreenTrailingIcon`, `fullscreenMediaSideCta` | `NativeAdTemplate.fullscreen` |
 
-Names describe stable asset order, not creative content. All layouts retain a supplied icon. Cards omit non-video hero media; supplied video follows the identity (after the action in `cardActionTop`). Feed layouts size to content; fullscreen layouts use the same three orders but fill bounded height. Missing optional assets collapse, so two layouts may naturally look alike for an incomplete creative.
+Names describe stable asset order, not creative content. All layouts retain a supplied icon. Cards omit non-video hero media; supplied video follows the identity (after the action in `cardActionTop`). Feed layouts size to content; fullscreen layouts fill bounded height. Compact row templates keep their CTA beside identity; supplied video appears above that row. Missing optional assets collapse, so two layouts may naturally look alike for an incomplete creative.
+
+Use `rowWithLeadingIcon` for an icon/copy/action strip, `rowWithTrailingIcon` to place the icon after copy, or `rowLeadingCta` for a leading action. For media with a side action, choose `feedMediaTopSideCta` (media above the row), `feedContentTopSideCta` (row above media), or `fullscreenMediaSideCta` (bounded media above the row). `feedTrailingIcon` and `fullscreenTrailingIcon` place the icon after identity with a separate full-width action. Same-row buttons keep their position at every supported width: headline and CTA wrap and height grows; the button does not migrate below copy. Colors and CTA radius work on every layout.
 
 Inline ads size themselves from the SDK assets, available width and Flutter text scale. The values above are initial loading estimates (`template.height`), not fixed heights. Provide bounded width of at least 320 logical pixels and let inline content grow; do not wrap it in a fixed-height container. Headline and CTA copy wrap when needed. Optional body copy appears on one line only when its complete text fits; otherwise it is omitted, without truncating or shrinking its font. Missing optional assets leave no empty slots. Supplied icons and video assets remain visible.
+
+For a smaller media ad between list items, choose `smartMedia` (`splitMediaLeft`) or `splitMediaRight`. These keep a 120-logical-pixel-wide SDK media view beside the content column at every supported width. A compact 40-pixel icon sits beside headline/body; attribution and store metadata follow below, then the column-width CTA. Ordinary copy produces a shorter ad than a feed card; long copy and larger text can increase its measured height without turning it into a feed layout.
 
 Mounting a content-sized native ad in a feed:
 
@@ -313,7 +319,7 @@ AdPaywallGuard(
 
 ### Dynamic Live Native Styling & Theming
 
-Theme all nine native templates with `NativeAdStyle`. Changes apply immediately to pending, cached, and rendered ads without reloading:
+Theme all 19 native templates with `NativeAdStyle`. Changes apply immediately to pending, cached, and rendered ads without reloading:
 
 ```dart
 // 1. Initial Style on Placement
@@ -508,7 +514,7 @@ class FirebaseAnalyticsTracker implements AdAnalyticsTracker {
 
 | Feature | `google_mobile_ads` | `admob_kit_flutter` |
 | :--- | :--- | :--- |
-| **Native Ad Layouts** | Requires custom Android XML & iOS XIB files | **9 Built-in platform templates** (Zero XML/XIB needed) |
+| **Native Ad Layouts** | Requires custom Android XML & iOS XIB files | **19 Built-in platform templates** (Zero XML/XIB needed) |
 | **Dynamic Styling** | Static compile-time files | **Live runtime theming** via Pigeon (`setNativeStyle`) |
 | **CTA Button Radius** | Fixed native drawable | **Configurable radius** (Square, rounded, or pill) |
 | **Native Layout Sizing** | App-managed dimensions | Native measurement from assets, host width, and text scale |

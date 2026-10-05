@@ -165,11 +165,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
   }
 
   Widget _buildTemplateSelector() {
-    const templates = [
-      NativeAdTemplate.fullscreenMediaFirst,
-      NativeAdTemplate.fullscreenContentFirst,
-      NativeAdTemplate.fullscreenActionMiddle,
-    ];
+    final templates = NativeAdTemplate.values.where((template) => template.isFullscreen);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

@@ -139,24 +139,35 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             badge.setTextSize(TypedValue.COMPLEX_UNIT_DIP, max(11.0, request.metadataSize - 1).toFloat())
             val badgeWidth = max(dp(26), naturalWidth(badge) + dp(8))
             val badgeHeight = max(dp(20), measuredHeight(badge, badgeWidth))
-            val cornerInset = if (!template.mediaFirst && !(template.actionFirst && cta.visibility == View.VISIBLE)) dp(24) else 0
-            val iconWidth = if (icon == null) 0 else dp(74)
-            val identityWidth = width - cornerInset
+            val mediaWidth = if (template.isSplit) dp(120) else width
+            val contentWidth = if (template.isSplit) width - mediaWidth - dp(8) else width
+            val cornerInset = if (!(media != null && (template.mediaFirst || template == NativeTemplate.splitMediaRight)) &&
+                !(template.actionFirst && cta.visibility == View.VISIBLE)) dp(24) else 0
+            // Smart media has a two-line identity; its attribution sits below
+            // that row, allowing a smaller icon without squeezing store metadata.
+            val iconSize = if (template.isSplit) 40 else NativeTemplateStyle.icon
+            val iconWidth = if (icon == null) 0 else dp(iconSize + 10)
+            val identityWidth = contentWidth - cornerInset
+            val side = template.sideAction && cta.visibility == View.VISIBLE
+            // Keep the requested composition. Native text wraps in its assigned
+            // width; it never causes a same-row action to migrate below identity.
+            val actionWidth = if (side) max(dp(76), naturalWidth(cta)).coerceAtMost(identityWidth / 3) else 0
+            val copyWidth = identityWidth - iconWidth - if (side) actionWidth + dp(8) else 0
+            require(copyWidth > 0) { "Native identity needs more width" }
             // Body is optional. Omit it if the complete asset cannot fit one line;
             // clipping or ellipsizing here could violate the 90-character minimum.
             val bodyHasLineBreak = ad.body?.any { it in "\n\r\u0085\u2028\u2029\u000b\u000c" } == true
             body.visibility = if (!ad.body.isNullOrEmpty() && !bodyHasLineBreak &&
-                naturalWidth(body) <= identityWidth - iconWidth) View.VISIBLE else View.GONE
+                naturalWidth(body) <= copyWidth) View.VISIBLE else View.GONE
             val separatorWidth = naturalWidth(text("·", request.metadataSize)) + dp(8)
             val metadataWidth = badgeWidth + metadataLabels.sumOf { naturalWidth(it) + separatorWidth }
-            val copyWidth = identityWidth - iconWidth
-            require(copyWidth > 0) { "Native identity needs more width" }
             val details = stack(true)
             add(details, headline)
             if (body.visibility != View.GONE) { gap(details, 4); add(details, body) }
-            gap(details, 4)
+            if (!template.isSplit) gap(details, 4)
             val metadata = stack(false)
-            val verticalMetadata = metadataWidth > copyWidth
+            val metadataAvailableWidth = if (template.isSplit) contentWidth else copyWidth
+            val verticalMetadata = metadataWidth > metadataAvailableWidth
             panel.separators.clear()
             metadata.orientation = if (verticalMetadata) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             add(metadata, badge, -2, -2)
@@ -170,23 +181,31 @@ internal class NativeTemplateLayout(private val context: Context, private val te
                 }
                 add(metadata, label, if (verticalMetadata) -1 else -2)
             }
-            add(details, metadata)
+            if (!template.isSplit) add(details, metadata)
             val row = stack(false)
-            if (icon != null && !template.trailingIcon) { add(row, icon, 64, 64); gap(row, 10) }
+            fun rowAction() {
+                add(row, cta, 0)
+                cta.layoutParams.width = actionWidth
+            }
+            if (side && template.leadingAction) { rowAction(); gap(row) }
+            if (icon != null && !template.trailingIcon) { add(row, icon, iconSize, iconSize); gap(row, 10) }
             add(row, details, 0, -2, 1f)
-            if (icon != null && template.trailingIcon) { gap(row, 10); add(row, icon, 64, 64) }
+            if (icon != null && template.trailingIcon) { gap(row, 10); add(row, icon, iconSize, iconSize) }
+            if (side && !template.leadingAction) { gap(row); rowAction() }
             row.setPadding(0, 0, cornerInset, 0)
             val copy = stack(true)
             fun copyAction() {
                 add(copy, cta)
                 if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
             }
-            if (template.actionFirst && cta.visibility == View.VISIBLE) { copyAction(); gap(copy) }
+            if (template.actionFirst && !side && cta.visibility == View.VISIBLE) { copyAction(); gap(copy) }
             add(copy, row)
-            if (!template.actionFirst && cta.visibility == View.VISIBLE) { gap(copy); copyAction() }
-            val layout = stack(true)
-            val footerHeight = measuredHeight(copy, width)
-            var mediaHeight = if (media == null) 0 else max(dp(144), ceil(width * 9.0 / 16).toInt())
+            if (template.isSplit) { gap(copy, 4); add(copy, metadata) }
+            if (!template.actionFirst && !side && cta.visibility == View.VISIBLE) { gap(copy); copyAction() }
+            val layout = stack(!template.isSplit)
+            val footerHeight = measuredHeight(copy, contentWidth)
+            var mediaHeight = if (media == null) 0 else if (template.isSplit) dp(120)
+                else max(dp(144), ceil(width * 9.0 / 16).toInt())
             if (template.isFullscreen && request.height != null) {
                 val hostHeight = request.height!!
                 require(hostHeight.isFinite() && hostHeight > 0)
@@ -196,32 +215,43 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             }
             fun image() { if (media != null) { add(layout, media, height = 0); media.layoutParams.height = mediaHeight } }
             fun action() {
-                if (cta.visibility == View.VISIBLE) {
+                if (!side && cta.visibility == View.VISIBLE) {
                     add(layout, cta)
                     if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
                 }
             }
             if (media == null) add(layout, copy)
             else when {
+                template.isSplit -> {
+                    fun splitImage() {
+                        add(layout, media, 0, 0)
+                        media.layoutParams.width = mediaWidth
+                        media.layoutParams.height = mediaHeight
+                    }
+                    if (template == NativeTemplate.splitMediaLeft) { splitImage(); gap(layout) }
+                    add(layout, copy, 0, -2, 1f)
+                    if (template == NativeTemplate.splitMediaRight) { gap(layout); splitImage() }
+                }
                 template.actionFirst -> {
                     if (cta.visibility == View.VISIBLE) { action(); gap(layout) }
                     add(layout, row); gap(layout); image()
                 }
                 template.mediaFirst -> {
                     image(); gap(layout); add(layout, row)
-                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                    if (!side && cta.visibility == View.VISIBLE) { gap(layout); action() }
                 }
                 template.actionMiddle -> {
                     add(layout, row)
-                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                    if (!side && cta.visibility == View.VISIBLE) { gap(layout); action() }
                     gap(layout); image()
                 }
                 else -> {
                     add(layout, row); gap(layout); image()
-                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                    if (!side && cta.visibility == View.VISIBLE) { gap(layout); action() }
                 }
             }
-            val naturalHeight = if (media == null) footerHeight else mediaHeight + dp(8) + footerHeight
+            val naturalHeight = if (media == null) footerHeight else if (template.isSplit) max(mediaHeight, footerHeight)
+                else mediaHeight + dp(8) + footerHeight
             panel.removeAllViews()
             add(panel, layout)
             (naturalHeight + dp(16)).toDouble() / context.resources.displayMetrics.density

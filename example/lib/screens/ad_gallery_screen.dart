@@ -4,7 +4,7 @@ import '../theme/task_theme.dart';
 import 'adaptive_banner_screen.dart';
 import 'native_template_screen.dart';
 
-/// Catalog of nine native compositions and two adaptive banner configurations.
+/// Catalog of native compositions and two adaptive banner configurations.
 /// Browsing does not register or preload inventory; selecting a preview requests
 /// only that placement on-demand with loadOnce semantics.
 class AdGalleryScreen extends StatelessWidget {
@@ -13,17 +13,29 @@ class AdGalleryScreen extends StatelessWidget {
   IconData _iconForTemplate(NativeAdTemplate template) {
     if (template.isFullscreen) return Icons.fullscreen_rounded;
     if (template.name.startsWith('feed')) return Icons.view_quilt_rounded;
+    if (template.name.startsWith('row')) return Icons.view_compact_rounded;
+    if (template.name.startsWith('split')) return Icons.view_column_rounded;
     return Icons.space_dashboard_rounded;
   }
 
   String _descriptionForTemplate(NativeAdTemplate template) {
     return switch (template) {
+      NativeAdTemplate.rowWithLeadingIcon => 'Icon → identity → side action',
+      NativeAdTemplate.rowWithTrailingIcon => 'Identity → icon → side action',
+      NativeAdTemplate.rowLeadingCta => 'Side action → icon → identity',
+      NativeAdTemplate.splitMediaLeft => 'Compact media beside identity and action',
+      NativeAdTemplate.splitMediaRight => 'Identity and action beside compact media',
       NativeAdTemplate.cardContentTop => 'Identity → action',
       NativeAdTemplate.cardActionTop => 'Action → identity',
       NativeAdTemplate.cardContentTopTrailingIcon => 'Trailing-icon identity → action',
       NativeAdTemplate.feedMediaFirst || NativeAdTemplate.fullscreenMediaFirst => 'Media → identity → action',
       NativeAdTemplate.feedContentFirst || NativeAdTemplate.fullscreenContentFirst => 'Identity → media → action',
       NativeAdTemplate.feedActionMiddle || NativeAdTemplate.fullscreenActionMiddle => 'Identity → action → media',
+      NativeAdTemplate.feedTrailingIcon => 'Trailing-icon identity → media → action',
+      NativeAdTemplate.fullscreenTrailingIcon => 'Media → trailing-icon identity → action',
+      NativeAdTemplate.feedMediaTopSideCta ||
+      NativeAdTemplate.fullscreenMediaSideCta => 'Media → identity with side action',
+      NativeAdTemplate.feedContentTopSideCta => 'Identity with side action → media',
     };
   }
 

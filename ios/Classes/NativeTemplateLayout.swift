@@ -106,8 +106,8 @@ final class NativeTemplateLayout {
       image.contentMode = .scaleAspectFit; image.layer.cornerRadius = 10; image.clipsToBounds = true
       image.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
-        image.widthAnchor.constraint(equalToConstant: 64),
-        image.heightAnchor.constraint(equalToConstant: 64)
+        image.widthAnchor.constraint(equalToConstant: template.isSplit ? 40 : 64),
+        image.heightAnchor.constraint(equalToConstant: template.isSplit ? 40 : 64)
       ])
       view.iconView = image; icon = image
     }
@@ -134,6 +134,7 @@ final class NativeTemplateLayout {
     }
     let mediaHeight = media?.heightAnchor.constraint(equalToConstant: 144)
     mediaHeight?.isActive = true
+    if template.isSplit { media?.widthAnchor.constraint(equalToConstant: 120).isActive = true }
     var oldLayout: UIStackView?
     let template = self.template
     // Captured assets are children of the SDK view; the closure never retains its owner.
@@ -151,6 +152,7 @@ final class NativeTemplateLayout {
       if let media = media { self.detach(media) }
       oldLayout?.removeFromSuperview()
       let width = CGFloat(request.width) - 16
+      let contentWidth = template.isSplit ? width - 120 - 8 : width
       headline.font = .systemFont(ofSize: CGFloat(request.headlineSize), weight: .semibold)
       body.font = .systemFont(ofSize: CGFloat(request.bodySize))
       button.titleLabel?.font = .systemFont(ofSize: CGFloat(request.actionSize), weight: .semibold)
@@ -161,23 +163,29 @@ final class NativeTemplateLayout {
       }
       badgeWidth.constant = max(26, naturalWidth(badge) + 8)
       badgeHeight.constant = max(20, ceil(badge.font.lineHeight))
-      let cornerInset: CGFloat = template.mediaFirst || (template.actionFirst && !button.isHidden) ? 0 : 24
-      let iconWidth: CGFloat = icon == nil ? 0 : 74
+      let cornerInset: CGFloat = (media != nil && (template.mediaFirst || template == .splitMediaRight)) ||
+        (template.actionFirst && !button.isHidden) ? 0 : 24
+      let iconWidth: CGFloat = icon == nil ? 0 : (template.isSplit ? 50 : 74)
+      let side = template.sideAction && !button.isHidden
+      let identityWidth = contentWidth - cornerInset
+      let naturalActionWidth = ceil((ad.callToAction ?? "").size(withAttributes: [.font: button.titleLabel!.font!]).width) + 24
+      let actionWidth = side ? min(max(76, naturalActionWidth), floor(identityWidth / 3)) : 0
+      let copyWidth = identityWidth - iconWidth - (side ? actionWidth + 8 : 0)
       // Body is optional: keep the complete asset on one line or omit it.
       // Never shorten protected copy or shrink its font to force it to fit.
       let bodyHasLineBreak = ad.body?.rangeOfCharacter(from: .newlines) != nil
       body.isHidden = ad.body?.isEmpty != false || bodyHasLineBreak ||
-        naturalWidth(body) > width - cornerInset - iconWidth
+        naturalWidth(body) > copyWidth
       let separatorWidth = naturalWidth(self.label("·", size: CGFloat(request.metadataSize))) + 8
       let metadataWidth = badgeWidth.constant + metadataLabels.reduce(CGFloat(0)) { $0 + naturalWidth($1) + separatorWidth }
-      let copyWidth = width - cornerInset - iconWidth
       headline.preferredMaxLayoutWidth = copyWidth
       body.preferredMaxLayoutWidth = copyWidth
-      let verticalMetadata = metadataWidth > copyWidth
+      let metadataAvailableWidth = template.isSplit ? contentWidth : copyWidth
+      let verticalMetadata = metadataWidth > metadataAvailableWidth
       var metadata: [UIView] = [badge]
       view.separators.removeAll()
       for label in metadataLabels {
-        label.preferredMaxLayoutWidth = copyWidth
+        label.preferredMaxLayoutWidth = metadataAvailableWidth
         if !verticalMetadata {
           let separator = self.label("·", size: CGFloat(request.metadataSize))
           view.separators.append(separator); metadata.append(separator)
@@ -186,33 +194,43 @@ final class NativeTemplateLayout {
       }
       let metadataStack = self.stack(verticalMetadata ? .vertical : .horizontal, metadata, spacing: verticalMetadata ? 2 : 4)
       metadataStack.alignment = verticalMetadata ? .leading : .center
-      let details = self.stack(.vertical, body.isHidden ? [headline, metadataStack] : [headline, body, metadataStack], spacing: 4)
+      var detailAssets: [UIView] = body.isHidden ? [headline] : [headline, body]
+      if !template.isSplit { detailAssets.append(metadataStack) }
+      let details = self.stack(.vertical, detailAssets, spacing: 4)
       details.setContentHuggingPriority(.defaultLow, for: .horizontal)
-      let actionTextWidth = width - (template.actionFirst ? 24 : 0) - 24
+      let actionTextWidth = (side ? actionWidth : contentWidth - (template.actionFirst ? 24 : 0)) - 24
       buttonHeight.constant = max(template.isFullscreen ? 48 : 44,
         ceil(button.titleLabel!.sizeThatFits(CGSize(width: actionTextWidth, height: .greatestFiniteMagnitude)).height) + 20)
       let action = UIView()
       action.translatesAutoresizingMaskIntoConstraints = false
       self.pin(button, to: action, rightInset: template.actionFirst ? 24 : 0)
+      if side { action.widthAnchor.constraint(equalToConstant: actionWidth).isActive = true }
       var rowAssets: [UIView] = [details]
       if let icon = icon {
         if template.trailingIcon { rowAssets.append(icon) } else { rowAssets.insert(icon, at: 0) }
       }
+      if side {
+        if template.leadingAction { rowAssets.insert(action, at: 0) } else { rowAssets.append(action) }
+      }
       let row = self.stack(.horizontal, rowAssets, spacing: 10)
+      if side && template.leadingAction { row.setCustomSpacing(8, after: action) }
+      else if side, let beforeAction = rowAssets.dropLast().last { row.setCustomSpacing(8, after: beforeAction) }
       row.alignment = .center
       row.isLayoutMarginsRelativeArrangement = true
       row.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: cornerInset)
       var copyAssets: [UIView] = [row]
-      if !button.isHidden {
+      if template.isSplit { copyAssets.append(metadataStack) }
+      if !side && !button.isHidden {
         if template.actionFirst {
           copyAssets.insert(action, at: 0)
         } else { copyAssets.append(action) }
       }
       let copy = self.stack(.vertical, copyAssets)
-      let footerHeight = self.height(copy, width: width)
+      if template.isSplit { copy.setCustomSpacing(4, after: row) }
+      let footerHeight = self.height(copy, width: contentWidth)
       let layout: UIStackView
       if let media = media {
-        mediaHeight?.constant = max(144, ceil(width * 9 / 16))
+        mediaHeight?.constant = template.isSplit ? 120 : max(144, ceil(width * 9 / 16))
         if template.isFullscreen, let hostHeight = request.height {
           let available = CGFloat(hostHeight) - 16 - footerHeight - 8
           guard hostHeight.isFinite, available >= 144 else {
@@ -221,16 +239,19 @@ final class NativeTemplateLayout {
           mediaHeight?.constant = available
         }
         var assets: [UIView]
-        if template.actionFirst {
-          assets = button.isHidden ? [row, media] : [action, row, media]
+        if template.isSplit {
+          assets = template == .splitMediaLeft ? [media, copy] : [copy, media]
+        } else if template.actionFirst {
+          assets = side || button.isHidden ? [row, media] : [action, row, media]
         } else if template.mediaFirst {
-          assets = button.isHidden ? [media, row] : [media, row, action]
+          assets = side || button.isHidden ? [media, row] : [media, row, action]
         } else if template.actionMiddle {
-          assets = button.isHidden ? [row, media] : [row, action, media]
+          assets = side || button.isHidden ? [row, media] : [row, action, media]
         } else {
-          assets = button.isHidden ? [row, media] : [row, media, action]
+          assets = side || button.isHidden ? [row, media] : [row, media, action]
         }
-        layout = self.stack(.vertical, assets)
+        layout = self.stack(template.isSplit ? .horizontal : .vertical, assets)
+        if template.isSplit { layout.alignment = .center }
       } else { layout = copy }
       let measured = self.height(layout, width: width) + 16
       self.pin(layout, to: panel)

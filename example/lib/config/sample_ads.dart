@@ -67,21 +67,21 @@ abstract final class SampleAds {
   );
 
   static const mediumNative = NativePlacement(
-    template: NativeAdTemplate.cardContentTop,
+    template: NativeAdTemplate.smartMedia,
     id: 'native_medium_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const smallNative = NativePlacement(
-    template: NativeAdTemplate.cardContentTop,
+    template: NativeAdTemplate.rowWithLeadingIcon,
     id: 'native_small_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
   static const multiWidgetNative = NativePlacement(
-    template: NativeAdTemplate.cardContentTopTrailingIcon,
+    template: NativeAdTemplate.splitMediaRight,
     id: 'multi_widget_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,

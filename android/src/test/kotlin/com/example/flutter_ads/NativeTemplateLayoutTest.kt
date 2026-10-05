@@ -184,14 +184,21 @@ class NativeTemplateLayoutTest {
             val action = bounds(view.callToActionView!!)
             val icon = bounds(view.iconView!!)
             assertEquals(template.trailingIcon, icon.left > identity.right, template.name)
-            if (template.actionFirst) assertTrue(action.bottom <= identity.top, template.name)
+            if (template.sideAction) {
+                assertSame(view.iconView!!.parent, view.callToActionView!!.parent, template.name)
+                if (template.leadingAction) assertTrue(action.right <= icon.left, template.name)
+                else assertTrue(action.left >= maxOf(identity.right, icon.right), template.name)
+            } else if (template.actionFirst) assertTrue(action.bottom <= identity.top, template.name)
             else assertTrue(identity.bottom <= action.top, template.name)
             view.mediaView?.let { asset ->
                 val media = bounds(asset)
                 when {
+                    template == NativeTemplate.splitMediaLeft -> assertTrue(media.right <= minOf(identity.left, icon.left, action.left), template.name)
+                    template == NativeTemplate.splitMediaRight -> assertTrue(media.left >= maxOf(identity.right, icon.right, action.right), template.name)
                     template.actionFirst -> assertTrue(identity.bottom <= media.top, template.name)
                     template.mediaFirst -> assertTrue(media.bottom <= identity.top, template.name)
                     template.actionMiddle -> assertTrue(action.bottom <= media.top, template.name)
+                    template.sideAction -> assertTrue(identity.bottom <= media.top && action.bottom <= media.top, template.name)
                     else -> assertTrue(identity.bottom <= media.top && media.bottom <= action.top, template.name)
                 }
             }
@@ -206,11 +213,37 @@ class NativeTemplateLayoutTest {
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(fixture)
             layout(view, 360, if (template.isFullscreen) 640 else null)
-            assertEquals(64 * context.resources.displayMetrics.density, view.iconView!!.width.toFloat(), template.name)
+            assertEquals((if (template.isSplit) 40 else 64) * context.resources.displayMetrics.density, view.iconView!!.width.toFloat(), template.name)
             assertEquals(1, (view.headlineView as TextView).layout.lineCount, template.name)
             if (view.bodyView!!.visibility != View.GONE) assertEquals(1, (view.bodyView as TextView).layout.lineCount, template.name)
             assertEquals(8 * context.resources.displayMetrics.density, (view.callToActionView!!.background as GradientDrawable).cornerRadius)
             view.destroy()
+        }
+    }
+
+    @Test fun sideActionsReclaimMissingIconAndActionWidthWithoutMovingTheRemainingAssets() {
+        for (template in NativeTemplate.entries.filter { it.sideAction }) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn("Stay focused")
+            val complete = NativeTemplateLayout(context, template).build(fixture)
+            layout(complete, 360, if (template.isFullscreen) 640 else null)
+            val completeWidth = complete.headlineView!!.width
+            complete.destroy()
+            `when`(fixture.icon).thenReturn(null)
+            val noIcon = NativeTemplateLayout(context, template).build(fixture)
+            layout(noIcon, 360, if (template.isFullscreen) 640 else null)
+            assertNull(noIcon.iconView, template.name)
+            assertTrue(noIcon.headlineView!!.width > completeWidth, template.name)
+            assertSame(noIcon.headlineView!!.parent.parent, noIcon.callToActionView!!.parent, template.name)
+            noIcon.destroy()
+            `when`(fixture.callToAction).thenReturn(null)
+            val noAction = NativeTemplateLayout(context, template).build(fixture)
+            layout(noAction, 360, if (template.isFullscreen) 640 else null)
+            assertEquals(View.GONE, noAction.callToActionView!!.visibility, template.name)
+            val expectedWidth = if (noAction.mediaView != null && template.mediaFirst) 344 else 320
+            assertEquals(expectedWidth * context.resources.displayMetrics.density, noAction.headlineView!!.width.toFloat(), template.name)
+            noAction.destroy()
         }
     }
 
@@ -229,6 +262,15 @@ class NativeTemplateLayoutTest {
             val h = kotlin.math.ceil(height * density).toInt()
             view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
             view.layout(0, 0, w, h)
+            if (template.sideAction) {
+                assertSame(view.iconView!!.parent, view.callToActionView!!.parent,
+                    "${template.name} at $width/$scale: side action migrated out of its row")
+            }
+            if (template.isSplit) {
+                assertEquals(120 * density, view.mediaView!!.width.toFloat(), template.name)
+                assertEquals(120 * density, view.mediaView!!.height.toFloat(),
+                    "${template.name}: long copy must not stretch the media viewport")
+            }
             for (text in listOf(view.headlineView, view.bodyView, view.callToActionView).filterIsInstance<TextView>().filter { it.visibility != View.GONE }) {
                 val last = text.layout.lineCount - 1
                 assertEquals(text.text.length, text.layout.getLineEnd(last), "${template.name} at $width/$scale: protected copy lost")
@@ -279,7 +321,9 @@ class NativeTemplateLayoutTest {
             configure()
             val body = view.bodyView as TextView
             assertEquals(1, body.maxLines, template.name)
-            if (scale == 1.0) assertEquals(View.VISIBLE, body.visibility, template.name)
+            if (scale == 1.0 && (!template.sideAction || width >= 360) && (!template.isSplit || width >= 400)) {
+                assertEquals(View.VISIBLE, body.visibility, template.name)
+            }
             if (body.visibility == View.VISIBLE) {
                 assertEquals(1, body.layout.lineCount, template.name)
                 assertEquals(body.text.length, body.layout.getLineEnd(0), "${template.name}: body clipped at $width/$scale")
@@ -327,7 +371,7 @@ class NativeTemplateLayoutTest {
             val view = NativeTemplateLayout(context, template).build(fixture)
             layout(view, 360, if (template.isFullscreen) 640 else null)
             assertNotNull(view.mediaView, template.name)
-            assertTrue(view.mediaView!!.height >= 144 * context.resources.displayMetrics.density, template.name)
+            assertTrue(view.mediaView!!.height >= (if (template.isSplit) 120 else 144) * context.resources.displayMetrics.density, template.name)
             view.destroy()
         }
     }
@@ -372,19 +416,13 @@ class NativeTemplateLayoutTest {
         val density = context.resources.displayMetrics.density
         val cardWidth = (360 * density).toInt()
         val gutter = (20 * density).toInt()
-        val rowHeights = listOf(200, 390, 690).map { (it * density).toInt() }
-        val sheet = Bitmap.createBitmap((cardWidth + gutter) * 3 + gutter, rowHeights.sum() + gutter, Bitmap.Config.ARGB_8888)
-        val sheetCanvas = Canvas(sheet)
-        sheetCanvas.drawColor(0xffeceff1.toInt())
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.DKGRAY; textSize = 14 * density; typeface = Typeface.DEFAULT_BOLD
-        }
-        for ((index, template) in NativeTemplate.entries.withIndex()) {
+        val previews = mutableListOf<Pair<NativeTemplate, Bitmap>>()
+        for (template in NativeTemplate.entries) {
             val fixture = ad(true)
-            `when`(fixture.headline).thenReturn("Make room for what matters.")
-            `when`(fixture.body).thenReturn("Notes, plans and ideas.")
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn(if (template.isSplit) "Stay focused" else "Notes, plans and ideas.")
             `when`(fixture.advertiser).thenReturn("Clarity")
-            `when`(fixture.callToAction).thenReturn("Get started")
+            `when`(fixture.callToAction).thenReturn("Install")
             `when`(fixture.icon!!.drawable).thenReturn(BitmapDrawable(context.resources, iconFixture()))
             val store = NativeAppearanceStore()
             store.startSession("visual")
@@ -395,7 +433,7 @@ class NativeTemplateLayoutTest {
             // Only the SDK creative/binder boundary is simulated. All typography,
             // layout, clipping, palettes and asset registration are production views.
             view.mediaView?.addView(ImageView(context).apply {
-                setImageBitmap(creativeFixture())
+                setImageBitmap(creativeFixture(template.isFullscreen))
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }, ViewGroup.LayoutParams(-1, -1))
             val height = if (template.isFullscreen) 640 else null
@@ -403,10 +441,7 @@ class NativeTemplateLayoutTest {
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             view.draw(Canvas(bitmap))
             File(output, "${template.name}-light.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            val x = gutter + (index % 3) * (cardWidth + gutter)
-            val y = gutter + rowHeights.take(index / 3).sum()
-            sheetCanvas.drawText(template.name, x.toFloat(), y + 16 * density, titlePaint)
-            sheetCanvas.drawBitmap(bitmap, x.toFloat(), y + 28 * density, null)
+            previews.add(template to bitmap)
             if (template == NativeTemplate.feedMediaFirst) {
                 store.applyStyle("visual", 2, mapOf("card" to NativeStyleData(
                     background = 0xff0f0f0f, headline = 0xfff1f1f1, body = 0xffaaaaaa,
@@ -417,18 +452,92 @@ class NativeTemplateLayoutTest {
             }
             view.destroy()
         }
-        File(output, "catalog.png").outputStream().use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        fun sheet(items: List<Pair<NativeTemplate, Bitmap>>, columns: Int, filename: String) {
+            val rows = items.chunked(columns)
+            val rowHeights = rows.map { row -> row.maxOf { it.second.height } + gutter + (28 * density).toInt() }
+            val image = Bitmap.createBitmap((cardWidth + gutter) * columns + gutter, rowHeights.sum() + gutter, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(image)
+            canvas.drawColor(0xffeceff1.toInt())
+            val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.DKGRAY; textSize = 14 * density; typeface = Typeface.DEFAULT_BOLD
+            }
+            for ((index, item) in items.withIndex()) {
+                val x = gutter + (index % columns) * (cardWidth + gutter)
+                val y = gutter + rowHeights.take(index / columns).sum()
+                canvas.drawText(item.first.name, x.toFloat(), y + 16 * density, titlePaint)
+                canvas.drawBitmap(item.second, x.toFloat(), y + 28 * density, null)
+            }
+            File(output, filename).outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        sheet(previews, 3, "catalog.png")
+        sheet(previews.filter { it.first.sideAction }, 2, "side-cta-catalog.png")
+        sheet(previews.filter { it.first.isSplit }, 2, "smart-media-catalog.png")
+    }
+
+    @Test fun smartMediaStaysHorizontalAndSmallerThanFeedWithOrdinaryCopy() {
+        for (width in listOf(320, 360, 400, 600)) for (video in listOf(false, true)) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn("Stay focused")
+            `when`(fixture.callToAction).thenReturn("Install")
+            val content = mock(com.google.android.gms.ads.MediaContent::class.java)
+            `when`(content.hasVideoContent()).thenReturn(video)
+            `when`(fixture.mediaContent).thenReturn(content)
+            val feed = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(fixture)
+            layout(feed, width)
+            for (template in NativeTemplate.entries.filter { it.isSplit }) {
+                val view = NativeTemplateLayout(context, template).build(fixture)
+                layout(view, width)
+                assertTrue(view.height < feed.height, "${template.name}: must be smaller than feed at $width/video=$video")
+                assertTrue(view.height <= 160 * context.resources.displayMetrics.density, template.name)
+                assertEquals(120 * context.resources.displayMetrics.density, view.mediaView!!.width.toFloat(), template.name)
+                assertEquals(View.VISIBLE, view.bodyView!!.visibility, template.name)
+                assertSame(content, view.mediaView!!.mediaContent, template.name)
+                val media = Rect(0, 0, view.mediaView!!.width, view.mediaView!!.height)
+                view.offsetDescendantRectToMyCoords(view.mediaView!!, media)
+                for (asset in listOfNotNull(view.iconView, view.headlineView, view.bodyView, view.callToActionView,
+                    view.starRatingView, view.priceView, view.findViewById(R.id.ad_attribution_badge))) {
+                    val bounds = Rect(0, 0, asset.width, asset.height)
+                    view.offsetDescendantRectToMyCoords(asset, bounds)
+                    if (template == NativeTemplate.splitMediaLeft) assertTrue(media.right <= bounds.left, template.name)
+                    else assertTrue(bounds.right <= media.left, template.name)
+                }
+                view.destroy()
+            }
+            feed.destroy()
+        }
+    }
+
+    @Test fun smartMediaReclaimsMissingIconAndDoesNotInventAnAction() {
+        for (template in NativeTemplate.entries.filter { it.isSplit }) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            val complete = NativeTemplateLayout(context, template).build(fixture)
+            layout(complete, 320)
+            val completeWidth = complete.headlineView!!.width
+            complete.destroy()
+            `when`(fixture.icon).thenReturn(null)
+            `when`(fixture.callToAction).thenReturn(null)
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 320)
+            assertNull(view.iconView, template.name)
+            assertEquals(View.GONE, view.callToActionView!!.visibility, template.name)
+            assertTrue(view.headlineView!!.width > completeWidth, template.name)
+            assertNotNull(view.mediaView, template.name)
+            assertEquals(View.VISIBLE, view.findViewById<View>(R.id.ad_attribution_badge).visibility, template.name)
+            view.destroy()
+        }
     }
 
     private fun buildOutput() = System.getProperty("nativeDesignOutput")
         ?: File(System.getProperty("user.dir"), "build/reports").path
 
-    private fun creativeFixture(): Bitmap {
-        val bitmap = Bitmap.createBitmap(960, 540, Bitmap.Config.ARGB_8888)
+    private fun creativeFixture(portrait: Boolean = false): Bitmap {
+        val bitmap = Bitmap.createBitmap(960, if (portrait) 1440 else 540, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.shader = LinearGradient(0f, 0f, 960f, 540f, 0xff213f35.toInt(), 0xffc9dfb0.toInt(), Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, 960f, 540f, paint)
+        canvas.drawRect(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat(), paint)
         paint.shader = null
         paint.color = 0x33ffffff
         canvas.drawCircle(850f, 100f, 240f, paint)
@@ -490,7 +599,8 @@ class NativeTemplateLayoutTest {
                     assertFalse(Rect.intersects(media, bounds(asset)), "${template.name}: media overlap")
                 }
                 when (template) {
-                    NativeTemplate.fullscreenMediaFirst -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
+                    NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
+                    NativeTemplate.fullscreenMediaSideCta -> assertTrue(media.bottom <= headline.top && media.bottom <= button.top)
                     NativeTemplate.fullscreenContentFirst -> assertTrue(headline.bottom <= media.top && media.bottom <= button.top)
                     NativeTemplate.fullscreenActionMiddle -> assertTrue(headline.bottom <= button.top && button.bottom <= media.top)
                     else -> error("Not fullscreen")

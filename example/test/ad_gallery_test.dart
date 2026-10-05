@@ -90,10 +90,10 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AdGalleryScreen()));
     expect(ads, isEmpty);
     expect(banners, isEmpty);
-    await tester.tap(find.text('cardContentTop'));
+    await tester.tap(find.text('rowWithLeadingIcon'));
     await tester.pumpAndSettle();
     expect(ads, hasLength(1));
-    expect(ads.single.factoryId, NativeAdTemplate.cardContentTop.factoryId);
+    expect(ads.single.factoryId, NativeAdTemplate.rowWithLeadingIcon.factoryId);
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('fullscreenActionMiddle'), 400);

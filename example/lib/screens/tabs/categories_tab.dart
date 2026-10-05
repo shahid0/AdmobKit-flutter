@@ -178,7 +178,7 @@ class CategoriesTab extends StatelessWidget {
             AdNativeView(
               placement: SampleAds.smallNative,
               placeholder: Container(
-                height: NativeAdTemplate.cardContentTop.height,
+                height: SampleAds.smallNative.template.height,
                 decoration: BoxDecoration(
                   color: TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(10),

@@ -31,31 +31,42 @@ class _Driver extends GoogleMobileAdsDriver {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Dart, Kotlin and Swift expose the same nine unique templates', () {
+  test('Dart, Kotlin and Swift expose the same 19 unique templates', () {
     final expected = [
+      'rowWithLeadingIcon',
+      'rowWithTrailingIcon',
+      'rowLeadingCta',
+      'splitMediaLeft',
+      'splitMediaRight',
       'cardContentTop',
       'cardActionTop',
       'cardContentTopTrailingIcon',
       'feedMediaFirst',
       'feedContentFirst',
       'feedActionMiddle',
+      'feedTrailingIcon',
+      'feedMediaTopSideCta',
+      'feedContentTopSideCta',
       'fullscreenMediaFirst',
       'fullscreenContentFirst',
       'fullscreenActionMiddle',
+      'fullscreenTrailingIcon',
+      'fullscreenMediaSideCta',
     ];
     expect(NativeAdTemplate.values.map((t) => t.name), expected);
-    expect(NativeAdTemplate.values.map((t) => t.factoryId).toSet(), hasLength(9));
+    expect(NativeAdTemplate.values.map((t) => t.factoryId).toSet(), hasLength(19));
+    expect(NativeAdTemplate.smartMedia, NativeAdTemplate.splitMediaLeft);
     final kotlin = File('android/src/main/kotlin/com/example/flutter_ads/NativeTemplate.kt').readAsStringSync();
     final swift = File('ios/Classes/NativeTemplate.swift').readAsStringSync();
     expect(
       RegExp(
-        r'\b(?:card|feed|fullscreen)[A-Za-z0-9]+\b',
+        r'\b(?:row|split|card|feed|fullscreen)[A-Za-z0-9]+\b',
       ).allMatches(kotlin.split('enum class NativeTemplate {').last.split(';').first).map((m) => m[0]),
       expected,
     );
     expect(
       RegExp(
-        r'\b(?:card|feed|fullscreen)[A-Za-z0-9]+\b',
+        r'\b(?:row|split|card|feed|fullscreen)[A-Za-z0-9]+\b',
       ).allMatches(swift.split('var factoryId').first).map((m) => m[0]),
       expected,
     );
@@ -64,10 +75,16 @@ void main() {
       expect(template.minWidth, 320);
       expect(
         template.height,
-        template.name.startsWith('card')
+        template.name.startsWith('row')
+            ? 80
+            : template.name.startsWith('split')
+            ? 160
+            : template.name.startsWith('card')
             ? 132
             : template.isFullscreen
             ? 320
+            : template == NativeAdTemplate.feedMediaTopSideCta || template == NativeAdTemplate.feedContentTopSideCta
+            ? 280
             : 340,
       );
     }
