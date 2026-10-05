@@ -198,10 +198,10 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
       width: widget.width,
       height: _effectiveTemplate.isFullscreen ? widget.maxHeight : null,
       limit: widget.maxHeight,
-      headline: scaler.scale(17),
-      body: scaler.scale(14),
-      metadata: scaler.scale(12),
-      action: scaler.scale(14),
+      headline: scaler.scale(15),
+      body: scaler.scale(12),
+      metadata: scaler.scale(11),
+      action: scaler.scale(13),
     );
     if (_layoutKey == key) return;
     _layoutKey = key;

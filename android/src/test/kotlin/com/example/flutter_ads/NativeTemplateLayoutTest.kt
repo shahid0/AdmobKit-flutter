@@ -12,6 +12,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -57,7 +58,7 @@ class NativeTemplateLayoutTest {
         val density = context.resources.displayMetrics.density
         val measured = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container).configure(
             NativeLayoutRequest(width = width.toDouble(), height = height?.toDouble(),
-                headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0))
+                headlineSize = 15.0, bodySize = 12.0, metadataSize = 11.0, actionSize = 13.0))
         val w = (width * density).toInt()
         val h = kotlin.math.ceil(measured * density).toInt()
         view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
@@ -117,13 +118,17 @@ class NativeTemplateLayoutTest {
     }
 
     @Test
-    fun headlineWrapsButOptionalLongBodyIsOmitted() {
+    fun headlineWrapsAndLongBodyRemainsVisibleWithNativeEndEllipsis() {
         val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(true))
         layout(view, 320)
         val headline = view.headlineView as TextView
         val body = view.bodyView as TextView
         assertTrue(headline.layout.lineCount >= 2)
-        assertEquals(View.GONE, body.visibility)
+        assertEquals(View.VISIBLE, body.visibility)
+        assertEquals(1, body.layout.lineCount)
+        assertEquals(TextUtils.TruncateAt.END, body.ellipsize)
+        assertTrue(body.layout.getEllipsisCount(0) > 0)
+        assertEquals(ad(true).body, body.text.toString())
         assertTrue(headline.layout.getLineBottom(headline.layout.lineCount - 1) <= headline.height)
         val rating = view.starRatingView!!
         val price = view.priceView!!
@@ -213,7 +218,7 @@ class NativeTemplateLayoutTest {
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(fixture)
             layout(view, 360, if (template.isFullscreen) 640 else null)
-            assertEquals((if (template.isSplit) 40 else 64) * context.resources.displayMetrics.density, view.iconView!!.width.toFloat(), template.name)
+            assertEquals((if (template.isSplit) 36 else 48) * context.resources.displayMetrics.density, view.iconView!!.width.toFloat(), template.name)
             assertEquals(1, (view.headlineView as TextView).layout.lineCount, template.name)
             if (view.bodyView!!.visibility != View.GONE) assertEquals(1, (view.bodyView as TextView).layout.lineCount, template.name)
             assertEquals(8 * context.resources.displayMetrics.density, (view.callToActionView!!.background as GradientDrawable).cornerRadius)
@@ -247,6 +252,31 @@ class NativeTemplateLayoutTest {
         }
     }
 
+    @Test fun compactIdentityKeepsSmallTypographyTightGapsAndReadableAdControls() {
+        val fixture = ad(true)
+        `when`(fixture.headline).thenReturn("Focus timer")
+        `when`(fixture.body).thenReturn("Stay focused")
+        for (template in NativeTemplate.entries) {
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 360, if (template.isFullscreen) 640 else null)
+            val density = context.resources.displayMetrics.density
+            fun bounds(asset: View) = Rect(0, 0, asset.width, asset.height).also {
+                view.offsetDescendantRectToMyCoords(asset, it)
+            }
+            assertEquals((if (template.isSplit) 36 else 48) * density, view.iconView!!.width.toFloat(), template.name)
+            assertEquals(15 * density, (view.headlineView as TextView).textSize, template.name)
+            assertEquals(12 * density, (view.bodyView as TextView).textSize, template.name)
+            assertEquals(11 * density, (view.starRatingView as TextView).textSize, template.name)
+            assertEquals(13 * density, (view.callToActionView as TextView).textSize, template.name)
+            assertEquals(View.VISIBLE, view.bodyView!!.visibility, template.name)
+            assertEquals(2 * density, (bounds(view.bodyView!!).top - bounds(view.headlineView!!).bottom).toFloat(), template.name)
+            val badge = view.findViewById<View>(R.id.ad_attribution_badge)
+            assertTrue(badge.width >= 15 * density && badge.height >= 15 * density, template.name)
+            assertTrue(view.callToActionView!!.height >= (if (template.isFullscreen) 48 else 44) * density, template.name)
+            view.destroy()
+        }
+    }
+
     @Test fun protectedCopyAndScaledFontsGrowRatherThanTruncate() {
         for (template in NativeTemplate.entries) for (width in listOf(320, 360, 400, 600)) for (scale in listOf(1.0, 1.5, 2.0)) {
             val fixture = ad(true)
@@ -255,8 +285,8 @@ class NativeTemplateLayoutTest {
             `when`(fixture.callToAction).thenReturn("Discover it now")
             val view = NativeTemplateLayout(context, template).build(fixture)
             val panel = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container)
-            val height = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 17 * scale,
-                bodySize = 14 * scale, metadataSize = 12 * scale, actionSize = 14 * scale))
+            val height = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 15 * scale,
+                bodySize = 12 * scale, metadataSize = 11 * scale, actionSize = 13 * scale))
             val density = context.resources.displayMetrics.density
             val w = (width * density).toInt()
             val h = kotlin.math.ceil(height * density).toInt()
@@ -271,7 +301,7 @@ class NativeTemplateLayoutTest {
                 assertEquals(120 * density, view.mediaView!!.height.toFloat(),
                     "${template.name}: long copy must not stretch the media viewport")
             }
-            for (text in listOf(view.headlineView, view.bodyView, view.callToActionView).filterIsInstance<TextView>().filter { it.visibility != View.GONE }) {
+            for (text in listOf(view.headlineView, view.callToActionView).filterIsInstance<TextView>().filter { it.visibility != View.GONE }) {
                 val last = text.layout.lineCount - 1
                 assertEquals(text.text.length, text.layout.getLineEnd(last), "${template.name} at $width/$scale: protected copy lost")
                 assertEquals(0, text.layout.getEllipsisCount(last), template.name)
@@ -293,8 +323,9 @@ class NativeTemplateLayoutTest {
         `when`(fixture.body).thenReturn("Stay focused")
         val view = NativeTemplateFactory(context, NativeTemplate.cardContentTop, store).createNativeAd(fixture,
             mutableMapOf("sessionId" to "measure", "renderId" to "render"))
-        val request = NativeLayoutRequest(width = 360.0, headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0)
-        assertEquals(132.0, store.layoutNativeAd("measure", "render", request))
+        val request = NativeLayoutRequest(width = 360.0, headlineSize = 15.0, bodySize = 12.0, metadataSize = 11.0, actionSize = 13.0)
+        val measuredHeight = store.layoutNativeAd("measure", "render", request)
+        assertTrue(measuredHeight > 0 && measuredHeight < NativeTemplate.cardContentTop.height)
         store.applyStyle("measure", 2, emptyMap())
         assertFailsWith<IllegalStateException> { store.layoutNativeAd("measure", "render", request) }
         store.startSession("new")
@@ -302,7 +333,7 @@ class NativeTemplateLayoutTest {
         view.destroy()
     }
 
-    @Test fun bodyIsAlwaysOneLineOrAbsentAcrossEveryTemplateWidthAndScale() {
+    @Test fun suppliedBodyRemainsVisibleOnOneLineAcrossEveryTemplateWidthAndScale() {
         for (template in NativeTemplate.entries) for (width in listOf(320, 360, 400, 600)) for (scale in listOf(1.0, 1.5, 2.0)) {
             val fixture = ad(true)
             `when`(fixture.headline).thenReturn("Focus timer")
@@ -310,8 +341,8 @@ class NativeTemplateLayoutTest {
             val view = NativeTemplateLayout(context, template).build(fixture)
             val panel = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container)
             fun configure() {
-                val measured = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 17 * scale,
-                    bodySize = 14 * scale, metadataSize = 12 * scale, actionSize = 14 * scale))
+                val measured = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 15 * scale,
+                    bodySize = 12 * scale, metadataSize = 11 * scale, actionSize = 13 * scale))
                 val density = context.resources.displayMetrics.density
                 val w = (width * density).toInt()
                 val h = kotlin.math.ceil(measured * density).toInt()
@@ -321,43 +352,60 @@ class NativeTemplateLayoutTest {
             configure()
             val body = view.bodyView as TextView
             assertEquals(1, body.maxLines, template.name)
-            if (scale == 1.0 && (!template.sideAction || width >= 360) && (!template.isSplit || width >= 400)) {
-                assertEquals(View.VISIBLE, body.visibility, template.name)
-            }
-            if (body.visibility == View.VISIBLE) {
-                assertEquals(1, body.layout.lineCount, template.name)
-                assertEquals(body.text.length, body.layout.getLineEnd(0), "${template.name}: body clipped at $width/$scale")
-                assertEquals(0, body.layout.getEllipsisCount(0), template.name)
-            }
+            assertEquals(View.VISIBLE, body.visibility, "${template.name} at $width/$scale: supplied body disappeared")
+            assertEquals(TextUtils.TruncateAt.END, body.ellipsize, template.name)
+            assertEquals(fixture.body, body.text.toString(), "${template.name}: SDK text was manually modified")
+            assertEquals(1, body.layout.lineCount, template.name)
+            assertTrue(body.layout.getLineBottom(0) <= body.height, template.name)
             view.destroy()
         }
     }
 
-    @Test fun omittedBodyReturnsWhenItsCompleteTextFitsAfterResizing() {
+    @Test fun nativeBodyEllipsisReflowsAfterResizingWithoutHidingOrChangingText() {
         val fixture = ad(true)
         `when`(fixture.body).thenReturn("A long description that cannot fit beside the app icon at a phone width.")
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(fixture)
             layout(view, 320)
-            assertEquals(View.GONE, view.bodyView!!.visibility, template.name)
-            layout(view, 1200)
             val body = view.bodyView as TextView
+            assertEquals(View.VISIBLE, body.visibility, template.name)
+            assertTrue(body.layout.getEllipsisCount(0) > 0, template.name)
+            layout(view, 1200)
             assertEquals(View.VISIBLE, body.visibility, template.name)
             assertEquals(1, body.layout.lineCount, template.name)
             assertEquals(body.text.length, body.layout.getLineEnd(0), template.name)
+            assertEquals(0, body.layout.getEllipsisCount(0), template.name)
             layout(view, 320)
-            assertEquals(View.GONE, body.visibility, template.name)
+            assertEquals(View.VISIBLE, body.visibility, template.name)
+            assertTrue(body.layout.getEllipsisCount(0) > 0, template.name)
+            assertEquals(fixture.body, body.text.toString(), template.name)
             view.destroy()
         }
     }
 
-    @Test fun bodyWithExplicitLineBreaksIsOmittedEvenAtWideWidths() {
+    @Test fun bodyWithExplicitLineBreaksIsHandledByTheNativeTextViewWithoutHiding() {
         for (separator in listOf("\n", "\r", "\u0085", "\u2028", "\u2029")) {
             val fixture = ad(true)
             `when`(fixture.body).thenReturn("First${separator}Second")
             val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(fixture)
             layout(view, 1200)
-            assertEquals(View.GONE, view.bodyView!!.visibility)
+            val body = view.bodyView as TextView
+            assertEquals(View.VISIBLE, body.visibility)
+            assertEquals(fixture.body, body.text.toString())
+            assertEquals(1, body.layout.lineCount)
+            view.destroy()
+        }
+    }
+
+    @Test fun missingAndEmptyBodiesCollapseWithoutReservingATextLine() {
+        for (template in NativeTemplate.entries) for (value in listOf(null, "")) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn(value)
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 360, if (template.isFullscreen) 640 else null)
+            assertEquals(View.GONE, view.bodyView!!.visibility, template.name)
+            assertEquals("", (view.bodyView as TextView).text.toString(), template.name)
             view.destroy()
         }
     }
@@ -628,7 +676,12 @@ class NativeTemplateLayoutTest {
     @Test fun fullscreenRejectsInsufficientMediaSpaceInsteadOfClippingAssets() {
         for (template in NativeTemplate.entries.filter { it.isFullscreen }) {
             val view = NativeTemplateLayout(context, template).build(ad(true))
-            assertFailsWith<IllegalArgumentException> { layout(view, 320, 250) }
+            layout(view, 320, 640)
+            val density = context.resources.displayMetrics.density
+            val nonMediaHeight = 640 - (view.mediaView!!.height / density).toInt()
+            layout(view, 320, nonMediaHeight + 144)
+            assertEquals(144 * density, view.mediaView!!.height.toFloat(), template.name)
+            assertFailsWith<IllegalArgumentException> { layout(view, 320, nonMediaHeight + 143) }
             view.destroy()
         }
     }

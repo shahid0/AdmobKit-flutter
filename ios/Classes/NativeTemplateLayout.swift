@@ -7,6 +7,9 @@ enum NativeTemplateStyle {
   static let secondary = UIColor(white: 96 / 255, alpha: 1)
   static let inset: CGFloat = 8
   static let gap: CGFloat = 8
+  static let icon: CGFloat = 48
+  static let smartIcon: CGFloat = 36
+  static let textGap: CGFloat = 2
 }
 
 /// The bridge configures the real SDK view before Flutter mounts it.
@@ -77,15 +80,15 @@ final class NativeTemplateLayout {
     let badgeHeight = badge.heightAnchor.constraint(equalToConstant: 20)
     NSLayoutConstraint.activate([badgeWidth, badgeHeight])
 
-    let headline = label(ad.headline, size: 17, primary: true)
-    let body = label(ad.body, size: 14)
+    let headline = label(ad.headline, size: 15, primary: true)
+    let body = label(ad.body, size: 12)
     body.numberOfLines = 1
-    body.lineBreakMode = .byClipping
+    body.lineBreakMode = .byTruncatingTail
     body.isHidden = ad.body?.isEmpty != false
     view.headlineView = headline; view.bodyView = body
     let button = UIButton(type: .custom)
     button.setTitle(ad.callToAction, for: .normal)
-    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
     button.titleLabel?.numberOfLines = 0
     button.titleLabel?.lineBreakMode = .byWordWrapping
     button.titleLabel?.textAlignment = .center
@@ -103,25 +106,27 @@ final class NativeTemplateLayout {
     var icon: UIImageView?
     if let asset = ad.icon {
       let image = UIImageView(image: asset.image)
-      image.contentMode = .scaleAspectFit; image.layer.cornerRadius = 10; image.clipsToBounds = true
+      image.contentMode = .scaleAspectFit
+      image.layer.cornerRadius = template.isSplit ? 6 : 8
+      image.clipsToBounds = true
       image.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
-        image.widthAnchor.constraint(equalToConstant: template.isSplit ? 40 : 64),
-        image.heightAnchor.constraint(equalToConstant: template.isSplit ? 40 : 64)
+        image.widthAnchor.constraint(equalToConstant: template.isSplit ? NativeTemplateStyle.smartIcon : NativeTemplateStyle.icon),
+        image.heightAnchor.constraint(equalToConstant: template.isSplit ? NativeTemplateStyle.smartIcon : NativeTemplateStyle.icon)
       ])
       view.iconView = image; icon = image
     }
     var metadataLabels: [UILabel] = []
     if let value = ad.starRating {
-      let rating = label("\(value) ★", size: 12)
+      let rating = label("\(value) ★", size: 11)
       view.starRatingView = rating; metadataLabels.append(rating)
     }
     if let value = ad.price, !value.isEmpty {
-      let price = label(value, size: 12)
+      let price = label(value, size: 11)
       view.priceView = price; metadataLabels.append(price)
     }
     if metadataLabels.isEmpty, let value = ad.advertiser, !value.isEmpty {
-      let advertiser = label(value, size: 12)
+      let advertiser = label(value, size: 11)
       view.advertiserView = advertiser; metadataLabels.append(advertiser)
     }
     let needsMedia = template.hasMedia || ad.mediaContent.hasVideoContent
@@ -165,21 +170,16 @@ final class NativeTemplateLayout {
       badgeHeight.constant = max(20, ceil(badge.font.lineHeight))
       let cornerInset: CGFloat = (media != nil && (template.mediaFirst || template == .splitMediaRight)) ||
         (template.actionFirst && !button.isHidden) ? 0 : 24
-      let iconWidth: CGFloat = icon == nil ? 0 : (template.isSplit ? 50 : 74)
+      let iconWidth: CGFloat = icon == nil ? 0 :
+        (template.isSplit ? NativeTemplateStyle.smartIcon : NativeTemplateStyle.icon) + NativeTemplateStyle.gap
       let side = template.sideAction && !button.isHidden
       let identityWidth = contentWidth - cornerInset
       let naturalActionWidth = ceil((ad.callToAction ?? "").size(withAttributes: [.font: button.titleLabel!.font!]).width) + 24
       let actionWidth = side ? min(max(76, naturalActionWidth), floor(identityWidth / 3)) : 0
       let copyWidth = identityWidth - iconWidth - (side ? actionWidth + 8 : 0)
-      // Body is optional: keep the complete asset on one line or omit it.
-      // Never shorten protected copy or shrink its font to force it to fit.
-      let bodyHasLineBreak = ad.body?.rangeOfCharacter(from: .newlines) != nil
-      body.isHidden = ad.body?.isEmpty != false || bodyHasLineBreak ||
-        naturalWidth(body) > copyWidth
       let separatorWidth = naturalWidth(self.label("·", size: CGFloat(request.metadataSize))) + 8
       let metadataWidth = badgeWidth.constant + metadataLabels.reduce(CGFloat(0)) { $0 + naturalWidth($1) + separatorWidth }
       headline.preferredMaxLayoutWidth = copyWidth
-      body.preferredMaxLayoutWidth = copyWidth
       let metadataAvailableWidth = template.isSplit ? contentWidth : copyWidth
       let verticalMetadata = metadataWidth > metadataAvailableWidth
       var metadata: [UIView] = [badge]
@@ -196,7 +196,7 @@ final class NativeTemplateLayout {
       metadataStack.alignment = verticalMetadata ? .leading : .center
       var detailAssets: [UIView] = body.isHidden ? [headline] : [headline, body]
       if !template.isSplit { detailAssets.append(metadataStack) }
-      let details = self.stack(.vertical, detailAssets, spacing: 4)
+      let details = self.stack(.vertical, detailAssets, spacing: NativeTemplateStyle.textGap)
       details.setContentHuggingPriority(.defaultLow, for: .horizontal)
       let actionTextWidth = (side ? actionWidth : contentWidth - (template.actionFirst ? 24 : 0)) - 24
       buttonHeight.constant = max(template.isFullscreen ? 48 : 44,
@@ -212,7 +212,7 @@ final class NativeTemplateLayout {
       if side {
         if template.leadingAction { rowAssets.insert(action, at: 0) } else { rowAssets.append(action) }
       }
-      let row = self.stack(.horizontal, rowAssets, spacing: 10)
+      let row = self.stack(.horizontal, rowAssets, spacing: NativeTemplateStyle.gap)
       if side && template.leadingAction { row.setCustomSpacing(8, after: action) }
       else if side, let beforeAction = rowAssets.dropLast().last { row.setCustomSpacing(8, after: beforeAction) }
       row.alignment = .center
@@ -226,7 +226,7 @@ final class NativeTemplateLayout {
         } else { copyAssets.append(action) }
       }
       let copy = self.stack(.vertical, copyAssets)
-      if template.isSplit { copy.setCustomSpacing(4, after: row) }
+      if template.isSplit { copy.setCustomSpacing(NativeTemplateStyle.textGap, after: row) }
       let footerHeight = self.height(copy, width: contentWidth)
       let layout: UIStackView
       if let media = media {
@@ -261,7 +261,7 @@ final class NativeTemplateLayout {
       view.layoutIfNeeded()
       return Double(measured)
     }
-    _ = try? view.configure?(NativeLayoutRequest(width: 320, headlineSize: 17, bodySize: 14, metadataSize: 12, actionSize: 14))
+    _ = try? view.configure?(NativeLayoutRequest(width: 320, headlineSize: 15, bodySize: 12, metadataSize: 11, actionSize: 13))
     view.nativeAd = ad
     return view
   }

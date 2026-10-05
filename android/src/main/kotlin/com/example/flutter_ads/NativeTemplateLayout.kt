@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -24,7 +25,9 @@ internal object NativeTemplateStyle {
     const val action = Color.WHITE
     const val inset = 8
     const val gap = 8
-    const val icon = 64
+    const val icon = 48
+    const val smartIcon = 36
+    const val textGap = 2
     const val radius = 8
 }
 
@@ -47,7 +50,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         setTextSize(TypedValue.COMPLEX_UNIT_DIP, size.toFloat())
         setTextColor(if (primary) NativeTemplateStyle.headline else NativeTemplateStyle.secondary)
         if (primary) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        // Native wrapping preserves all copy, including the protected 25/90 characters.
+        // Headline and CTA wrap naturally; body uses native single-line ellipsis.
         includeFontPadding = false
         minimumWidth = 0
     }
@@ -90,12 +93,13 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             gravity = Gravity.CENTER
             background = shape(Color.WHITE, 3, 0xffb8b8b8.toInt())
         }
-        val headline = text(ad.headline, 17.0, true)
-        val body = text(ad.body, 14.0).apply {
+        val headline = text(ad.headline, 15.0, true)
+        val body = text(ad.body, 12.0).apply {
             maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             visibility = if (ad.body.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        val cta = text(ad.callToAction, 14.0, true).apply {
+        val cta = text(ad.callToAction, 13.0, true).apply {
             setTextColor(NativeTemplateStyle.action)
             gravity = Gravity.CENTER
             background = shape(NativeTemplateStyle.headline, NativeTemplateStyle.radius)
@@ -107,19 +111,19 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         val icon = ad.icon?.let { asset -> ImageView(context).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
             setImageDrawable(asset.drawable)
-            background = shape(Color.TRANSPARENT, 10); clipToOutline = true
+            background = shape(Color.TRANSPARENT, if (template.isSplit) 6 else 8); clipToOutline = true
             adView.iconView = this
         } }
         val metadataLabels = mutableListOf<TextView>()
-        ad.starRating?.let { value -> text("$value ★", 12.0).also {
+        ad.starRating?.let { value -> text("$value ★", 11.0).also {
             adView.starRatingView = it; metadataLabels.add(it)
         } }
-        ad.price?.takeIf { it.isNotEmpty() }?.let { value -> text(value, 12.0).also {
+        ad.price?.takeIf { it.isNotEmpty() }?.let { value -> text(value, 11.0).also {
             adView.priceView = it; metadataLabels.add(it)
         } }
         // App-store metadata and advertiser identity do not compete in the same row.
         if (metadataLabels.isEmpty()) ad.advertiser?.takeIf { it.isNotEmpty() }?.let { value ->
-            text(value, 12.0).also { adView.advertiserView = it; metadataLabels.add(it) }
+            text(value, 11.0).also { adView.advertiserView = it; metadataLabels.add(it) }
         }
         val needsMedia = template.hasMedia || ad.mediaContent?.hasVideoContent() == true
         val media = if (needsMedia) MediaView(context).apply {
@@ -145,8 +149,8 @@ internal class NativeTemplateLayout(private val context: Context, private val te
                 !(template.actionFirst && cta.visibility == View.VISIBLE)) dp(24) else 0
             // Smart media has a two-line identity; its attribution sits below
             // that row, allowing a smaller icon without squeezing store metadata.
-            val iconSize = if (template.isSplit) 40 else NativeTemplateStyle.icon
-            val iconWidth = if (icon == null) 0 else dp(iconSize + 10)
+            val iconSize = if (template.isSplit) NativeTemplateStyle.smartIcon else NativeTemplateStyle.icon
+            val iconWidth = if (icon == null) 0 else dp(iconSize + NativeTemplateStyle.gap)
             val identityWidth = contentWidth - cornerInset
             val side = template.sideAction && cta.visibility == View.VISIBLE
             // Keep the requested composition. Native text wraps in its assigned
@@ -154,17 +158,12 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             val actionWidth = if (side) max(dp(76), naturalWidth(cta)).coerceAtMost(identityWidth / 3) else 0
             val copyWidth = identityWidth - iconWidth - if (side) actionWidth + dp(8) else 0
             require(copyWidth > 0) { "Native identity needs more width" }
-            // Body is optional. Omit it if the complete asset cannot fit one line;
-            // clipping or ellipsizing here could violate the 90-character minimum.
-            val bodyHasLineBreak = ad.body?.any { it in "\n\r\u0085\u2028\u2029\u000b\u000c" } == true
-            body.visibility = if (!ad.body.isNullOrEmpty() && !bodyHasLineBreak &&
-                naturalWidth(body) <= copyWidth) View.VISIBLE else View.GONE
             val separatorWidth = naturalWidth(text("·", request.metadataSize)) + dp(8)
             val metadataWidth = badgeWidth + metadataLabels.sumOf { naturalWidth(it) + separatorWidth }
             val details = stack(true)
             add(details, headline)
-            if (body.visibility != View.GONE) { gap(details, 4); add(details, body) }
-            if (!template.isSplit) gap(details, 4)
+            if (body.visibility != View.GONE) { gap(details, NativeTemplateStyle.textGap); add(details, body) }
+            if (!template.isSplit) gap(details, NativeTemplateStyle.textGap)
             val metadata = stack(false)
             val metadataAvailableWidth = if (template.isSplit) contentWidth else copyWidth
             val verticalMetadata = metadataWidth > metadataAvailableWidth
@@ -188,9 +187,9 @@ internal class NativeTemplateLayout(private val context: Context, private val te
                 cta.layoutParams.width = actionWidth
             }
             if (side && template.leadingAction) { rowAction(); gap(row) }
-            if (icon != null && !template.trailingIcon) { add(row, icon, iconSize, iconSize); gap(row, 10) }
+            if (icon != null && !template.trailingIcon) { add(row, icon, iconSize, iconSize); gap(row) }
             add(row, details, 0, -2, 1f)
-            if (icon != null && template.trailingIcon) { gap(row, 10); add(row, icon, iconSize, iconSize) }
+            if (icon != null && template.trailingIcon) { gap(row); add(row, icon, iconSize, iconSize) }
             if (side && !template.leadingAction) { gap(row); rowAction() }
             row.setPadding(0, 0, cornerInset, 0)
             val copy = stack(true)
@@ -200,7 +199,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             }
             if (template.actionFirst && !side && cta.visibility == View.VISIBLE) { copyAction(); gap(copy) }
             add(copy, row)
-            if (template.isSplit) { gap(copy, 4); add(copy, metadata) }
+            if (template.isSplit) { gap(copy, NativeTemplateStyle.textGap); add(copy, metadata) }
             if (!template.actionFirst && !side && cta.visibility == View.VISIBLE) { gap(copy); copyAction() }
             val layout = stack(!template.isSplit)
             val footerHeight = measuredHeight(copy, contentWidth)
@@ -256,7 +255,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             add(panel, layout)
             (naturalHeight + dp(16)).toDouble() / context.resources.displayMetrics.density
         }
-        panel.configure(NativeLayoutRequest(width = 320.0, headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0))
+        panel.configure(NativeLayoutRequest(width = 320.0, headlineSize = 15.0, bodySize = 12.0, metadataSize = 11.0, actionSize = 13.0))
         adView.setNativeAd(ad)
         return adView
     }

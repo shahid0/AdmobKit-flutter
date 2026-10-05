@@ -113,6 +113,10 @@ void main() {
     expect(tester.getSize(find.byType(AdNativeView)).height, NativeAdTemplate.cardContentTop.height);
     expect(measurements.single.$1.width, 320);
     expect(measurements.single.$1.height, isNull);
+    expect(measurements.single.$1.headlineSize, 15);
+    expect(measurements.single.$1.bodySize, 12);
+    expect(measurements.single.$1.metadataSize, 11);
+    expect(measurements.single.$1.actionSize, 13);
     measurements.single.$2.complete(80);
     await tester.pump();
     await tester.pump();
@@ -128,9 +132,10 @@ void main() {
     final ad = await load(tester);
     await tester.pumpWidget(host(width: 400, scale: 2));
     expect(measurements, hasLength(2));
-    expect(measurements.last.$1.headlineSize, 34);
-    expect(measurements.last.$1.bodySize, 28);
-    expect(measurements.last.$1.metadataSize, 24);
+    expect(measurements.last.$1.headlineSize, 30);
+    expect(measurements.last.$1.bodySize, 24);
+    expect(measurements.last.$1.metadataSize, 22);
+    expect(measurements.last.$1.actionSize, 26);
     measurements.last.$2.complete(160);
     await tester.pump();
     await tester.pump();

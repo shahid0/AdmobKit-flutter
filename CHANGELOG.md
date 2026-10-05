@@ -30,13 +30,15 @@ Major feature milestone: replaces legacy XML/XIB layout bindings with 19 built-i
 
 ### Changed
 
-- **Compact Smart Media**: `splitMediaLeft` and `splitMediaRight` restore medium ads with media beside identity, metadata and CTA on Android/iOS. A 160-pixel loading estimate, compact 40-pixel identity icon, and natural text measurement keep ordinary creatives shorter than feed natives without discarding supplied video.
+- **Compact Smart Media**: `splitMediaLeft` and `splitMediaRight` restore medium ads with media beside identity, metadata and CTA on Android/iOS. A 160-pixel loading estimate, compact 36-pixel identity icon, and natural text measurement keep ordinary creatives shorter than feed natives without discarding supplied video.
 
-- **Compact Native Identity**: 64-pixel icons (40 pixels in smart-media identities), naturally wrapping headline/CTA copy, single-line optional body copy, inline "Ad · rating ★ · price" metadata, and rounded CTA defaults on Android/iOS. Body copy is omitted if its complete text cannot fit one line. Missing optional assets collapse; provided icons and video remain visible. Same-row CTAs retain their position while protected headline/CTA copy wraps; compact rows use an 80-pixel loading estimate, not a fixed height. Separate-action layouts retain full-width buttons.
+- **Compact Native Identity**: 48-pixel icons (36 pixels in smart-media identities), 15-pixel headlines, 12-pixel body text, 11-pixel metadata and 13-pixel CTA text with 2-pixel copy gaps; naturally wrapping headline/CTA copy, single-line optional body copy, inline "Ad · rating ★ · price" metadata, and rounded CTA defaults on Android/iOS. Supplied body copy remains visible on one line with native end ellipsis; only missing or empty bodies collapse. Missing optional assets collapse; provided icons and video remain visible. Same-row CTAs retain their position while protected headline/CTA copy wraps; compact rows use an 80-pixel loading estimate, not a fixed height. Separate-action layouts retain full-width buttons.
 - **Fullscreen Navigation**: No built-in top close button. Example screens use bottom Continue navigation outside SDK ad assets.
 - **Platform Alignment**: Aligned with Google Mobile Ads 25.4.0 (Android) and 13.7.0 (iOS). Example app targets iOS 15.0+; core plugin continues to support iOS 13.0+.
 
 ### Fixed
+
+- **Native Body Visibility**: Removed width-based hiding of supplied body text. Android/iOS text views keep it visible on one line with native end ellipsis, including after resizing and text scaling. Missing or empty body assets still collapse.
 
 - **Catalog Accuracy**: Gallery labels and previews now match native asset order on both platforms. Geometry tests catch duplicate compositions, preserve side actions at narrow widths and scaled text, and preserve ordering when video is supplied.
 
