@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../domain/contracts/ad_analytics_tracker.dart';
 import '../../domain/models/ad_format.dart';
 import '../../domain/models/ad_placement.dart';
+import '../../domain/models/ad_native_template.dart';
 import '../../domain/models/banner_layout.dart';
 import 'adaptive_banner_ad.dart';
 import 'managed_native_ad.dart';
@@ -122,7 +123,11 @@ class GoogleMobileAdsDriver {
     nativeAd = ManagedNativeAd(
       adUnitId: adUnitId,
       factoryId: placement.template.factoryId,
-      nativeAdOptions: NativeAdOptions(adChoicesPlacement: AdChoicesPlacement.topRightCorner),
+      nativeAdOptions: NativeAdOptions(
+        adChoicesPlacement: placement.template == NativeAdTemplate.cardActionTop
+            ? AdChoicesPlacement.bottomRightCorner
+            : AdChoicesPlacement.topRightCorner,
+      ),
       customOptions: renderId == null ? null : {'sessionId': _appearance!.sessionId, 'renderId': renderId},
       measureLayout: renderId == null ? null : (request) => _appearance!.layout(renderId, request),
       releaseAppearance: renderId == null

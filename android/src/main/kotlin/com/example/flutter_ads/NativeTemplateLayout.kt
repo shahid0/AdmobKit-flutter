@@ -50,7 +50,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         setTextSize(TypedValue.COMPLEX_UNIT_DIP, size.toFloat())
         setTextColor(if (primary) NativeTemplateStyle.headline else NativeTemplateStyle.secondary)
         if (primary) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        // Headline and CTA wrap naturally; body uses native single-line ellipsis.
+        // Headline/body use native single-line ellipsis; CTA wraps naturally.
         includeFontPadding = false
         minimumWidth = 0
     }
@@ -79,11 +79,12 @@ internal class NativeTemplateLayout(private val context: Context, private val te
     }
 
     fun build(ad: NativeAd): NativeAdView {
+        val horizontalInset = NativeTemplateStyle.inset
         val panel = NativeTemplatePanel(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.TOP
             id = R.id.ad_card_container
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(dp(horizontalInset), dp(8), dp(horizontalInset), dp(8))
             background = shape(Color.WHITE, 12)
         }
         adView.addView(panel, ViewGroup.LayoutParams(-1, -1))
@@ -93,7 +94,10 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             gravity = Gravity.CENTER
             background = shape(Color.WHITE, 3, 0xffb8b8b8.toInt())
         }
-        val headline = text(ad.headline, 15.0, true)
+        val headline = text(ad.headline, 15.0, true).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
         val body = text(ad.body, 12.0).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
@@ -135,7 +139,7 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         panel.configure = { request ->
             require(request.width.isFinite() && request.width >= 320)
             require(listOf(request.headlineSize, request.bodySize, request.metadataSize, request.actionSize).all { it.isFinite() && it > 0 })
-            val width = dp(request.width) - dp(16)
+            val width = dp(request.width) - dp(2 * horizontalInset)
             headline.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.headlineSize.toFloat())
             body.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.bodySize.toFloat())
             cta.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.actionSize.toFloat())
@@ -145,16 +149,19 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             val badgeHeight = max(dp(20), measuredHeight(badge, badgeWidth))
             val mediaWidth = if (template.isSplit) dp(120) else width
             val contentWidth = if (template.isSplit) width - mediaWidth - dp(8) else width
-            val cornerInset = if (!(media != null && (template.mediaFirst || template == NativeTemplate.splitMediaRight)) &&
-                !(template.actionFirst && cta.visibility == View.VISIBLE)) dp(24) else 0
+            val side = template.sideAction && cta.visibility == View.VISIBLE
+            val actionBelowChoices = side && !template.leadingAction && !(media != null && template.mediaFirst)
+            // Action-first cards use SDK bottom-right AdChoices. Only their
+            // final identity row needs clearance when no video is supplied.
+            val cornerInset = if (template.actionFirst) {
+                if (media == null) dp(24) else 0
+            } else if (!actionBelowChoices && !(media != null && (template.mediaFirst || template == NativeTemplate.splitMediaRight))) dp(24) else 0
             // Smart media has a two-line identity; its attribution sits below
             // that row, allowing a smaller icon without squeezing store metadata.
             val iconSize = if (template.isSplit) NativeTemplateStyle.smartIcon else NativeTemplateStyle.icon
             val iconWidth = if (icon == null) 0 else dp(iconSize + NativeTemplateStyle.gap)
             val identityWidth = contentWidth - cornerInset
-            val side = template.sideAction && cta.visibility == View.VISIBLE
-            // Keep the requested composition. Native text wraps in its assigned
-            // width; it never causes a same-row action to migrate below identity.
+            // Keep the action in its row; only CTA copy wraps in its assigned width.
             val actionWidth = if (side) max(dp(76), naturalWidth(cta)).coerceAtMost(identityWidth / 3) else 0
             val copyWidth = identityWidth - iconWidth - if (side) actionWidth + dp(8) else 0
             require(copyWidth > 0) { "Native identity needs more width" }
@@ -182,9 +189,20 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             }
             if (!template.isSplit) add(details, metadata)
             val row = stack(false)
+            // Mixed icon/copy/button assets align by their bounds, not by the
+            // unrelated text baselines inside each child.
+            row.isBaselineAligned = false
             fun rowAction() {
                 add(row, cta, 0)
                 cta.layoutParams.width = actionWidth
+                if (actionBelowChoices) {
+                    // Protect the SDK overlay locally; identity assets retain
+                    // their natural center alignment without a blank header.
+                    (cta.layoutParams as LinearLayout.LayoutParams).apply {
+                        topMargin = dp(24 - NativeTemplateStyle.inset)
+                        gravity = Gravity.BOTTOM
+                    }
+                }
             }
             if (side && template.leadingAction) { rowAction(); gap(row) }
             if (icon != null && !template.trailingIcon) { add(row, icon, iconSize, iconSize); gap(row) }
@@ -195,7 +213,6 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             val copy = stack(true)
             fun copyAction() {
                 add(copy, cta)
-                if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
             }
             if (template.actionFirst && !side && cta.visibility == View.VISIBLE) { copyAction(); gap(copy) }
             add(copy, row)
@@ -216,7 +233,6 @@ internal class NativeTemplateLayout(private val context: Context, private val te
             fun action() {
                 if (!side && cta.visibility == View.VISIBLE) {
                     add(layout, cta)
-                    if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
                 }
             }
             if (media == null) add(layout, copy)

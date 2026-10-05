@@ -154,6 +154,10 @@ AdmobKit.show(
 
 AdmobKit eliminates the need to author Android XML or iOS XIB files. Choose from **19 pre-built platform-rendered native templates** grouped by visual topology:
 
+![All 19 native ad templates labeled with their NativeAdTemplate API names](docs/assets/native-template-catalog.png)
+
+Rendered sample creatives at 360 logical pixels wide. Live creative assets and AdChoices are supplied by the SDK; text metrics may differ slightly between Android and iOS.
+
 | Family | Loading estimate | Layout Topology | Canonical Preset |
 | :--- | :--- | :--- | :--- |
 | **Row** (3 variants) | **80 logical px** | `rowWithLeadingIcon`, `rowWithTrailingIcon`, `rowLeadingCta` | `NativeAdTemplate.compactRow` |
@@ -164,11 +168,13 @@ AdmobKit eliminates the need to author Android XML or iOS XIB files. Choose from
 
 Names describe stable asset order, not creative content. All layouts retain a supplied icon. Cards omit non-video hero media; supplied video follows the identity (after the action in `cardActionTop`). Feed layouts size to content; fullscreen layouts fill bounded height. Compact row templates keep their CTA beside identity; supplied video appears above that row. Missing optional assets collapse, so two layouts may naturally look alike for an incomplete creative.
 
-Use `rowWithLeadingIcon` for an icon/copy/action strip, `rowWithTrailingIcon` to place the icon after copy, or `rowLeadingCta` for a leading action. For media with a side action, choose `feedMediaTopSideCta` (media above the row), `feedContentTopSideCta` (row above media), or `fullscreenMediaSideCta` (bounded media above the row). `feedTrailingIcon` and `fullscreenTrailingIcon` place the icon after identity with a separate full-width action. Same-row buttons keep their position at every supported width: headline and CTA wrap and height grows; the button does not migrate below copy. Colors and CTA radius work on every layout.
+Use `rowWithLeadingIcon` for an icon/copy/action strip, `rowWithTrailingIcon` to place the icon after copy, or `rowLeadingCta` for a leading action. For media with a side action, choose `feedMediaTopSideCta` (media above the row), `feedContentTopSideCta` (row above media), or `fullscreenMediaSideCta` (bounded media above the row). `feedTrailingIcon` and `fullscreenTrailingIcon` place the icon after identity with a separate full-width action. Same-row buttons keep their position at every supported width: headline/body remain single-line and CTA copy wraps when needed; the button does not migrate below copy. Colors and CTA radius work on every layout.
 
-Inline ads size themselves from the SDK assets, available width and Flutter text scale. The values above are initial loading estimates (`template.height`), not fixed heights. Provide bounded width of at least 320 logical pixels and let inline content grow; do not wrap it in a fixed-height container. Headline and CTA copy wrap when needed. Supplied body copy stays visible on one line using the platform text view's native end ellipsis. The SDK string is not manually shortened and its font is not shrunk; only missing or empty body assets collapse. Missing optional assets leave no empty slots. Supplied icons and video assets remain visible.
+Inline ads size themselves from the SDK assets, available width and Flutter text scale. The values above are initial loading estimates (`template.height`), not fixed heights. Provide bounded width of at least 320 logical pixels and let inline content grow; do not wrap it in a fixed-height container. CTA copy wraps when needed. Headline and supplied body copy stay visible on one line using the platform text view's native end ellipsis. The SDK string is not manually shortened and its font is not shrunk; only missing or empty body assets collapse. Missing optional assets leave no empty slots. Supplied icons and video assets remain visible.
 
-For a smaller media ad between list items, choose `smartMedia` (`splitMediaLeft`) or `splitMediaRight`. These keep a 120-logical-pixel-wide SDK media view beside the content column at every supported width. A compact 36-pixel icon sits beside headline/body; attribution and store metadata follow below, then the column-width CTA. Ordinary copy produces a shorter ad than a feed card; long copy and larger text can increase its measured height without turning it into a feed layout.
+Single-line layout is not a policy-compliance guarantee. [AdMob's native-ad policy](https://support.google.com/admob/answer/6329638) requires the first 25 headline characters and 90 body characters to remain untruncated. Narrow layouts or larger text scales can conflict with those limits; validate your actual creatives before production use.
+
+For a smaller media ad between list items, choose `smartMedia` (`splitMediaLeft`) or `splitMediaRight`. These keep a 120-logical-pixel-wide SDK media view beside the content column at every supported width. A compact 36-pixel icon sits beside headline/body; attribution and store metadata follow below, then the column-width CTA. Ordinary copy produces a shorter ad than a feed card; long CTA/metadata and larger text can increase its measured height without turning it into a feed layout.
 
 Mounting a content-sized native ad in a feed:
 

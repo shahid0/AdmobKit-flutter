@@ -98,7 +98,12 @@ void main() {
         final args = call.arguments as Map;
         factories.add(args['factoryId'] as String);
         final ad = instanceManager.adFor(args['adId'] as int)! as NativeAd;
-        expect(ad.nativeAdOptions?.adChoicesPlacement, AdChoicesPlacement.topRightCorner);
+        expect(
+          ad.nativeAdOptions?.adChoicesPlacement,
+          args['factoryId'] == NativeAdTemplate.cardActionTop.factoryId
+              ? AdChoicesPlacement.bottomRightCorner
+              : AdChoicesPlacement.topRightCorner,
+        );
         ad.listener.onAdLoaded!(ad);
       }
       return null;

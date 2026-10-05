@@ -47,13 +47,13 @@ final class NativeTemplateLayout {
     return result
   }
 
-  private func pin(_ child: UIView, to parent: UIView, inset: CGFloat = 0, rightInset: CGFloat? = nil) {
+  private func pin(_ child: UIView, to parent: UIView, inset: CGFloat = 0, topInset: CGFloat? = nil) {
     child.translatesAutoresizingMaskIntoConstraints = false
     parent.addSubview(child)
     NSLayoutConstraint.activate([
       child.leftAnchor.constraint(equalTo: parent.leftAnchor, constant: inset),
-      child.rightAnchor.constraint(equalTo: parent.rightAnchor, constant: -(rightInset ?? inset)),
-      child.topAnchor.constraint(equalTo: parent.topAnchor, constant: inset),
+      child.rightAnchor.constraint(equalTo: parent.rightAnchor, constant: -inset),
+      child.topAnchor.constraint(equalTo: parent.topAnchor, constant: topInset ?? inset),
       child.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -inset)
     ])
   }
@@ -64,11 +64,12 @@ final class NativeTemplateLayout {
   }
 
   func build(_ ad: NativeAd) -> NativeTemplateView {
+    let horizontalInset = NativeTemplateStyle.inset
     let view = NativeTemplateView()
     view.backgroundColor = .white
     view.layer.cornerRadius = 12
     let panel = UIView()
-    pin(panel, to: view, inset: 8)
+    pin(panel, to: view, inset: horizontalInset)
     let badge = label("Ad", size: 11, primary: true)
     badge.accessibilityLabel = "Advertisement"
     badge.backgroundColor = .white
@@ -81,6 +82,8 @@ final class NativeTemplateLayout {
     NSLayoutConstraint.activate([badgeWidth, badgeHeight])
 
     let headline = label(ad.headline, size: 15, primary: true)
+    headline.numberOfLines = 1
+    headline.lineBreakMode = .byTruncatingTail
     let body = label(ad.body, size: 12)
     body.numberOfLines = 1
     body.lineBreakMode = .byTruncatingTail
@@ -156,7 +159,7 @@ final class NativeTemplateLayout {
       if let icon = icon { self.detach(icon) }
       if let media = media { self.detach(media) }
       oldLayout?.removeFromSuperview()
-      let width = CGFloat(request.width) - 16
+      let width = CGFloat(request.width) - 2 * horizontalInset
       let contentWidth = template.isSplit ? width - 120 - 8 : width
       headline.font = .systemFont(ofSize: CGFloat(request.headlineSize), weight: .semibold)
       body.font = .systemFont(ofSize: CGFloat(request.bodySize))
@@ -168,11 +171,14 @@ final class NativeTemplateLayout {
       }
       badgeWidth.constant = max(26, naturalWidth(badge) + 8)
       badgeHeight.constant = max(20, ceil(badge.font.lineHeight))
-      let cornerInset: CGFloat = (media != nil && (template.mediaFirst || template == .splitMediaRight)) ||
-        (template.actionFirst && !button.isHidden) ? 0 : 24
+      let side = template.sideAction && !button.isHidden
+      let actionBelowChoices = side && !template.leadingAction && !(media != nil && template.mediaFirst)
+      // The driver selects SDK bottom-right AdChoices for action-first cards.
+      // With video, the overlay sits on media; otherwise protect the final row.
+      let cornerInset: CGFloat = template.actionFirst ? (media == nil ? 24 : 0) :
+        (actionBelowChoices || (media != nil && (template.mediaFirst || template == .splitMediaRight)) ? 0 : 24)
       let iconWidth: CGFloat = icon == nil ? 0 :
         (template.isSplit ? NativeTemplateStyle.smartIcon : NativeTemplateStyle.icon) + NativeTemplateStyle.gap
-      let side = template.sideAction && !button.isHidden
       let identityWidth = contentWidth - cornerInset
       let naturalActionWidth = ceil((ad.callToAction ?? "").size(withAttributes: [.font: button.titleLabel!.font!]).width) + 24
       let actionWidth = side ? min(max(76, naturalActionWidth), floor(identityWidth / 3)) : 0
@@ -198,12 +204,12 @@ final class NativeTemplateLayout {
       if !template.isSplit { detailAssets.append(metadataStack) }
       let details = self.stack(.vertical, detailAssets, spacing: NativeTemplateStyle.textGap)
       details.setContentHuggingPriority(.defaultLow, for: .horizontal)
-      let actionTextWidth = (side ? actionWidth : contentWidth - (template.actionFirst ? 24 : 0)) - 24
+      let actionTextWidth = (side ? actionWidth : contentWidth) - 24
       buttonHeight.constant = max(template.isFullscreen ? 48 : 44,
         ceil(button.titleLabel!.sizeThatFits(CGSize(width: actionTextWidth, height: .greatestFiniteMagnitude)).height) + 20)
       let action = UIView()
       action.translatesAutoresizingMaskIntoConstraints = false
-      self.pin(button, to: action, rightInset: template.actionFirst ? 24 : 0)
+      self.pin(button, to: action, topInset: actionBelowChoices ? 24 - NativeTemplateStyle.inset : 0)
       if side { action.widthAnchor.constraint(equalToConstant: actionWidth).isActive = true }
       var rowAssets: [UIView] = [details]
       if let icon = icon {
