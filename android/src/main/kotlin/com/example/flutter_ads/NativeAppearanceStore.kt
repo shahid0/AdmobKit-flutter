@@ -36,6 +36,14 @@ internal class NativeAppearanceStore : NativeAppearanceHost {
         if (session == sessionId) clear()
     }
 
+    override fun layoutNativeAd(sessionId: String, renderId: String, request: NativeLayoutRequest): Double {
+        check(session == sessionId) { "Native render session is no longer active" }
+        val styled = checkNotNull(views[renderId]) { "Native render is no longer available" }
+        val height = styled.configure(request)
+        palettes[renderId]?.let(styled::apply)
+        return height
+    }
+
     fun clear() {
         session = null
         revision = -1L
@@ -63,6 +71,9 @@ private class StyledNativeView(view: NativeAdView) {
     private val ctaBackground = view.callToActionView?.let(::BackgroundDefaults)
     private val ctaRadius = (view.callToActionView?.background as? GradientDrawable)?.cornerRadius
 
+    fun configure(request: NativeLayoutRequest): Double =
+        checkNotNull(view.get()) { "Native view was released" }.findViewById<NativeTemplatePanel>(R.id.ad_card_container).configure(request)
+
     fun apply(style: NativeStyleData) {
         val ad = view.get() ?: return
         background.apply(ad.findViewById<View>(R.id.ad_card_container) ?: ad, style.background)
@@ -70,12 +81,15 @@ private class StyledNativeView(view: NativeAdView) {
         for ((text, original) in secondaryText(ad).zip(secondaryDefaults)) {
             text.setTextColor(style.body?.let { ColorStateList.valueOf(it.toInt()) } ?: original)
         }
+        ad.findViewById<NativeTemplatePanel>(R.id.ad_card_container)?.separators?.forEach {
+            it.setTextColor(style.body?.toInt() ?: NativeTemplateStyle.secondary)
+        }
         (ad.callToActionView as? TextView)?.setTextColor(style.callToActionText?.let { ColorStateList.valueOf(it.toInt()) } ?: cta)
         ad.callToActionView?.let {
             ctaBackground?.apply(it, style.callToActionBackground)
             if (ctaRadius != null) {
                 val requested = style.callToActionCornerRadius?.let { value ->
-                    (value * it.resources.displayMetrics.density).toFloat().coerceAtMost(ctaRadius)
+                    (value * it.resources.displayMetrics.density).toFloat().coerceAtMost(it.measuredHeight / 2f)
                 } ?: ctaRadius
                 (it.background as? GradientDrawable)?.cornerRadius = requested
             }

@@ -84,12 +84,11 @@ static const splashBigNative = NativePlacement(
 );
 ```
 
-Widget mount (splash layout is app-owned):
+Widget mount (splash layout is app-owned): keep width bounded and leave room for the measured creative; do not impose a loading-estimate height.
 
 ```dart
 // splash_screen.dart — bottom of the splash layout
 SizedBox(
-  height: AppAds.splashBigNative.template.height, // 340 logical pixels
   width: double.infinity,
   child: const AdNativeView(
     placement: AppAds.splashBigNative,
@@ -124,12 +123,9 @@ Cards get natives; one interstitial fires mid-flow (e.g. after step 2 of 3). Reg
 
 ```dart
 // onboarding_card.dart — SDK usage only; carousel logic is app-owned
-SizedBox(
-  height: AppAds.onboardingNative.template.height,
-  child: AdNativeView(
-    placement: AppAds.onboardingNative,
-    active: pageIndex == currentPage,
-  ),
+AdNativeView(
+  placement: AppAds.onboardingNative,
+  active: pageIndex == currentPage,
 )
 ```
 
@@ -171,12 +167,7 @@ Tab content with a native card (works the same in a pushed sub-screen):
 
 ```dart
 // feed_tab.dart — SDK usage only; list layout is app-owned
-Container(
-  height: AppAds.tabNative.template.height, // Split & Card family: 160 logical pixels
-  child: const AdNativeView(
-    placement: AppAds.tabNative,
-  ),
-)
+const AdNativeView(placement: AppAds.tabNative)
 ```
 
 ---

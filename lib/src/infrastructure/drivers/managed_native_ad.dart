@@ -1,8 +1,10 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../appearance/native_appearance.g.dart';
 
 /// Keeps native-render ownership and the original load age with a leased ad.
 final class ManagedNativeAd extends NativeAd {
   final Future<void> Function()? releaseAppearance;
+  final Future<double> Function(NativeLayoutRequest)? measureLayout;
   DateTime? loadedAt;
   Future<void>? _disposal;
 
@@ -14,6 +16,7 @@ final class ManagedNativeAd extends NativeAd {
     super.customOptions,
     super.nativeAdOptions,
     this.releaseAppearance,
+    this.measureLayout,
   });
 
   @override

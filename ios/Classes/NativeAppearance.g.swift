@@ -244,11 +244,75 @@ struct NativeStyleData: Hashable, CustomStringConvertible {
   }
 }
 
+/// Actual host width and scaled typography. Null height requests inline sizing.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct NativeLayoutRequest: Hashable, CustomStringConvertible {
+  var width: Double
+  var height: Double? = nil
+  var headlineSize: Double
+  var bodySize: Double
+  var metadataSize: Double
+  var actionSize: Double
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> NativeLayoutRequest? {
+    let width = pigeonVar_list[0] as! Double
+    let height: Double? = nilOrValue(pigeonVar_list[1])
+    let headlineSize = pigeonVar_list[2] as! Double
+    let bodySize = pigeonVar_list[3] as! Double
+    let metadataSize = pigeonVar_list[4] as! Double
+    let actionSize = pigeonVar_list[5] as! Double
+
+    return NativeLayoutRequest(
+      width: width,
+      height: height,
+      headlineSize: headlineSize,
+      bodySize: bodySize,
+      metadataSize: metadataSize,
+      actionSize: actionSize
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      width,
+      height,
+      headlineSize,
+      bodySize,
+      metadataSize,
+      actionSize,
+    ]
+  }
+  static func == (lhs: NativeLayoutRequest, rhs: NativeLayoutRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return NativeAppearancePigeonInternal.deepEquals(lhs.width, rhs.width) && NativeAppearancePigeonInternal.deepEquals(lhs.height, rhs.height) && NativeAppearancePigeonInternal.deepEquals(lhs.headlineSize, rhs.headlineSize) && NativeAppearancePigeonInternal.deepEquals(lhs.bodySize, rhs.bodySize) && NativeAppearancePigeonInternal.deepEquals(lhs.metadataSize, rhs.metadataSize) && NativeAppearancePigeonInternal.deepEquals(lhs.actionSize, rhs.actionSize)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("NativeLayoutRequest")
+    NativeAppearancePigeonInternal.deepHash(value: width, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: height, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: headlineSize, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: bodySize, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: metadataSize, hasher: &hasher)
+    NativeAppearancePigeonInternal.deepHash(value: actionSize, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "NativeLayoutRequest(width: \(String(describing: width)), height: \(String(describing: height)), headlineSize: \(String(describing: headlineSize)), bodySize: \(String(describing: bodySize)), metadataSize: \(String(describing: metadataSize)), actionSize: \(String(describing: actionSize)))"
+  }
+}
+
 private class NativeAppearancePigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
     case 129:
       return NativeStyleData.fromList(self.readValue() as! [Any?])
+    case 130:
+      return NativeLayoutRequest.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -259,6 +323,9 @@ private class NativeAppearancePigeonCodecWriter: FlutterStandardWriter {
   override func writeValue(_ value: Any) {
     if let value = value as? NativeStyleData {
       super.writeByte(129)
+      super.writeValue(value.toList())
+    } else if let value = value as? NativeLayoutRequest {
+      super.writeByte(130)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -287,6 +354,7 @@ protocol NativeAppearanceHost {
   func startSession(sessionId: String) throws
   func applyStyle(sessionId: String, revision: Int64, renders: [String: NativeStyleData]) throws
   func endSession(sessionId: String) throws
+  func layoutNativeAd(sessionId: String, renderId: String, request: NativeLayoutRequest) throws -> Double
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -341,6 +409,23 @@ class NativeAppearanceHostSetup {
       }
     } else {
       endSessionChannel.setMessageHandler(nil)
+    }
+    let layoutNativeAdChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.layoutNativeAd\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      layoutNativeAdChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let sessionIdArg = args[0] as! String
+        let renderIdArg = args[1] as! String
+        let requestArg = args[2] as! NativeLayoutRequest
+        do {
+          let result = try api.layoutNativeAd(sessionId: sessionIdArg, renderId: renderIdArg, request: requestArg)
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      layoutNativeAdChannel.setMessageHandler(nil)
     }
   }
 }

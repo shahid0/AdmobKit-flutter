@@ -37,6 +37,15 @@ final class NativeAppearanceStore: NativeAppearanceHost {
     if session == sessionId { clear() }
   }
 
+  func layoutNativeAd(sessionId: String, renderId: String, request: NativeLayoutRequest) throws -> Double {
+    guard session == sessionId, let styled = views[renderId] else {
+      throw PigeonError(code: "released-render", message: "Native render is no longer available", details: nil)
+    }
+    let height = try styled.configure(request)
+    if let palette = palettes[renderId] { styled.apply(palette) }
+    return height
+  }
+
   func clear() {
     session = nil
     revision = -1
@@ -73,6 +82,13 @@ private final class StyledNativeView {
     ctaRadius = view.callToActionView?.layer.cornerRadius
   }
 
+  func configure(_ request: NativeLayoutRequest) throws -> Double {
+    guard let view = view as? NativeTemplateView, let configure = view.configure else {
+      throw PigeonError(code: "released-render", message: "Native view was released", details: nil)
+    }
+    return try configure(request)
+  }
+
   func apply(_ style: NativeStyleData) {
     guard let view = view else { return }
     view.backgroundColor = color(style.background) ?? background
@@ -80,10 +96,14 @@ private final class StyledNativeView {
     for (label, original) in zip(Self.secondaryText(view), secondaryDefaults) {
       label.textColor = color(style.body) ?? original
     }
+    (view as? NativeTemplateView)?.separators.forEach {
+      $0.textColor = color(style.body) ?? NativeTemplateStyle.secondary
+    }
     view.callToActionView?.backgroundColor = color(style.callToActionBackground) ?? ctaBackground
     (view.callToActionView as? UIButton)?.setTitleColor(color(style.callToActionText) ?? ctaText, for: .normal)
     if let original = ctaRadius {
-      view.callToActionView?.layer.cornerRadius = min(style.callToActionCornerRadius.map { CGFloat($0) } ?? original, original)
+      view.callToActionView?.layer.cornerRadius = min(style.callToActionCornerRadius.map { CGFloat($0) } ?? original,
+        (view.callToActionView?.bounds.height ?? 0) / 2)
     }
   }
 

@@ -53,10 +53,13 @@ class NativeTemplateLayoutTest {
         return ad
     }
 
-    private fun layout(view: NativeAdView, width: Int, height: Int) {
+    private fun layout(view: NativeAdView, width: Int, height: Int? = null) {
         val density = context.resources.displayMetrics.density
+        val measured = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container).configure(
+            NativeLayoutRequest(width = width.toDouble(), height = height?.toDouble(),
+                headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0))
         val w = (width * density).toInt()
-        val h = (height * density).toInt()
+        val h = kotlin.math.ceil(measured * density).toInt()
         view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
         view.layout(0, 0, w, h)
     }
@@ -65,9 +68,10 @@ class NativeTemplateLayoutTest {
         for (template in NativeTemplate.entries) for (width in listOf(320, 400)) for (direction in listOf(View.LAYOUT_DIRECTION_LTR, View.LAYOUT_DIRECTION_RTL)) {
             val view = NativeTemplateLayout(context, template).build(ad(true))
             view.layoutDirection = direction
-            layout(view, width, template.height)
+            layout(view, width, if (template.isFullscreen) 640 else null)
             val assets = listOfNotNull(view.headlineView, view.bodyView, view.callToActionView,
                 view.iconView, view.advertiserView, view.starRatingView, view.priceView, view.mediaView, view.adChoicesView)
+                .filter { it.visibility != View.GONE }
             for (asset in assets) {
                 val rect = Rect(0, 0, asset.width, asset.height)
                 view.offsetDescendantRectToMyCoords(asset, rect)
@@ -76,7 +80,7 @@ class NativeTemplateLayoutTest {
             }
             assertTrue(view.headlineView!!.width > 0, template.name)
             assertTrue(view.callToActionView!!.width > 0, template.name)
-            for (text in listOf(view.headlineView, view.bodyView).filterIsInstance<TextView>()) {
+            for (text in listOf(view.headlineView, view.bodyView).filterIsInstance<TextView>().filter { it.visibility != View.GONE }) {
                 assertTrue(text.layout.getLineBottom(text.layout.lineCount - 1) <= text.height,
                     "${template.name}: visible text must fit its measured height")
             }
@@ -95,7 +99,7 @@ class NativeTemplateLayoutTest {
             }
             assertFalse(Rect.intersects(badgeBounds, sdkCorner), "${template.name}: badge covers SDK AdChoices corner")
             assertNull(view.adChoicesView, "AdChoices placement belongs to the SDK, not a custom row")
-            val expectedMedia = !template.isSmall && (template == NativeTemplate.splitMediaLeft || template == NativeTemplate.splitMediaRight || !template.isMedium)
+            val expectedMedia = template.hasMedia
             assertEquals(expectedMedia, view.mediaView != null, template.name)
             view.mediaView?.let {
                 val density = context.resources.displayMetrics.density
@@ -113,15 +117,14 @@ class NativeTemplateLayoutTest {
     }
 
     @Test
-    fun readableCopyAndSeparatedMetadataReplaceTheSingleLineLayout() {
+    fun headlineWrapsButOptionalLongBodyIsOmitted() {
         val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(true))
-        layout(view, 320, NativeTemplate.feedMediaFirst.height)
+        layout(view, 320)
         val headline = view.headlineView as TextView
         val body = view.bodyView as TextView
         assertTrue(headline.layout.lineCount >= 2)
-        assertTrue(body.layout.lineCount >= 2)
+        assertEquals(View.GONE, body.visibility)
         assertTrue(headline.layout.getLineBottom(headline.layout.lineCount - 1) <= headline.height)
-        assertTrue(body.layout.getLineBottom(body.layout.lineCount - 1) <= body.height)
         val rating = view.starRatingView!!
         val price = view.priceView!!
         val ratingBounds = Rect(0, 0, rating.width, rating.height)
@@ -134,29 +137,217 @@ class NativeTemplateLayoutTest {
 
     @Test fun missingIconDoesNotLeaveAReservedBlankColumn() {
         val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(false))
-        layout(view, 320, NativeTemplate.feedMediaFirst.height)
+        layout(view, 320)
         assertNull(view.iconView)
         assertTrue(view.headlineView!!.width >= 280 * context.resources.displayMetrics.density)
         view.destroy()
     }
 
-    @Test fun attributionDoesNotReserveAHeaderAndMetadataFollowsBody() {
+    @Test fun everyCatalogCompositionHasDistinctGeometryAtPhoneAndTabletWidths() {
+        for (width in listOf(320, 360, 400, 600)) {
+            val signatures = mutableMapOf<List<Rect?>, NativeTemplate>()
+            for (template in NativeTemplate.entries) {
+                val fixture = ad(true)
+                `when`(fixture.headline).thenReturn("Focus timer")
+                `when`(fixture.body).thenReturn("Stay focused")
+                val view = NativeTemplateLayout(context, template).build(fixture)
+                layout(view, width, if (template.isFullscreen) 640 else null)
+                val signature = listOf(view.headlineView, view.bodyView, view.iconView, view.callToActionView,
+                    view.mediaView, view.starRatingView, view.priceView).map { asset ->
+                    asset?.let { Rect(0, 0, it.width, it.height).also { rect ->
+                        view.offsetDescendantRectToMyCoords(it, rect)
+                    } }
+                }
+                val previous = signatures.put(signature, template)
+                assertNull(previous, "${template.name} duplicates $previous at width $width")
+                view.destroy()
+            }
+        }
+    }
+
+    @Test fun namesMatchAssetOrderIncludingVideoInCards() {
+        for (video in listOf(false, true)) for (template in NativeTemplate.entries) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn("Stay focused")
+            if (video) {
+                val content = mock(com.google.android.gms.ads.MediaContent::class.java)
+                `when`(content.hasVideoContent()).thenReturn(true)
+                `when`(fixture.mediaContent).thenReturn(content)
+            }
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 360, if (template.isFullscreen) 640 else null)
+            fun bounds(asset: View) = Rect(0, 0, asset.width, asset.height).also {
+                view.offsetDescendantRectToMyCoords(asset, it)
+            }
+            val identity = bounds(view.headlineView!!)
+            val action = bounds(view.callToActionView!!)
+            val icon = bounds(view.iconView!!)
+            assertEquals(template.trailingIcon, icon.left > identity.right, template.name)
+            if (template.actionFirst) assertTrue(action.bottom <= identity.top, template.name)
+            else assertTrue(identity.bottom <= action.top, template.name)
+            view.mediaView?.let { asset ->
+                val media = bounds(asset)
+                when {
+                    template.actionFirst -> assertTrue(identity.bottom <= media.top, template.name)
+                    template.mediaFirst -> assertTrue(media.bottom <= identity.top, template.name)
+                    template.actionMiddle -> assertTrue(action.bottom <= media.top, template.name)
+                    else -> assertTrue(identity.bottom <= media.top && media.bottom <= action.top, template.name)
+                }
+            }
+            view.destroy()
+        }
+    }
+
+    @Test fun shortCopyUsesOneLineAndIconMatchesTheIdentityStack() {
+        val fixture = ad(true)
+        `when`(fixture.headline).thenReturn("Focus timer")
+        `when`(fixture.body).thenReturn("Stay focused")
+        for (template in NativeTemplate.entries) {
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 360, if (template.isFullscreen) 640 else null)
+            assertEquals(64 * context.resources.displayMetrics.density, view.iconView!!.width.toFloat(), template.name)
+            assertEquals(1, (view.headlineView as TextView).layout.lineCount, template.name)
+            if (view.bodyView!!.visibility != View.GONE) assertEquals(1, (view.bodyView as TextView).layout.lineCount, template.name)
+            assertEquals(8 * context.resources.displayMetrics.density, (view.callToActionView!!.background as GradientDrawable).cornerRadius)
+            view.destroy()
+        }
+    }
+
+    @Test fun protectedCopyAndScaledFontsGrowRatherThanTruncate() {
+        for (template in NativeTemplate.entries) for (width in listOf(320, 360, 400, 600)) for (scale in listOf(1.0, 1.5, 2.0)) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("WWWWWWWWWWWWWWWWWWWWWWWWW")
+            `when`(fixture.body).thenReturn("A description that must remain fully visible before the ninety character truncation limit.")
+            `when`(fixture.callToAction).thenReturn("Discover it now")
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            val panel = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container)
+            val height = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 17 * scale,
+                bodySize = 14 * scale, metadataSize = 12 * scale, actionSize = 14 * scale))
+            val density = context.resources.displayMetrics.density
+            val w = (width * density).toInt()
+            val h = kotlin.math.ceil(height * density).toInt()
+            view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+            view.layout(0, 0, w, h)
+            for (text in listOf(view.headlineView, view.bodyView, view.callToActionView).filterIsInstance<TextView>().filter { it.visibility != View.GONE }) {
+                val last = text.layout.lineCount - 1
+                assertEquals(text.text.length, text.layout.getLineEnd(last), "${template.name} at $width/$scale: protected copy lost")
+                assertEquals(0, text.layout.getEllipsisCount(last), template.name)
+                assertTrue(text.layout.getLineBottom(last) <= text.height, template.name)
+                val bounds = Rect(0, 0, text.width, text.height)
+                view.offsetDescendantRectToMyCoords(text, bounds)
+                assertTrue(bounds.bottom <= view.height && bounds.right <= view.width, template.name)
+            }
+            view.destroy()
+        }
+    }
+
+    @Test fun measurementRegistryRejectsReleasedRendersAndStaleSessions() {
+        val store = NativeAppearanceStore()
+        store.startSession("measure")
+        store.applyStyle("measure", 1, mapOf("render" to NativeStyleData()))
+        val fixture = ad(true)
+        `when`(fixture.headline).thenReturn("Focus timer")
+        `when`(fixture.body).thenReturn("Stay focused")
+        val view = NativeTemplateFactory(context, NativeTemplate.cardContentTop, store).createNativeAd(fixture,
+            mutableMapOf("sessionId" to "measure", "renderId" to "render"))
+        val request = NativeLayoutRequest(width = 360.0, headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0)
+        assertEquals(132.0, store.layoutNativeAd("measure", "render", request))
+        store.applyStyle("measure", 2, emptyMap())
+        assertFailsWith<IllegalStateException> { store.layoutNativeAd("measure", "render", request) }
+        store.startSession("new")
+        assertFailsWith<IllegalStateException> { store.layoutNativeAd("measure", "render", request) }
+        view.destroy()
+    }
+
+    @Test fun bodyIsAlwaysOneLineOrAbsentAcrossEveryTemplateWidthAndScale() {
+        for (template in NativeTemplate.entries) for (width in listOf(320, 360, 400, 600)) for (scale in listOf(1.0, 1.5, 2.0)) {
+            val fixture = ad(true)
+            `when`(fixture.headline).thenReturn("Focus timer")
+            `when`(fixture.body).thenReturn("Notes, plans and ideas.")
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            val panel = view.findViewById<NativeTemplatePanel>(R.id.ad_card_container)
+            fun configure() {
+                val measured = panel.configure(NativeLayoutRequest(width = width.toDouble(), headlineSize = 17 * scale,
+                    bodySize = 14 * scale, metadataSize = 12 * scale, actionSize = 14 * scale))
+                val density = context.resources.displayMetrics.density
+                val w = (width * density).toInt()
+                val h = kotlin.math.ceil(measured * density).toInt()
+                view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                view.layout(0, 0, w, h)
+            }
+            configure()
+            val body = view.bodyView as TextView
+            assertEquals(1, body.maxLines, template.name)
+            if (scale == 1.0) assertEquals(View.VISIBLE, body.visibility, template.name)
+            if (body.visibility == View.VISIBLE) {
+                assertEquals(1, body.layout.lineCount, template.name)
+                assertEquals(body.text.length, body.layout.getLineEnd(0), "${template.name}: body clipped at $width/$scale")
+                assertEquals(0, body.layout.getEllipsisCount(0), template.name)
+            }
+            view.destroy()
+        }
+    }
+
+    @Test fun omittedBodyReturnsWhenItsCompleteTextFitsAfterResizing() {
+        val fixture = ad(true)
+        `when`(fixture.body).thenReturn("A long description that cannot fit beside the app icon at a phone width.")
+        for (template in NativeTemplate.entries) {
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 320)
+            assertEquals(View.GONE, view.bodyView!!.visibility, template.name)
+            layout(view, 1200)
+            val body = view.bodyView as TextView
+            assertEquals(View.VISIBLE, body.visibility, template.name)
+            assertEquals(1, body.layout.lineCount, template.name)
+            assertEquals(body.text.length, body.layout.getLineEnd(0), template.name)
+            layout(view, 320)
+            assertEquals(View.GONE, body.visibility, template.name)
+            view.destroy()
+        }
+    }
+
+    @Test fun bodyWithExplicitLineBreaksIsOmittedEvenAtWideWidths() {
+        for (separator in listOf("\n", "\r", "\u0085", "\u2028", "\u2029")) {
+            val fixture = ad(true)
+            `when`(fixture.body).thenReturn("First${separator}Second")
+            val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(fixture)
+            layout(view, 1200)
+            assertEquals(View.GONE, view.bodyView!!.visibility)
+            view.destroy()
+        }
+    }
+
+    @Test fun videoIsNeverDiscardedByANonMediaComposition() {
+        val fixture = ad(true)
+        val mediaContent = mock(com.google.android.gms.ads.MediaContent::class.java)
+        `when`(mediaContent.hasVideoContent()).thenReturn(true)
+        `when`(fixture.mediaContent).thenReturn(mediaContent)
+        for (template in NativeTemplate.entries) {
+            val view = NativeTemplateLayout(context, template).build(fixture)
+            layout(view, 360, if (template.isFullscreen) 640 else null)
+            assertNotNull(view.mediaView, template.name)
+            assertTrue(view.mediaView!!.height >= 144 * context.resources.displayMetrics.density, template.name)
+            view.destroy()
+        }
+    }
+
+    @Test fun attributionDoesNotReserveAHeaderAndMetadataFollowsHeadline() {
         val view = NativeTemplateLayout(context, NativeTemplate.feedMediaFirst).build(ad(true))
-        layout(view, 320, NativeTemplate.feedMediaFirst.height)
+        layout(view, 320)
         fun bounds(asset: View): Rect = Rect(0, 0, asset.width, asset.height).also {
             view.offsetDescendantRectToMyCoords(asset, it)
         }
         val badge = bounds(view.findViewById(R.id.ad_attribution_badge))
         val media = bounds(view.mediaView!!)
-        val body = bounds(view.bodyView!!)
-        val advertiser = bounds(view.advertiserView!!)
+        val headline = bounds(view.headlineView!!)
         val rating = bounds(view.starRatingView!!)
         assertEquals((8 * context.resources.displayMetrics.density).toInt(), media.top)
-        assertEquals(media.top + (4 * context.resources.displayMetrics.density).toInt(), badge.top)
-        assertTrue(media.contains(badge))
-        assertTrue(advertiser.top >= body.bottom)
-        assertTrue(rating.top >= body.bottom)
-        assertFalse(Rect.intersects(badge, advertiser))
+        assertTrue(badge.top >= headline.bottom)
+        assertFalse(media.contains(badge))
+        assertNull(view.advertiserView)
+        assertTrue(rating.top >= headline.bottom)
+        assertFalse(Rect.intersects(badge, rating))
         assertNull(view.adChoicesView)
         view.destroy()
     }
@@ -164,7 +355,7 @@ class NativeTemplateLayoutTest {
     @Test fun absentMetadataCollapsesWithoutAnEmptyFooter() {
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(ad(false))
-            layout(view, 320, template.height)
+            layout(view, 320, if (template.isFullscreen) 640 else null)
             assertNull(view.advertiserView)
             assertNull(view.starRatingView)
             assertNull(view.priceView)
@@ -181,8 +372,8 @@ class NativeTemplateLayoutTest {
         val density = context.resources.displayMetrics.density
         val cardWidth = (360 * density).toInt()
         val gutter = (20 * density).toInt()
-        val cellHeight = (680 * density).toInt()
-        val sheet = Bitmap.createBitmap((cardWidth + gutter) * 5 + gutter, cellHeight * 5 + gutter, Bitmap.Config.ARGB_8888)
+        val rowHeights = listOf(200, 390, 690).map { (it * density).toInt() }
+        val sheet = Bitmap.createBitmap((cardWidth + gutter) * 3 + gutter, rowHeights.sum() + gutter, Bitmap.Config.ARGB_8888)
         val sheetCanvas = Canvas(sheet)
         sheetCanvas.drawColor(0xffeceff1.toInt())
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -191,7 +382,7 @@ class NativeTemplateLayoutTest {
         for ((index, template) in NativeTemplate.entries.withIndex()) {
             val fixture = ad(true)
             `when`(fixture.headline).thenReturn("Make room for what matters.")
-            `when`(fixture.body).thenReturn("Bring your notes, plans and ideas together in one calm workspace.")
+            `when`(fixture.body).thenReturn("Notes, plans and ideas.")
             `when`(fixture.advertiser).thenReturn("Clarity")
             `when`(fixture.callToAction).thenReturn("Get started")
             `when`(fixture.icon!!.drawable).thenReturn(BitmapDrawable(context.resources, iconFixture()))
@@ -207,13 +398,13 @@ class NativeTemplateLayoutTest {
                 setImageBitmap(creativeFixture())
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }, ViewGroup.LayoutParams(-1, -1))
-            val height = if (template.isFullscreen) 640 else template.height
+            val height = if (template.isFullscreen) 640 else null
             layout(view, 360, height)
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             view.draw(Canvas(bitmap))
             File(output, "${template.name}-light.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            val x = gutter + (index % 5) * (cardWidth + gutter)
-            val y = gutter + (index / 5) * cellHeight
+            val x = gutter + (index % 3) * (cardWidth + gutter)
+            val y = gutter + rowHeights.take(index / 3).sum()
             sheetCanvas.drawText(template.name, x.toFloat(), y + 16 * density, titlePaint)
             sheetCanvas.drawBitmap(bitmap, x.toFloat(), y + 28 * density, null)
             if (template == NativeTemplate.feedMediaFirst) {
@@ -269,7 +460,7 @@ class NativeTemplateLayoutTest {
     @Test fun missingOptionalAssetsDoNotHideTheAdOrInventCtaText() {
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(ad(false))
-            layout(view, 320, template.height)
+            layout(view, 320, if (template.isFullscreen) 640 else null)
             assertEquals(View.VISIBLE, view.visibility)
             assertEquals(View.GONE, view.callToActionView!!.visibility)
             assertEquals("", (view.callToActionView as TextView).text.toString())
@@ -282,7 +473,7 @@ class NativeTemplateLayoutTest {
     @Test fun fullscreenLayoutsResizeAndPreserveTheirDistinctAssetOrder() {
         for (template in NativeTemplate.entries.filter { it.isFullscreen }) {
             val view = NativeTemplateLayout(context, template).build(ad(true))
-            for (width in listOf(320, 600)) for (height in listOf(320, 640, 800)) {
+            for (width in listOf(320, 600)) for (height in listOf(400, 640, 800)) {
                 layout(view, width, height)
                 fun bounds(asset: View): Rect {
                     val result = Rect(0, 0, asset.width, asset.height)
@@ -295,12 +486,11 @@ class NativeTemplateLayoutTest {
                 val headline = bounds(view.headlineView!!)
                 val button = bounds(view.callToActionView!!)
                 for (asset in listOfNotNull(view.bodyView, view.iconView, view.advertiserView, view.priceView,
-                    view.starRatingView, view.adChoicesView, view.headlineView, view.callToActionView)) {
+                    view.starRatingView, view.adChoicesView, view.headlineView, view.callToActionView).filter { it.visibility != View.GONE }) {
                     assertFalse(Rect.intersects(media, bounds(asset)), "${template.name}: media overlap")
                 }
                 when (template) {
-                    NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
-                    NativeTemplate.fullscreenMediaSideCta -> assertTrue(media.bottom <= headline.top && media.bottom <= button.top)
+                    NativeTemplate.fullscreenMediaFirst -> assertTrue(media.bottom <= headline.top && headline.bottom <= button.top)
                     NativeTemplate.fullscreenContentFirst -> assertTrue(headline.bottom <= media.top && media.bottom <= button.top)
                     NativeTemplate.fullscreenActionMiddle -> assertTrue(headline.bottom <= button.top && button.bottom <= media.top)
                     else -> error("Not fullscreen")
@@ -325,11 +515,19 @@ class NativeTemplateLayoutTest {
         }
     }
 
+    @Test fun fullscreenRejectsInsufficientMediaSpaceInsteadOfClippingAssets() {
+        for (template in NativeTemplate.entries.filter { it.isFullscreen }) {
+            val view = NativeTemplateLayout(context, template).build(ad(true))
+            assertFailsWith<IllegalArgumentException> { layout(view, 320, 250) }
+            view.destroy()
+        }
+    }
+
     @Test fun colorsResetAndStaleRevisionsCannotRepaintLiveViews() {
         val store = NativeAppearanceStore()
         store.startSession("session")
         store.applyStyle("session", 1, mapOf("render" to NativeStyleData(headline = 0xff00ff00)))
-        val view = NativeTemplateFactory(context, NativeTemplate.rowWithLeadingIcon, store).createNativeAd(
+        val view = NativeTemplateFactory(context, NativeTemplate.cardContentTop, store).createNativeAd(
             ad(true), mutableMapOf("sessionId" to "session", "renderId" to "render"))
         assertEquals(Color.GREEN, (view.headlineView as TextView).currentTextColor)
         store.applyStyle("session", 3, mapOf("render" to NativeStyleData(headline = 0xffff0000)))
@@ -350,7 +548,7 @@ class NativeTemplateLayoutTest {
             store.applyStyle("shape", 1, mapOf("render" to NativeStyleData()))
             val view = NativeTemplateFactory(context, template, store).createNativeAd(ad(true),
                 mutableMapOf("sessionId" to "shape", "renderId" to "render"))
-            layout(view, 320, template.height)
+            layout(view, 320, if (template.isFullscreen) 640 else null)
             val cta = view.callToActionView!!
             val size = cta.width to cta.height
             val original = (cta.background as GradientDrawable).cornerRadius
@@ -359,8 +557,8 @@ class NativeTemplateLayoutTest {
             for ((index, radius) in listOf(0.0, 6.5, Double.MAX_VALUE, null).withIndex()) {
                 store.applyStyle("shape", (index + 2).toLong(), mapOf("render" to NativeStyleData(
                     callToActionCornerRadius = radius, callToActionBackground = 0xff00ff00)))
-                layout(view, 320, template.height)
-                val expected = radius?.let { (it * context.resources.displayMetrics.density).toFloat().coerceAtMost(original) } ?: original
+                layout(view, 320, if (template.isFullscreen) 640 else null)
+                val expected = radius?.let { (it * context.resources.displayMetrics.density).toFloat().coerceAtMost(cta.height / 2f) } ?: original
                 assertEquals(expected, (cta.background as GradientDrawable).cornerRadius, template.name)
                 assertEquals(size, cta.width to cta.height, template.name)
                 assertEquals(badgeRadius, (badge.background as GradientDrawable).cornerRadius)
@@ -385,13 +583,13 @@ class NativeTemplateLayoutTest {
         assertEquals(density, context.resources.displayMetrics.density)
         for (template in NativeTemplate.entries) {
             val view = NativeTemplateLayout(context, template).build(ad(true))
-            layout(view, 320, template.height)
+            layout(view, 320, if (template.isFullscreen) 640 else null)
             val card = view.findViewById<View>(R.id.ad_card_container)
             val cta = view.callToActionView!!
             val cardRadius = (card.background as GradientDrawable).cornerRadius
             val ctaRadius = (cta.background as GradientDrawable).cornerRadius
             val bounds = listOf(card, cta).map { Rect(it.left, it.top, it.right, it.bottom) }
-            assertEquals(16f * density, cardRadius, template.name)
+            assertEquals(12f * density, cardRadius, template.name)
             val store = NativeAppearanceStore()
             store.startSession("density")
             store.applyStyle("density", 1, mapOf("render" to NativeStyleData()))
@@ -403,7 +601,7 @@ class NativeTemplateLayoutTest {
                 val radius = if (color == null) null else 6.5
                 store.applyStyle("density", (index + 2).toLong(), mapOf("render" to NativeStyleData(
                     background = color, callToActionBackground = color, callToActionCornerRadius = radius)))
-                layout(view, 320, template.height)
+                layout(view, 320, if (template.isFullscreen) 640 else null)
                 assertEquals(cardRadius, (card.background as GradientDrawable).cornerRadius,
                     "${template.name}: color updates and reset must preserve card geometry")
                 assertEquals(radius?.let { (it * density).toFloat().coerceAtMost(ctaRadius) } ?: ctaRadius,
@@ -420,7 +618,7 @@ class NativeTemplateLayoutTest {
         val store = NativeAppearanceStore()
         store.startSession("density")
         store.applyStyle("density", 1, mapOf("render" to NativeStyleData(callToActionCornerRadius = 6.5)))
-        val view = NativeTemplateFactory(context, NativeTemplate.rowWithLeadingIcon, store).createNativeAd(ad(true),
+        val view = NativeTemplateFactory(context, NativeTemplate.cardContentTop, store).createNativeAd(ad(true),
             mutableMapOf("sessionId" to "density", "renderId" to "render"))
         assertEquals(2f, context.resources.displayMetrics.density)
         assertEquals(13f, (view.callToActionView!!.background as GradientDrawable).cornerRadius)

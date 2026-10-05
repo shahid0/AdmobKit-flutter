@@ -33,7 +33,7 @@ void main() {
       const native = NativePlacement(
         androidId: 'android_native',
         iosId: 'ios_native',
-        template: NativeAdTemplate.rowTextOnly,
+        template: NativeAdTemplate.cardContentTopTrailingIcon,
       );
 
       expect(rewarded.format, AdFormat.rewarded);
@@ -41,30 +41,38 @@ void main() {
       expect(appOpen.format, AdFormat.appOpen);
       expect(appOpen.priority, AdPriority.high);
       expect(native.format, AdFormat.native);
-      expect(native.template.factoryId, 'admobKit.rowTextOnly');
+      expect(native.template.factoryId, 'admobKit.cardContentTopTrailingIcon');
     });
 
     test('Native placement template constructors set correct factory IDs and properties', () {
-      const big = NativePlacement(template: NativeAdTemplate.feedMediaFirst, androidId: 'big_android', iosId: 'big_ios');
+      const big = NativePlacement(
+        template: NativeAdTemplate.feedMediaFirst,
+        androidId: 'big_android',
+        iosId: 'big_ios',
+      );
       expect(big.template.factoryId, 'admobKit.feedMediaFirst');
       expect(big.template, NativeAdTemplate.feedMediaFirst);
       expect(big.template.height, 340.0);
       expect(big.priority, AdPriority.medium);
 
-      const medium = NativePlacement(template: NativeAdTemplate.splitMediaLeft, androidId: 'med_android', iosId: 'med_ios');
-      expect(medium.template.factoryId, 'admobKit.splitMediaLeft');
-      expect(medium.template, NativeAdTemplate.splitMediaLeft);
-      expect(medium.template.height, 160.0);
+      const medium = NativePlacement(
+        template: NativeAdTemplate.cardContentTop,
+        androidId: 'med_android',
+        iosId: 'med_ios',
+      );
+      expect(medium.template.factoryId, 'admobKit.cardContentTop');
+      expect(medium.template, NativeAdTemplate.cardContentTop);
+      expect(medium.template.height, 132.0);
 
       const small = NativePlacement(
-        template: NativeAdTemplate.rowWithLeadingIcon,
+        template: NativeAdTemplate.cardActionTop,
         androidId: 'small_android',
         iosId: 'small_ios',
         isSplash: true,
       );
-      expect(small.template.factoryId, 'admobKit.rowWithLeadingIcon');
-      expect(small.template, NativeAdTemplate.rowWithLeadingIcon);
-      expect(small.template.height, 104.0);
+      expect(small.template.factoryId, 'admobKit.cardActionTop');
+      expect(small.template, NativeAdTemplate.cardActionTop);
+      expect(small.template.height, 132.0);
       expect(small.priority, AdPriority.splash);
     });
 

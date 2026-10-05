@@ -19,7 +19,7 @@ Import `package:admob_kit_flutter/admob_kit_flutter.dart`. Use the public facade
 - `show(FullscreenPlacement, {onDismissed, onDisplayed, onRewardGranted}) → void`: synchronous non-waiting request. Unready/blocked/premium calls dismiss immediately. Native placements, including fullscreen templates, use widgets, not show.
 - `isShowingAd → bool` includes SDK fullscreen ads and active loaded fullscreen-native ownership. It does not detect arbitrary app dialogs or paywalls; app policy must gate those separately.
 - `AdBannerView(placement:, active: true)` uses bounded parent width and MediaQuery orientation, then SDK-resolved height. No fixed height argument.
-- `AdNativeView(placement:, active: true, placeholder:, showPlaceholder: true)` reserves catalog space. No template/width/height override on the widget.
+- `AdNativeView(placement:, active: true, placeholder:, showPlaceholder: true)` reserves a loading estimate, then sizes to native-measured assets. No template/width/height override on the widget.
 - `AdPaywallGuard(placement:, onDismiss:, builder:)` unifies close and hardware back.
 - `showPrivacyOptionsForm() → Future<bool>` presents privacy options and resolves the updated session gate.
 - `openAdInspector([onComplete])` opens SDK QA tools.
@@ -32,25 +32,22 @@ IDs identify immutable configuration; use different IDs for different templates/
 
 - `InterstitialPlacement`, `AppOpenPlacement`, `RewardedPlacement`, `RewardedInterstitialPlacement`.
 - `BannerPlacement(sizing: BannerSizing.anchoredAdaptive())` (default) or `BannerSizing.inlineAdaptive(maxHeight:)`.
-- `NativePlacement(template: NativeAdTemplate.splitMediaLeft, style: NativeAdStyle())` (defaults).
+- `NativePlacement(template: NativeAdTemplate.cardContentTop, style: NativeAdStyle())` (defaults).
 - `loadOnce: true` stops background replenishment after consumption. New inline demand may load again; this is not an install-level impression limit.
 - Test unit IDs: `AdMobTestIds.interstitialAndroid`, `.bannerIos`, `.nativeAndroid`, etc.
 
 ## Native catalog and styling
 
-| Template Family | Canonical Preset | Height (dp) | Semantic Variants |
+| Template Family | Canonical Preset | Loading estimate (logical px) | Semantic Variants |
 | --- | --- | --- | --- |
-| **Row** (8) | `NativeAdTemplate.compactRow` | 104 | `rowWithLeadingIcon`, `rowTextOnly`, `rowWithTrailingIcon`, `rowExpandedText`, `rowTextOnlyExpanded`, `rowMinimalText`, `rowLeadingCta`, `rowLeadingCtaCompact` |
-| **Split & Card** (6) | `NativeAdTemplate.splitMedia`, `stackedCard` | 160 | `splitMediaLeft`, `splitMediaRight`, `cardContentTop`, `cardActionTop`, `cardCleanContentTop`, `cardCleanActionTop` |
-| **Feed Card** (6) | `NativeAdTemplate.feedCard` | 340 | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon`, `feedMediaTopSideCta`, `feedContentTopSideCta` |
-| **Fullscreen** (5) | `NativeAdTemplate.fullscreen` | Fill bounded parent, min 320 | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenTrailingIcon`, `fullscreenMediaSideCta`, `fullscreenActionMiddle` |
+| **Card** (3) | `NativeAdTemplate.stackedCard` | 132 | `cardContentTop`, `cardActionTop`, `cardContentTopTrailingIcon` |
+| **Feed Card** (3) | `NativeAdTemplate.feedCard` | 340 | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle` |
+| **Fullscreen** (3) | `NativeAdTemplate.fullscreen` | Fill bounded parent, min 320 | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle` |
 
-> Legacy `small1`..`small8`, `medium1`..`medium6`, `large1`..`large6`, `fullscreen1`..`fullscreen5` are retained as `@Deprecated` aliases.
-
-All require bounded width >=320. Inline height is `placement.template.height`. Fullscreen hosts must also have bounded height; don't mount them directly in a scrolling axis. Keep dismissal outside SDK assets. Use `active:` for retained pages whose selected index is app-owned; Flutter Visibility/TickerMode and app lifecycle are also honored. No viewport detector is installed.
+All require bounded width >=320. Inline height is measured from SDK assets, width and Flutter text scale; `placement.template.height` is a loading estimate, not a fixed-height constraint. Supplied icons/video remain visible; optional missing assets collapse. Headline and CTA wrap when needed. Optional body appears on one line only if its complete text fits; otherwise it is omitted. Names describe stable asset order: content means the icon/copy identity, action means CTA. Cards retain video after identity; `cardActionTop` keeps its CTA first. Feed and fullscreen share three orders but use different height contracts. Optional asset absence may make layouts converge; do not add blank space to distinguish them. Fullscreen hosts also need bounded height >=320 with sufficient space for copy/media; don't mount them directly in a scrolling axis. There is no built-in close button. Keep app dismissal outside SDK assets. Use `active:` for retained pages whose selected index is app-owned; Flutter Visibility/TickerMode and app lifecycle are also honored. No viewport detector is installed.
 
 `NativeAdStyle` contains nullable unsigned ARGB ints: `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`.
-It also accepts `double? callToActionCornerRadius`: finite, non-negative logical pixels; 0 is square, null inherits, and values above half the CTA height clamp to a pill. Radius does not alter dimensions or click regions.
+It also accepts `double? callToActionCornerRadius`: finite, non-negative logical pixels; 0 is square, null inherits, and values above half the CTA height clamp to a pill. The native default radius is 8 logical pixels. Radius does not alter dimensions or click regions.
 Precedence: per-placement override → global style → native defaults. `body` also styles advertiser/rating/price assets.
 
 - Initial global style: `AdmobKitConfig(nativeStyle:)`.

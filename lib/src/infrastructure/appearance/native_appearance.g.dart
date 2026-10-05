@@ -167,6 +167,77 @@ class NativeStyleData {
   }
 }
 
+/// Actual host width and scaled typography. Null height requests inline sizing.
+class NativeLayoutRequest {
+  NativeLayoutRequest({
+    required this.width,
+    this.height,
+    required this.headlineSize,
+    required this.bodySize,
+    required this.metadataSize,
+    required this.actionSize,
+  });
+
+  double width;
+
+  double? height;
+
+  double headlineSize;
+
+  double bodySize;
+
+  double metadataSize;
+
+  double actionSize;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      width,
+      height,
+      headlineSize,
+      bodySize,
+      metadataSize,
+      actionSize,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static NativeLayoutRequest decode(Object result) {
+    result as List<Object?>;
+    return NativeLayoutRequest(
+      width: result[0]! as double,
+      height: result[1] as double?,
+      headlineSize: result[2]! as double,
+      bodySize: result[3]! as double,
+      metadataSize: result[4]! as double,
+      actionSize: result[5]! as double,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! NativeLayoutRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(width, other.width) && _deepEquals(height, other.height) && _deepEquals(headlineSize, other.headlineSize) && _deepEquals(bodySize, other.bodySize) && _deepEquals(metadataSize, other.metadataSize) && _deepEquals(actionSize, other.actionSize);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'NativeLayoutRequest(width: $width, height: $height, headlineSize: $headlineSize, bodySize: $bodySize, metadataSize: $metadataSize, actionSize: $actionSize)';
+  }
+}
+
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -178,6 +249,9 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is NativeStyleData) {
       buffer.putUint8(129);
       writeValue(buffer, value.encode());
+    }    else if (value is NativeLayoutRequest) {
+      buffer.putUint8(130);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -188,6 +262,8 @@ class _PigeonCodec extends StandardMessageCodec {
     switch (type) {
       case 129:
         return NativeStyleData.decode(readValue(buffer)!);
+      case 130:
+        return NativeLayoutRequest.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -260,5 +336,24 @@ class NativeAppearanceHost {
         isNullValid: true,
     )
     ;
+  }
+
+  Future<double> layoutNativeAd(String sessionId, String renderId, NativeLayoutRequest request) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.layoutNativeAd$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[sessionId, renderId, request]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return pigeonVar_replyValue! as double;
   }
 }

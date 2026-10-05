@@ -22,7 +22,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final channels = [
-    for (final name in ['startSession', 'applyStyle', 'endSession'])
+    for (final name in ['startSession', 'applyStyle', 'endSession', 'layoutNativeAd'])
       BasicMessageChannel<Object?>(
         'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.$name',
         NativeAppearanceHost.pigeonChannelCodec,
@@ -40,6 +40,10 @@ void main() {
     failColors = false;
     for (final channel in channels) {
       messenger.setMockDecodedMessageHandler<Object?>(channel, (message) async {
+        if (channel.name.endsWith('layoutNativeAd')) {
+          final request = (message! as List)[2] as NativeLayoutRequest;
+          return <Object?>[request.height ?? 104.0];
+        }
         if (channel.name.endsWith('applyStyle')) {
           if (failColors) return <Object?>['test-error', 'Color transport failed', null];
           manifests.add((message! as List)[2] as Map<Object?, Object?>);
@@ -86,10 +90,10 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AdGalleryScreen()));
     expect(ads, isEmpty);
     expect(banners, isEmpty);
-    await tester.tap(find.text('rowWithLeadingIcon'));
+    await tester.tap(find.text('cardContentTop'));
     await tester.pumpAndSettle();
     expect(ads, hasLength(1));
-    expect(ads.single.factoryId, NativeAdTemplate.rowWithLeadingIcon.factoryId);
+    expect(ads.single.factoryId, NativeAdTemplate.cardContentTop.factoryId);
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('fullscreenActionMiddle'), 400);
@@ -98,7 +102,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(ads, hasLength(2));
     expect(AdmobKit.isShowingAd, isTrue);
-    await tester.tap(find.byType(CloseButton));
+    expect(find.byType(CloseButton), findsNothing);
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(AdmobKit.isShowingAd, isFalse);
     await tester.pumpWidget(const SizedBox());
@@ -118,19 +123,21 @@ void main() {
       expect(find.byType(AdWidget), findsOneWidget, reason: template.name);
       expect(tester.takeException(), isNull, reason: template.name);
     }
-    expect(ads, hasLength(25));
+    expect(ads, hasLength(NativeAdTemplate.values.length));
     await tester.pumpWidget(const SizedBox());
     await tester.binding.setSurfaceSize(const Size(300, 800));
-    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.fullscreenMediaFirst)));
+    await tester.pumpWidget(
+      const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.fullscreenMediaFirst)),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining('needs at least'), findsOneWidget);
-    expect(ads, hasLength(25));
+    expect(ads, hasLength(NativeAdTemplate.values.length));
     await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('live palette and reset keep the ad; transport errors are visible', (tester) async {
     await boot();
-    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.rowWithLeadingIcon)));
+    await tester.pumpWidget(const MaterialApp(home: NativeTemplateScreen(template: NativeAdTemplate.cardContentTop)));
     await tester.pumpAndSettle();
     final ad = ads.single;
     final renderId = ad.customOptions!['renderId'];

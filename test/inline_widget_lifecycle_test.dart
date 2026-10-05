@@ -69,6 +69,7 @@ void main() {
             ? ManagedNativeAd(
                 adUnitId: 'test',
                 factoryId: 'test',
+                measureLayout: (_) async => 104,
                 request: const AdRequest(),
                 listener: NativeAdListener(),
               )

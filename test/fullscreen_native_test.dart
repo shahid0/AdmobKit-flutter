@@ -56,7 +56,7 @@ void main() {
     androidId: 'test',
     iosId: 'test',
     loadOnce: true,
-    template: fullscreen ? NativeAdTemplate.fullscreenMediaFirst : NativeAdTemplate.rowWithLeadingIcon,
+    template: fullscreen ? NativeAdTemplate.fullscreenMediaFirst : NativeAdTemplate.cardContentTop,
   );
   Widget adHost({String id = 'native', bool active = true, bool ticker = true, bool visible = true, Key? key}) =>
       TickerMode(
@@ -108,6 +108,7 @@ void main() {
     final ad = ManagedNativeAd(
       adUnitId: 'test',
       factoryId: NativeAdTemplate.fullscreenMediaFirst.factoryId,
+      measureLayout: (request) async => request.height ?? 340,
       request: const AdRequest(),
       listener: NativeAdListener(),
     )..loadedAt = DateTime.now();

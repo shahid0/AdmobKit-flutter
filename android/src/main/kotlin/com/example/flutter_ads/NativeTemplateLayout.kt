@@ -5,40 +5,49 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
+import kotlin.math.ceil
+import kotlin.math.max
 
 internal object NativeTemplateStyle {
     const val headline = 0xff0f0f0f.toInt()
     const val secondary = 0xff606060.toInt()
-    const val action = 0xff065fd4.toInt()
+    const val action = Color.WHITE
     const val inset = 8
     const val gap = 8
+    const val icon = 64
+    const val radius = 8
 }
 
-/** Shared editorial typography, attribution and asset binding across the catalog. */
+/** The bridge measures the SDK view before Flutter mounts it. No post-frame resize. */
+internal class NativeTemplatePanel(context: Context) : LinearLayout(context) {
+    lateinit var configure: (NativeLayoutRequest) -> Double
+    val separators = mutableListOf<TextView>()
+}
+
 internal class NativeTemplateLayout(private val context: Context, private val template: NativeTemplate) {
     private val adView = NativeAdView(context)
-    private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
+    private fun dp(value: Double) = ceil(value * context.resources.displayMetrics.density).toInt()
+    private fun dp(value: Int) = dp(value.toDouble())
     private fun shape(color: Int, radius: Int, border: Int? = null) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = dp(radius).toFloat()
-        border?.let { setStroke(dp(1).coerceAtLeast(1), it) }
+        setColor(color); cornerRadius = dp(radius).toFloat()
+        border?.let { setStroke(dp(1), it) }
     }
-    private fun text(size: Float, color: Int, lines: Int = 1) = TextView(context).apply {
-        textSize = size
-        setTextColor(color)
-        maxLines = lines
-        ellipsize = TextUtils.TruncateAt.END
+    private fun text(value: String?, size: Double, primary: Boolean = false) = TextView(context).apply {
+        text = value
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, size.toFloat())
+        setTextColor(if (primary) NativeTemplateStyle.headline else NativeTemplateStyle.secondary)
+        if (primary) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        // Native wrapping preserves all copy, including the protected 25/90 characters.
         includeFontPadding = false
         minimumWidth = 0
     }
@@ -46,189 +55,178 @@ internal class NativeTemplateLayout(private val context: Context, private val te
         orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
-    private fun add(parent: LinearLayout, view: View, width: Int = -1, height: Int = -2, weight: Float = 0f) {
-        parent.addView(view, LinearLayout.LayoutParams(
+    private fun add(parent: LinearLayout, child: View, width: Int = -1, height: Int = -2, weight: Float = 0f) {
+        (child.parent as? ViewGroup)?.removeView(child)
+        parent.addView(child, LinearLayout.LayoutParams(
             if (width < 0) width else dp(width), if (height < 0) height else dp(height), weight))
     }
     private fun gap(parent: LinearLayout, size: Int = NativeTemplateStyle.gap) {
         add(parent, View(context), if (parent.orientation == LinearLayout.HORIZONTAL) size else 0,
             if (parent.orientation == LinearLayout.VERTICAL) size else 0)
     }
+    private fun measuredHeight(view: View, width: Int): Int {
+        view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        return view.measuredHeight
+    }
+    private fun naturalWidth(view: TextView): Int {
+        view.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        return view.measuredWidth
+    }
 
     fun build(ad: NativeAd): NativeAdView {
-        val panel = stack(true).apply {
+        val panel = NativeTemplatePanel(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.TOP
             id = R.id.ad_card_container
-            setPadding(dp(NativeTemplateStyle.inset), dp(NativeTemplateStyle.inset),
-                dp(NativeTemplateStyle.inset), dp(NativeTemplateStyle.inset))
-            background = shape(Color.WHITE, 16)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = shape(Color.WHITE, 12)
         }
         adView.addView(panel, ViewGroup.LayoutParams(-1, -1))
-
-        // Attribution uses the first asset's existing height, never a separate strip.
-        val mediaFirst = template in setOf(NativeTemplate.splitMediaLeft, NativeTemplate.feedMediaFirst,
-            NativeTemplate.feedMediaTopSideCta, NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon, NativeTemplate.fullscreenMediaSideCta)
-        val actionFirst = template in setOf(NativeTemplate.cardActionTop, NativeTemplate.cardCleanActionTop)
-        val compactAction = template.isSmall || actionFirst || template in setOf(NativeTemplate.splitMediaLeft,
-            NativeTemplate.splitMediaRight, NativeTemplate.feedMediaTopSideCta, NativeTemplate.feedContentTopSideCta, NativeTemplate.fullscreenMediaSideCta)
-        val badge = text(11f, NativeTemplateStyle.headline).apply {
+        val badge = text("Ad", 11.0, true).apply {
             id = R.id.ad_attribution_badge
-            text = "Ad"
             contentDescription = "Advertisement"
             gravity = Gravity.CENTER
             background = shape(Color.WHITE, 3, 0xffb8b8b8.toInt())
-            setTypeface(typeface, Typeface.BOLD)
         }
-        val metadata = stack(false)
-        if (!ad.advertiser.isNullOrEmpty()) {
-            val advertiser = text(12f, NativeTemplateStyle.secondary).apply { text = ad.advertiser }
-            adView.advertiserView = advertiser
-            add(metadata, advertiser, 0, -2, 1f)
-        }
-        if (template.hasMetadata) {
-            fun optional(value: String?, register: (TextView) -> Unit) {
-                if (value.isNullOrEmpty()) return
-                if (metadata.childCount > 0) gap(metadata, 8)
-                val label = text(12f, NativeTemplateStyle.secondary).apply { text = value }
-                register(label)
-                add(metadata, label, 44)
-            }
-            optional(ad.starRating?.let { "$it ★" }) { adView.starRatingView = it }
-            optional(ad.price) { adView.priceView = it }
-        }
-        // No custom AdChoicesView: the SDK inserts its own top-right overlay.
-
-        val headlineSize = if (template.isSmall) 14f else if (template.isMedium) 15f else 17f
-        val headline = text(headlineSize, NativeTemplateStyle.headline, template.headlineLines).apply {
-            text = ad.headline
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-        val body = text(if (template.isSmall) 12f else if (template.isMedium) 13f else 14f,
-            NativeTemplateStyle.secondary, template.bodyLines).apply {
-            text = ad.body
+        val headline = text(ad.headline, 17.0, true)
+        val body = text(ad.body, 14.0).apply {
+            maxLines = 1
             visibility = if (ad.body.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        val cta = text(if (template.isSmall) 12f else 14f, NativeTemplateStyle.action, 2).apply {
-            text = ad.callToAction
+        val cta = text(ad.callToAction, 14.0, true).apply {
+            setTextColor(NativeTemplateStyle.action)
             gravity = Gravity.CENTER
-            setTypeface(typeface, Typeface.BOLD)
-            background = shape(0xffdef1ff.toInt(), if (compactAction) 20 else if (template.isFullscreen) 24 else 22)
-            setPadding(dp(8), 0, dp(8), 0)
+            background = shape(NativeTemplateStyle.headline, NativeTemplateStyle.radius)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            minimumHeight = dp(if (template.isFullscreen) 48 else 44)
             visibility = if (ad.callToAction.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        adView.headlineView = headline
-        adView.bodyView = body
-        adView.callToActionView = cta
-
-        val details = stack(true)
-        val title = stack(false).apply { gravity = Gravity.TOP }
-        if (!mediaFirst && !actionFirst) { add(title, badge, 26, 20); gap(title, 6) }
-        add(title, headline, 0, -2, 1f)
-        add(details, title)
-        if (!ad.body.isNullOrEmpty()) gap(details, 4)
-        add(details, body)
-        if (metadata.childCount > 0) { gap(details, 4); add(details, metadata) }
-
-        fun icon(size: Int): ImageView? {
-            if (ad.icon == null || !template.hasIcon) return null
-            return ImageView(context).apply {
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setImageDrawable(ad.icon?.drawable)
-                background = shape(Color.TRANSPARENT, 10)
-                clipToOutline = true
-                adView.iconView = this
-            }
+        adView.headlineView = headline; adView.bodyView = body; adView.callToActionView = cta
+        val icon = ad.icon?.let { asset -> ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setImageDrawable(asset.drawable)
+            background = shape(Color.TRANSPARENT, 10); clipToOutline = true
+            adView.iconView = this
+        } }
+        val metadataLabels = mutableListOf<TextView>()
+        ad.starRating?.let { value -> text("$value ★", 12.0).also {
+            adView.starRatingView = it; metadataLabels.add(it)
+        } }
+        ad.price?.takeIf { it.isNotEmpty() }?.let { value -> text(value, 12.0).also {
+            adView.priceView = it; metadataLabels.add(it)
+        } }
+        // App-store metadata and advertiser identity do not compete in the same row.
+        if (metadataLabels.isEmpty()) ad.advertiser?.takeIf { it.isNotEmpty() }?.let { value ->
+            text(value, 12.0).also { adView.advertiserView = it; metadataLabels.add(it) }
         }
-        fun content(sideButton: Boolean = false, iconRight: Boolean = false, buttonLeading: Boolean = false): LinearLayout {
+        val needsMedia = template.hasMedia || ad.mediaContent?.hasVideoContent() == true
+        val media = if (needsMedia) MediaView(context).apply {
+            mediaContent = ad.mediaContent
+            setImageScaleType(ImageView.ScaleType.FIT_CENTER)
+            adView.mediaView = this
+        } else null
+
+        panel.configure = { request ->
+            require(request.width.isFinite() && request.width >= 320)
+            require(listOf(request.headlineSize, request.bodySize, request.metadataSize, request.actionSize).all { it.isFinite() && it > 0 })
+            val width = dp(request.width) - dp(16)
+            headline.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.headlineSize.toFloat())
+            body.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.bodySize.toFloat())
+            cta.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.actionSize.toFloat())
+            for (label in metadataLabels) label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, request.metadataSize.toFloat())
+            badge.setTextSize(TypedValue.COMPLEX_UNIT_DIP, max(11.0, request.metadataSize - 1).toFloat())
+            val badgeWidth = max(dp(26), naturalWidth(badge) + dp(8))
+            val badgeHeight = max(dp(20), measuredHeight(badge, badgeWidth))
+            val cornerInset = if (!template.mediaFirst && !(template.actionFirst && cta.visibility == View.VISIBLE)) dp(24) else 0
+            val iconWidth = if (icon == null) 0 else dp(74)
+            val identityWidth = width - cornerInset
+            // Body is optional. Omit it if the complete asset cannot fit one line;
+            // clipping or ellipsizing here could violate the 90-character minimum.
+            val bodyHasLineBreak = ad.body?.any { it in "\n\r\u0085\u2028\u2029\u000b\u000c" } == true
+            body.visibility = if (!ad.body.isNullOrEmpty() && !bodyHasLineBreak &&
+                naturalWidth(body) <= identityWidth - iconWidth) View.VISIBLE else View.GONE
+            val separatorWidth = naturalWidth(text("·", request.metadataSize)) + dp(8)
+            val metadataWidth = badgeWidth + metadataLabels.sumOf { naturalWidth(it) + separatorWidth }
+            val copyWidth = identityWidth - iconWidth
+            require(copyWidth > 0) { "Native identity needs more width" }
+            val details = stack(true)
+            add(details, headline)
+            if (body.visibility != View.GONE) { gap(details, 4); add(details, body) }
+            gap(details, 4)
+            val metadata = stack(false)
+            val verticalMetadata = metadataWidth > copyWidth
+            panel.separators.clear()
+            metadata.orientation = if (verticalMetadata) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            add(metadata, badge, -2, -2)
+            badge.layoutParams.width = badgeWidth; badge.layoutParams.height = badgeHeight
+            for (label in metadataLabels) {
+                gap(metadata, if (verticalMetadata) 2 else 4)
+                if (!verticalMetadata) {
+                    val separator = text("·", request.metadataSize)
+                    panel.separators.add(separator)
+                    add(metadata, separator, -2); gap(metadata, 4)
+                }
+                add(metadata, label, if (verticalMetadata) -1 else -2)
+            }
+            add(details, metadata)
             val row = stack(false)
-            if (!template.isSmall && !template.isMedium) row.gravity = Gravity.TOP
-            val hasAction = sideButton && !ad.callToAction.isNullOrEmpty()
-            if (hasAction && buttonLeading) { add(row, cta, 88, 40); gap(row, 8) }
-            val size = if (template.isSmall) 36 else 40
-            val icon = icon(size)
-            if (icon != null && !iconRight) { add(row, icon, size, size); gap(row, 8) }
+            if (icon != null && !template.trailingIcon) { add(row, icon, 64, 64); gap(row, 10) }
             add(row, details, 0, -2, 1f)
-            if (icon != null && iconRight) { gap(row, 8); add(row, icon, size, size) }
-            if (hasAction && !buttonLeading) { gap(row, 8); add(row, cta, 88, 40) }
-            // Content-first cards leave the SDK's corner clear without a header row.
-            if (!mediaFirst && !actionFirst && template != NativeTemplate.splitMediaRight) {
-                row.setPadding(0, 0, dp(24), 0)
-            }
-            return row
-        }
-        fun media(): FrameLayout {
-            val media = MediaView(context)
-            adView.mediaView = media
-            media.mediaContent = ad.mediaContent
-            // Fit the supplied creative without cropping or covering SDK controls.
-            media.setImageScaleType(ImageView.ScaleType.FIT_CENTER)
-            return FrameLayout(context).apply {
-                addView(media, FrameLayout.LayoutParams(-1, -1))
-                if (mediaFirst) addView(badge, FrameLayout.LayoutParams(dp(26), dp(20), Gravity.TOP or Gravity.LEFT).apply {
-                    topMargin = dp(4); leftMargin = dp(4)
-                })
-            }
-        }
-
-        val layout: LinearLayout
-        if (template.isFullscreen) {
-            layout = stack(true)
-            val row = content(sideButton = template == NativeTemplate.fullscreenMediaSideCta,
-                iconRight = template == NativeTemplate.fullscreenTrailingIcon)
-            fun copy() { add(layout, row) }
-            fun button() { add(layout, cta, height = if (ad.callToAction.isNullOrEmpty()) 0 else 48) }
-            fun image() { add(layout, media(), height = 0, weight = 1f) }
-            when (template) {
-                NativeTemplate.fullscreenMediaFirst, NativeTemplate.fullscreenTrailingIcon -> { image(); gap(layout); copy(); gap(layout); button() }
-                NativeTemplate.fullscreenContentFirst -> { copy(); gap(layout); image(); gap(layout); button() }
-                NativeTemplate.fullscreenMediaSideCta -> { image(); gap(layout); copy() }
-                NativeTemplate.fullscreenActionMiddle -> { copy(); gap(layout); button(); gap(layout); image() }
-                else -> error("Unexpected fullscreen template: $template")
-            }
-        } else if (template.isSmall) {
-            // Compact CTA is always a pill, never an oversized vertical rail.
-            layout = content(sideButton = true, iconRight = template == NativeTemplate.rowWithTrailingIcon,
-                buttonLeading = template == NativeTemplate.rowLeadingCta || template == NativeTemplate.rowLeadingCtaCompact)
-        } else if (template == NativeTemplate.splitMediaLeft || template == NativeTemplate.splitMediaRight) {
-            layout = stack(false)
-            details.setPadding(0, 0, dp(24), 0)
+            if (icon != null && template.trailingIcon) { gap(row, 10); add(row, icon, 64, 64) }
+            row.setPadding(0, 0, cornerInset, 0)
             val copy = stack(true)
-            add(copy, details)
-            gap(copy, 8)
-            add(copy, cta, height = if (ad.callToAction.isNullOrEmpty()) 0 else 40)
-            if (template == NativeTemplate.splitMediaLeft) {
-                add(layout, media(), 120, -1); gap(layout); add(layout, copy, 0, -1, 1f)
-            } else {
-                add(layout, copy, 0, -1, 1f); gap(layout); add(layout, media(), 120, -1)
+            fun copyAction() {
+                add(copy, cta)
+                if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
             }
-        } else {
-            layout = stack(true)
-            val side = template == NativeTemplate.feedMediaTopSideCta || template == NativeTemplate.feedContentTopSideCta
-            val row = content(sideButton = side, iconRight = template == NativeTemplate.feedTrailingIcon)
-            fun button() {
-                if (actionFirst) {
-                    val action = stack(false)
-                    add(action, badge, 26, 20); gap(action, 6)
-                    add(action, cta, 0, if (ad.callToAction.isNullOrEmpty()) 20 else 40, 1f)
-                    gap(action, 24)
-                    add(layout, action)
-                } else add(layout, cta, height = if (ad.callToAction.isNullOrEmpty()) 0 else 44)
+            if (template.actionFirst && cta.visibility == View.VISIBLE) { copyAction(); gap(copy) }
+            add(copy, row)
+            if (!template.actionFirst && cta.visibility == View.VISIBLE) { gap(copy); copyAction() }
+            val layout = stack(true)
+            val footerHeight = measuredHeight(copy, width)
+            var mediaHeight = if (media == null) 0 else max(dp(144), ceil(width * 9.0 / 16).toInt())
+            if (template.isFullscreen && request.height != null) {
+                val hostHeight = request.height!!
+                require(hostHeight.isFinite() && hostHeight > 0)
+                val available = dp(hostHeight) - dp(16) - footerHeight - dp(8)
+                require(available >= dp(144)) { "Fullscreen native assets need more height at this width/font size" }
+                mediaHeight = available
             }
-            fun copy() { add(layout, row) }
-            fun image() { add(layout, media(), height = 0, weight = 1f) }
-            when (template) {
-                NativeTemplate.cardContentTop, NativeTemplate.cardCleanContentTop -> { copy(); gap(layout); button() }
-                NativeTemplate.cardActionTop, NativeTemplate.cardCleanActionTop -> { button(); gap(layout); copy() }
-                NativeTemplate.feedMediaFirst -> { image(); gap(layout); copy(); gap(layout); button() }
-                NativeTemplate.feedContentFirst, NativeTemplate.feedTrailingIcon -> { copy(); gap(layout); image(); gap(layout); button() }
-                NativeTemplate.feedActionMiddle -> { copy(); gap(layout); button(); gap(layout); image() }
-                NativeTemplate.feedMediaTopSideCta -> { image(); gap(layout); copy() }
-                NativeTemplate.feedContentTopSideCta -> { copy(); gap(layout); image() }
-                else -> error("Unexpected template: $template")
+            fun image() { if (media != null) { add(layout, media, height = 0); media.layoutParams.height = mediaHeight } }
+            fun action() {
+                if (cta.visibility == View.VISIBLE) {
+                    add(layout, cta)
+                    if (template.actionFirst) (cta.layoutParams as LinearLayout.LayoutParams).rightMargin = dp(24)
+                }
             }
+            if (media == null) add(layout, copy)
+            else when {
+                template.actionFirst -> {
+                    if (cta.visibility == View.VISIBLE) { action(); gap(layout) }
+                    add(layout, row); gap(layout); image()
+                }
+                template.mediaFirst -> {
+                    image(); gap(layout); add(layout, row)
+                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                }
+                template.actionMiddle -> {
+                    add(layout, row)
+                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                    gap(layout); image()
+                }
+                else -> {
+                    add(layout, row); gap(layout); image()
+                    if (cta.visibility == View.VISIBLE) { gap(layout); action() }
+                }
+            }
+            val naturalHeight = if (media == null) footerHeight else mediaHeight + dp(8) + footerHeight
+            panel.removeAllViews()
+            add(panel, layout)
+            (naturalHeight + dp(16)).toDouble() / context.resources.displayMetrics.density
         }
-        // Top-align compact cards; flexible height belongs to media, not empty copy.
-        layout.gravity = if (template.isSmall) Gravity.CENTER_VERTICAL else Gravity.TOP
-        add(panel, layout, height = 0, weight = 1f)
+        panel.configure(NativeLayoutRequest(width = 320.0, headlineSize = 17.0, bodySize = 14.0, metadataSize = 12.0, actionSize = 14.0))
         adView.setNativeAd(ad)
         return adView
     }

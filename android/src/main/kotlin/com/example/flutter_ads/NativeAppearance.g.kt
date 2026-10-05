@@ -248,12 +248,78 @@ data class NativeStyleData (
     return "NativeStyleData(background=$background, headline=$headline, body=$body, callToActionBackground=$callToActionBackground, callToActionText=$callToActionText, callToActionCornerRadius=$callToActionCornerRadius)"
   }
 }
+
+/**
+ * Actual host width and scaled typography. Null height requests inline sizing.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class NativeLayoutRequest (
+  val width: Double,
+  val height: Double? = null,
+  val headlineSize: Double,
+  val bodySize: Double,
+  val metadataSize: Double,
+  val actionSize: Double
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): NativeLayoutRequest {
+      val width = pigeonVar_list[0] as Double
+      val height = pigeonVar_list[1] as Double?
+      val headlineSize = pigeonVar_list[2] as Double
+      val bodySize = pigeonVar_list[3] as Double
+      val metadataSize = pigeonVar_list[4] as Double
+      val actionSize = pigeonVar_list[5] as Double
+      return NativeLayoutRequest(width, height, headlineSize, bodySize, metadataSize, actionSize)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      width,
+      height,
+      headlineSize,
+      bodySize,
+      metadataSize,
+      actionSize,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as NativeLayoutRequest
+    return NativeAppearancePigeonUtils.deepEquals(this.width, other.width) && NativeAppearancePigeonUtils.deepEquals(this.height, other.height) && NativeAppearancePigeonUtils.deepEquals(this.headlineSize, other.headlineSize) && NativeAppearancePigeonUtils.deepEquals(this.bodySize, other.bodySize) && NativeAppearancePigeonUtils.deepEquals(this.metadataSize, other.metadataSize) && NativeAppearancePigeonUtils.deepEquals(this.actionSize, other.actionSize)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.width)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.height)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.headlineSize)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.bodySize)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.metadataSize)
+    result = 31 * result + NativeAppearancePigeonUtils.deepHash(this.actionSize)
+    return result
+  }
+  override fun toString(): String {
+    return "NativeLayoutRequest(width=$width, height=$height, headlineSize=$headlineSize, bodySize=$bodySize, metadataSize=$metadataSize, actionSize=$actionSize)"
+  }
+}
 private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
       129.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
           NativeStyleData.fromList(it)
+        }
+      }
+      130.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          NativeLayoutRequest.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -263,6 +329,10 @@ private open class NativeAppearancePigeonCodec : StandardMessageCodec() {
     when (value) {
       is NativeStyleData -> {
         stream.write(129)
+        writeValue(stream, value.toList())
+      }
+      is NativeLayoutRequest -> {
+        stream.write(130)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -279,6 +349,7 @@ interface NativeAppearanceHost {
   fun startSession(sessionId: String)
   fun applyStyle(sessionId: String, revision: Long, renders: Map<String, NativeStyleData>)
   fun endSession(sessionId: String)
+  fun layoutNativeAd(sessionId: String, renderId: String, request: NativeLayoutRequest): Double
 
   companion object {
     /** The codec used by NativeAppearanceHost. */
@@ -336,6 +407,25 @@ interface NativeAppearanceHost {
             val wrapped: List<Any?> = try {
               api.endSession(sessionIdArg)
               listOf(null)
+            } catch (exception: Throwable) {
+              NativeAppearancePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.layoutNativeAd$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val sessionIdArg = args[0] as String
+            val renderIdArg = args[1] as String
+            val requestArg = args[2] as NativeLayoutRequest
+            val wrapped: List<Any?> = try {
+              listOf(api.layoutNativeAd(sessionIdArg, renderIdArg, requestArg))
             } catch (exception: Throwable) {
               NativeAppearancePigeonUtils.wrapError(exception)
             }

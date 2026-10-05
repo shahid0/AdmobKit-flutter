@@ -5,7 +5,7 @@ description: >-
   Use when integrating splash, interstitial, rewarded, app-open, adaptive banner, or native ads,
   paywall exit guards, GDPR/UMP consent, tab-deferred loading, or ad revenue/analytics wiring.
   Enforces the 0ms show contract, deterministic settlement (waitFor), two-stage initialization,
-  priority-tiered preloading, and zero-CLS template-bound native containers.
+  priority-tiered preloading, and native-measured ad containers.
 ---
 
 # AdmobKit Integration Runbook
@@ -25,7 +25,7 @@ Always use this exact import and the `AdmobKit` facade.
 1. **0ms Show Contract** — `AdmobKit.show(placement, onDismissed: …)` is strictly non-blocking. If cached in memory, it displays instantly. If unready, expired, or offline, `onDismissed` fires immediately (0ms delay). Never block user navigation on an ad request.
 2. **Deterministic Settlement** — Never guess ad readiness with `Timer` or `Future.delayed`. Await `AdmobKit.waitFor(placement)` (returns `Future<bool>`), composed with auth/config futures via `Future.wait`.
 3. **Immediate-Display Priority** — The on-screen ad always wins network priority. Visible widget leases and `waitFor` calls automatically promote to the `immediate` tier, preempting background preloads.
-4. **Template-Bound Dimensions (Zero CLS)** — Placements bind to pre-dimensioned templates (Row: 104dp, Split/Card: 160dp, Feed Card: 340dp, Fullscreen: min 320dp). Always provide bounded parent width >= 320dp. Never guess container heights.
+4. **Native-Measured Layout** — Provide bounded width >=320 logical pixels and let inline ads size themselves from their SDK assets and Flutter text scale. `template.height` is only a loading estimate. Fullscreen hosts require bounded height >=320 and enough room for copy and media; keep navigation outside ad assets.
 
 ---
 
@@ -47,7 +47,7 @@ abstract final class AppAds {
 
   static const feedNative = NativePlacement(
     id: 'feed_native',
-    template: NativeAdTemplate.splitMediaLeft,
+    template: NativeAdTemplate.cardContentTop,
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
     style: NativeAdStyle(
@@ -129,7 +129,7 @@ Audit against the negative constraints and run the verification checklist.
 | **Cold-start splash** | `await AdmobKit.waitFor(splash)` + `AdmobKit.show(splash, onDismissed: next)` (`isSplash: true, loadOnce: true`) |
 | **Sticky screen banner** | `AdBannerView(placement: bottomBanner)` |
 | **In-feed banner** | `BannerPlacement(sizing: BannerSizing.inlineAdaptive(maxHeight: 160))` + `AdBannerView` |
-| **In-content native card** | `AdNativeView(placement: feedNative)` (Container height matches `template.height`) |
+| **In-content native card** | `AdNativeView(placement: feedNative)` with bounded width and content-sized height |
 | **Fullscreen native** | `NativePlacement(template: NativeAdTemplate.fullscreen)` + `AdNativeView` in bounded `Scaffold` |
 | **Feature / Reward unlock** | `AdmobKit.show(rewarded, onRewardGranted: (amt, type) => grant(), onDismissed: refresh)` |
 | **Paywall close & back** | `AdPaywallGuard(placement: exitPlacement, onDismiss: () => Navigator.pop(context), builder: ...)` |
@@ -160,12 +160,11 @@ Future<void> handleSplashSequence(BuildContext context) async {
 }
 ```
 
-### Zero-CLS Native Feed Card
+### Content-Sized Native Feed Card
 
 ```dart
 Widget buildFeedNativeAd() {
   return Container(
-    height: AppAds.feedNative.template.height, // 160 logical px
     width: double.infinity,
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     decoration: BoxDecoration(
@@ -220,7 +219,7 @@ AdPaywallGuard(
 - ❌ **NEVER manually instantiate `NativeAd`, `BannerAd`, or `AdWidget`** — use `AdNativeView` / `AdBannerView`.
 - ❌ **NEVER call `leaseInlineAd` from application code** — widgets handle leasing internally.
 - ❌ **NEVER fire ads before or over the UMP consent form**.
-- ❌ **NEVER guess native container heights** — always bind to `placement.template.height`.
+- ❌ **NEVER fix inline native height to `template.height`** — it is a loading estimate; allow the measured creative to grow.
 - ❌ **NEVER register one-time (`loadOnce: true`) placements unconditionally on subsequent app launches**.
 - ❌ **NEVER trigger App Open ads without checking `!AdmobKit.isShowingAd`**.
 - ❌ **NEVER mount `AdNativeView` or `AdBannerView` inside unbounded horizontal constraints**.
@@ -233,7 +232,7 @@ AdPaywallGuard(
 2. Single import: `import 'package:admob_kit_flutter/admob_kit_flutter.dart';`.
 3. Deterministic settlement: `waitFor` used for splash/gates, returning a handled `bool`.
 4. Stage 1 in `main()`, Stage 2 after IDs resolve.
-5. All native ad hosts have bounded width >= 320dp and match template height.
+5. All native hosts have bounded width >=320 logical pixels; inline heights follow measured content.
 6. Fullscreen natives mounted in bounded `Scaffold` with custom dismiss control outside ad assets.
 7. Paywall guarded against both hardware back and close button via `AdPaywallGuard`.
 8. App Open gated by `!AdmobKit.isShowingAd`.

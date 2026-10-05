@@ -19,7 +19,7 @@ void main() {
     tester,
   ) async {
     const placement = NativePlacement(
-      template: NativeAdTemplate.rowWithLeadingIcon,
+      template: NativeAdTemplate.cardContentTop,
       id: 'feed',
       androidId: 'test',
       iosId: 'test',
@@ -29,7 +29,7 @@ void main() {
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     final manifests = <Map<Object?, Object?>>[];
     final channels = [
-      for (final name in ['startSession', 'applyStyle', 'endSession'])
+      for (final name in ['startSession', 'applyStyle', 'endSession', 'layoutNativeAd'])
         BasicMessageChannel<Object?>(
           'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.$name',
           NativeAppearanceHost.pigeonChannelCodec,
@@ -37,6 +37,7 @@ void main() {
     ];
     for (final channel in channels) {
       messenger.setMockDecodedMessageHandler<Object?>(channel, (message) async {
+        if (channel.name.endsWith('layoutNativeAd')) return <Object?>[104.0];
         if (channel.name.endsWith('applyStyle')) manifests.add((message! as List)[2] as Map<Object?, Object?>);
         return <Object?>[];
       });

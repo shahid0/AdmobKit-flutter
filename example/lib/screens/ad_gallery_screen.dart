@@ -4,7 +4,7 @@ import '../theme/task_theme.dart';
 import 'adaptive_banner_screen.dart';
 import 'native_template_screen.dart';
 
-/// Catalog of 25 Native ad templates and 2 Adaptive banner configurations.
+/// Catalog of nine native compositions and two adaptive banner configurations.
 /// Browsing does not register or preload inventory; selecting a preview requests
 /// only that placement on-demand with loadOnce semantics.
 class AdGalleryScreen extends StatelessWidget {
@@ -12,20 +12,19 @@ class AdGalleryScreen extends StatelessWidget {
 
   IconData _iconForTemplate(NativeAdTemplate template) {
     if (template.isFullscreen) return Icons.fullscreen_rounded;
-    if (template.name.startsWith('large')) return Icons.view_quilt_rounded;
-    if (template.name.startsWith('medium')) return Icons.space_dashboard_rounded;
-    return Icons.view_compact_rounded;
+    if (template.name.startsWith('feed')) return Icons.view_quilt_rounded;
+    return Icons.space_dashboard_rounded;
   }
 
   String _descriptionForTemplate(NativeAdTemplate template) {
-    if (template.isFullscreen) {
-      return 'Bounded fullscreen · live colors · video safe';
-    }
-    return '${template.height.toInt()} px · ${template.name.startsWith("large")
-        ? "content & media"
-        : template.name.startsWith("medium")
-        ? "compact card"
-        : "inline strip"}';
+    return switch (template) {
+      NativeAdTemplate.cardContentTop => 'Identity → action',
+      NativeAdTemplate.cardActionTop => 'Action → identity',
+      NativeAdTemplate.cardContentTopTrailingIcon => 'Trailing-icon identity → action',
+      NativeAdTemplate.feedMediaFirst || NativeAdTemplate.fullscreenMediaFirst => 'Media → identity → action',
+      NativeAdTemplate.feedContentFirst || NativeAdTemplate.fullscreenContentFirst => 'Identity → media → action',
+      NativeAdTemplate.feedActionMiddle || NativeAdTemplate.fullscreenActionMiddle => 'Identity → action → media',
+    };
   }
 
   @override
@@ -123,9 +122,9 @@ class AdGalleryScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: template.isFullscreen
                       ? TaskColors.amberSurface
-                      : template.height == 340
+                      : template.name.startsWith('feed')
                       ? TaskColors.emeraldSurface
-                      : template.height == 160
+                      : template.name.startsWith('card')
                       ? TaskColors.accentSubtle
                       : TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(8),
@@ -134,9 +133,9 @@ class AdGalleryScreen extends StatelessWidget {
                   _iconForTemplate(template),
                   color: template.isFullscreen
                       ? TaskColors.amberText
-                      : template.height == 340
+                      : template.name.startsWith('feed')
                       ? TaskColors.emeraldText
-                      : template.height == 160
+                      : template.name.startsWith('card')
                       ? TaskColors.accentPrimary
                       : TaskColors.slateText,
                   size: 18,
@@ -162,7 +161,7 @@ class AdGalleryScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: TaskColors.surfaceSubtle, borderRadius: BorderRadius.circular(4)),
                     child: Text(
-                      template.isFullscreen ? 'FULL' : '${template.height.toInt()}px',
+                      template.isFullscreen ? 'FULL' : 'AUTO',
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,

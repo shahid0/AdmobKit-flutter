@@ -41,9 +41,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
       await AdmobKit.setNativeStyle(colors, placement: _placement);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Color update failed: $error')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Color update failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _updatingColors = false);
@@ -67,10 +65,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
                     return Center(
                       child: Text(
                         'Requires at least ${_selectedTemplate.minWidth.toInt()} × ${_selectedTemplate.height.toInt()} px.',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: TaskColors.textSlateMedium,
-                        ),
+                        style: const TextStyle(fontSize: 13, color: TaskColors.textSlateMedium),
                       ),
                     );
                   }
@@ -90,17 +85,11 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: TaskColors.accentPrimary,
-                            ),
+                            CircularProgressIndicator(strokeWidth: 2, color: TaskColors.accentPrimary),
                             SizedBox(height: 12),
                             Text(
                               'Priming Fullscreen Native Ad...',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: TaskColors.textSlateMedium,
-                              ),
+                              style: TextStyle(fontSize: 13, color: TaskColors.textSlateMedium),
                             ),
                           ],
                         ),
@@ -122,12 +111,6 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.close_rounded, color: TaskColors.textInkPrimary),
-            tooltip: 'Dismiss Fullscreen Ad',
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 8),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -142,11 +125,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
               ),
               Text(
                 'PresentationMutex Protected',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: TaskColors.emeraldText,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 11, color: TaskColors.emeraldText, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -189,8 +168,6 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
     const templates = [
       NativeAdTemplate.fullscreenMediaFirst,
       NativeAdTemplate.fullscreenContentFirst,
-      NativeAdTemplate.fullscreenTrailingIcon,
-      NativeAdTemplate.fullscreenMediaSideCta,
       NativeAdTemplate.fullscreenActionMiddle,
     ];
 
@@ -226,6 +203,7 @@ class _FullscreenNativeShowcaseScreenState extends State<FullscreenNativeShowcas
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Continue')),
           StatusBadge.emerald(
             'MUTEX: ${AdmobKit.isShowingAd ? "LOCKED" : "IDLE"}',
             icon: const Icon(Icons.lock_outline_rounded, size: 12, color: TaskColors.emeraldText),

@@ -2,21 +2,16 @@ import Foundation
 
 /// Catalog mirrored by NativeAdTemplate with shared arrangements on both platforms.
 enum NativeTemplate: String, CaseIterable {
-    case rowWithLeadingIcon, rowTextOnly, rowWithTrailingIcon, rowExpandedText
-    case rowTextOnlyExpanded, rowMinimalText, rowLeadingCta, rowLeadingCtaCompact
-    case splitMediaLeft, splitMediaRight, cardContentTop, cardActionTop
-    case cardCleanContentTop, cardCleanActionTop
-    case feedMediaFirst, feedContentFirst, feedActionMiddle, feedTrailingIcon
-    case feedMediaTopSideCta, feedContentTopSideCta
-    case fullscreenMediaFirst, fullscreenContentFirst, fullscreenTrailingIcon
-    case fullscreenMediaSideCta, fullscreenActionMiddle
+    case cardContentTop, cardActionTop, cardContentTopTrailingIcon
+    case feedMediaFirst, feedContentFirst, feedActionMiddle
+    case fullscreenMediaFirst, fullscreenContentFirst, fullscreenActionMiddle
 
     var factoryId: String { "admobKit.\(rawValue)" }
-    var isSmall: Bool { rawValue.hasPrefix("row") }
-    var isMedium: Bool { rawValue.hasPrefix("split") || rawValue.hasPrefix("card") }
+    var isCard: Bool { rawValue.hasPrefix("card") }
     var isFullscreen: Bool { rawValue.hasPrefix("fullscreen") }
-    var hasIcon: Bool { ![Self.rowTextOnly, .rowTextOnlyExpanded, .rowMinimalText, .rowLeadingCta, .rowLeadingCtaCompact].contains(self) }
-    var hasMetadata: Bool { ![Self.rowExpandedText, .rowMinimalText, .rowLeadingCta, .rowLeadingCtaCompact, .splitMediaLeft, .splitMediaRight, .cardCleanContentTop, .cardCleanActionTop].contains(self) }
-    var headlineLines: Int { 2 }
-    var bodyLines: Int { isSmall && ![Self.rowExpandedText, .rowTextOnlyExpanded, .rowMinimalText, .rowLeadingCta].contains(self) ? 1 : 2 }
+    var hasMedia: Bool { !isCard }
+    var trailingIcon: Bool { self == .cardContentTopTrailingIcon }
+    var actionFirst: Bool { self == .cardActionTop }
+    var actionMiddle: Bool { self == .feedActionMiddle || self == .fullscreenActionMiddle }
+    var mediaFirst: Bool { self == .feedMediaFirst || self == .fullscreenMediaFirst }
 }

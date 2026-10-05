@@ -13,7 +13,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_mobile_ads/src/ad_instance_manager.dart' show instanceManager;
 
 const placement = NativePlacement(
-  template: NativeAdTemplate.rowWithLeadingIcon,
+  template: NativeAdTemplate.cardContentTop,
   id: 'native',
   androidId: 'test',
   iosId: 'test',
@@ -28,6 +28,7 @@ class _Host extends NativeAppearanceHost {
   bool fail = false;
   bool failStart = false;
   Completer<void>? barrier;
+  final layouts = <(String, NativeLayoutRequest)>[];
 
   @override
   Future<void> startSession(String sessionId) async {
@@ -48,6 +49,13 @@ class _Host extends NativeAppearanceHost {
   @override
   Future<void> endSession(String sessionId) async {
     if (session == sessionId) session = null;
+  }
+
+  @override
+  Future<double> layoutNativeAd(String sessionId, String renderId, NativeLayoutRequest request) async {
+    if (session != sessionId) throw StateError('stale session');
+    layouts.add((renderId, request));
+    return 80;
   }
 }
 
@@ -216,6 +224,71 @@ void main() {
     await expectLater(NativeAppearanceHost().applyStyle('session', 43, {}), throwsA(isA<PlatformException>()));
   });
 
+  test('layout is ordered after styling; released and disposed renders cannot be measured', () async {
+    final host = _Host();
+    final appearance = NativeAppearance(host: host);
+    final id = await appearance.reserve(placement);
+    final request = NativeLayoutRequest(width: 360, headlineSize: 17, bodySize: 14, metadataSize: 12, actionSize: 14);
+    host.barrier = Completer<void>();
+    final style = appearance.setStyle(const NativeAdStyle(body: 7));
+    await Future<void>.delayed(Duration.zero);
+    final measurement = appearance.layout(id, request);
+    await Future<void>.delayed(Duration.zero);
+    expect(host.layouts, isEmpty);
+    host.barrier!.complete();
+    await style;
+    expect(await measurement, 80);
+    expect(host.layouts.single.$1, id);
+    expect(host.snapshots.last[id]!.body, 7);
+
+    host.barrier = Completer<void>();
+    final nextStyle = appearance.setStyle(const NativeAdStyle(body: 8));
+    await Future<void>.delayed(Duration.zero);
+    final stale = appearance.layout(id, request);
+    final rejected = expectLater(stale, throwsStateError);
+    final release = appearance.release(id);
+    host.barrier!.complete();
+    await Future.wait([nextStyle, release, rejected]);
+    expect(host.layouts, hasLength(1));
+    await expectLater(appearance.layout(id, request), throwsStateError);
+    await appearance.dispose();
+    await expectLater(appearance.layout(id, request), throwsStateError);
+  });
+
+  test('generated layout channel transports fractional geometry, typography, result and errors', () async {
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = BasicMessageChannel<Object?>(
+      'dev.flutter.pigeon.admob_kit_flutter.NativeAppearanceHost.layoutNativeAd',
+      NativeAppearanceHost.pigeonChannelCodec,
+    );
+    messenger.setMockDecodedMessageHandler<Object?>(channel, (message) async {
+      final args = message! as List<Object?>;
+      expect(args.take(2), ['session', 'render']);
+      final request = args[2]! as NativeLayoutRequest;
+      expect(request.width, 360.5);
+      expect(request.height, isNull);
+      expect(request.headlineSize, 25.5);
+      expect(request.bodySize, 21);
+      expect(request.metadataSize, 18);
+      expect(request.actionSize, 21);
+      return <Object?>[120.5];
+    });
+    addTearDown(() => messenger.setMockDecodedMessageHandler<Object?>(channel, null));
+    final request = NativeLayoutRequest(
+      width: 360.5,
+      headlineSize: 25.5,
+      bodySize: 21,
+      metadataSize: 18,
+      actionSize: 21,
+    );
+    expect(await NativeAppearanceHost().layoutNativeAd('session', 'render', request), 120.5);
+    messenger.setMockDecodedMessageHandler<Object?>(channel, (_) async => ['released-render', 'released', null]);
+    await expectLater(
+      NativeAppearanceHost().layoutNativeAd('session', 'render', request),
+      throwsA(isA<PlatformException>()),
+    );
+  });
+
   group('SDK native ownership', () {
     late _Host host;
     late NativeAppearance appearance;
@@ -276,7 +349,7 @@ void main() {
       final release = Completer<void>();
       final ad = ManagedNativeAd(
         adUnitId: 'test',
-        factoryId: 'admobKit.rowWithLeadingIcon',
+        factoryId: 'admobKit.cardContentTop',
         request: const AdRequest(),
         listener: NativeAdListener(),
         releaseAppearance: () => release.future,

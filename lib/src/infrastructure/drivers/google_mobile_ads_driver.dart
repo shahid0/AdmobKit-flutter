@@ -103,7 +103,9 @@ class GoogleMobileAdsDriver {
         return completer.future;
 
       case AdFormat.banner:
-        if (bannerLayout == null) throw ArgumentError('Banner requests require a BannerLayout.');
+        if (bannerLayout == null) {
+          throw ArgumentError('Banner requests require a BannerLayout.');
+        }
         return _loadBanner(placement as BannerPlacement, bannerLayout, adUnitId, validateRequest);
 
       case AdFormat.native:
@@ -122,6 +124,7 @@ class GoogleMobileAdsDriver {
       factoryId: placement.template.factoryId,
       nativeAdOptions: NativeAdOptions(adChoicesPlacement: AdChoicesPlacement.topRightCorner),
       customOptions: renderId == null ? null : {'sessionId': _appearance!.sessionId, 'renderId': renderId},
+      measureLayout: renderId == null ? null : (request) => _appearance!.layout(renderId, request),
       releaseAppearance: renderId == null
           ? null
           : () => _appearance!.release(renderId).catchError((Object error, StackTrace stack) {
@@ -172,7 +175,9 @@ class GoogleMobileAdsDriver {
   ) async {
     layout.validate();
     final maxHeight = placement.sizing.maxHeight;
-    if (maxHeight != null && maxHeight < 32) throw ArgumentError.value(maxHeight, 'maxHeight');
+    if (maxHeight != null && maxHeight < 32) {
+      throw ArgumentError.value(maxHeight, 'maxHeight');
+    }
     final AdSize? size = maxHeight != null
         ? AdSize.getInlineAdaptiveBannerAdSize(layout.width, maxHeight)
         : await AdSize.getLargeAnchoredAdaptiveBannerAdSizeWithOrientation(

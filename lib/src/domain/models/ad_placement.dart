@@ -175,7 +175,7 @@ class NativePlacement extends InlinePlacement {
     String? id,
     required super.androidId,
     required super.iosId,
-    this.template = NativeAdTemplate.splitMediaLeft,
+    this.template = NativeAdTemplate.cardContentTop,
     this.style = const NativeAdStyle(),
     AdPriority? priority,
     super.isSplash = false,

@@ -12,10 +12,7 @@ class MultiWidgetShowcaseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TaskColors.canvasGround,
-      appBar: AppBar(
-        title: const Text('Multi-Widget Capacities'),
-        leading: const BackButton(),
-      ),
+      appBar: AppBar(title: const Text('Multi-Widget Capacities'), leading: const BackButton()),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -27,7 +24,10 @@ class MultiWidgetShowcaseScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      StatusBadge.emerald('CAPACITY: 2', icon: const Icon(Icons.layers_rounded, size: 12, color: TaskColors.emeraldText)),
+                      StatusBadge.emerald(
+                        'CAPACITY: 2',
+                        icon: const Icon(Icons.layers_rounded, size: 12, color: TaskColors.emeraldText),
+                      ),
                       const Spacer(),
                       const StatusBadge(
                         label: 'ZERO COLLISION',
@@ -50,11 +50,7 @@ class MultiWidgetShowcaseScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   const Text(
                     'Both native card slots below share the placement ID "multi_widget_showcase". The engine maintains independent buffer leases and distinct native ad view instances without runtime crashes.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: TaskColors.textSlateMedium,
-                      height: 1.4,
-                    ),
+                    style: TextStyle(fontSize: 13, color: TaskColors.textSlateMedium, height: 1.4),
                   ),
                 ],
               ),
@@ -62,21 +58,11 @@ class MultiWidgetShowcaseScreen extends StatelessWidget {
             const SizedBox(height: 16),
             const _SectionHeader(title: 'SLOT 1 · FIRST NATIVE HOST'),
             const SizedBox(height: 8),
-            _NativeCardContainer(
-              slotIndex: 1,
-              child: AdNativeView(
-                placement: SampleAds.multiWidgetNative,
-              ),
-            ),
+            _NativeCardContainer(slotIndex: 1, child: AdNativeView(placement: SampleAds.multiWidgetNative)),
             const SizedBox(height: 20),
             const _SectionHeader(title: 'SLOT 2 · SECOND NATIVE HOST'),
             const SizedBox(height: 8),
-            _NativeCardContainer(
-              slotIndex: 2,
-              child: AdNativeView(
-                placement: SampleAds.multiWidgetNative,
-              ),
-            ),
+            _NativeCardContainer(slotIndex: 2, child: AdNativeView(placement: SampleAds.multiWidgetNative)),
             const SizedBox(height: 24),
           ],
         ),
@@ -140,23 +126,19 @@ class _NativeCardContainer extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
-                const Text(
-                  'template: splitMediaRight (160px)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: TaskColors.textSlateMedium,
-                    fontFamily: 'monospace',
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    SampleAds.multiWidgetNative.template.name,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontSize: 11, color: TaskColors.textSlateMedium, fontFamily: 'monospace'),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: child,
-          ),
+          ClipRRect(borderRadius: BorderRadius.circular(10), child: child),
         ],
       ),
     );

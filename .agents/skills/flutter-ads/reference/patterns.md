@@ -27,7 +27,7 @@ abstract final class AppAds {
   );
 
   static const feedNative = NativePlacement(
-    template: NativeAdTemplate.splitMediaLeft,
+    template: NativeAdTemplate.cardContentTop,
     id: 'feed_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -100,14 +100,11 @@ Future<void> handleSplashSequence(BuildContext context) async {
 }
 ```
 
-## Zero-CLS native card
+## Content-sized native card
 
 ```dart
 Widget buildFeedNativeAd() {
-  final template = AppAds.feedNative.template;
-
   return Container(
-    height: template.height, // 160 logical pixels; parent width must remain >=320
     width: double.infinity,
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     decoration: BoxDecoration(
@@ -164,7 +161,12 @@ Mount in bounded space, with navigation outside the SDK assets:
 
 ```dart
 Scaffold(
-  appBar: AppBar(leading: const CloseButton()),
+  bottomNavigationBar: SafeArea(
+    child: TextButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Continue'),
+    ),
+  ),
   body: SafeArea(child: AdNativeView(placement: AppAds.fullscreenNative)),
 )
 
@@ -180,7 +182,7 @@ await AdmobKit.setNativeStyle(const NativeAdStyle(), placement: AppAds.fullscree
 ```
 
 Catch errors around awaited color updates and check `mounted` before showing UI afterward.
-Require at least 320 × 320 logical pixels for fullscreen hosts. Use `LayoutBuilder` to show non-ad content when the available space is insufficient. Loaded active fullscreen natives own the shared presentation lock; placeholders do not. No viewport inference: explicitly gate lazy/retained pages using the selected index.
+Require at least 320 × 320 logical pixels for fullscreen hosts, with enough height for the actual copy and text scale. Use `LayoutBuilder` to show non-ad content when the available space is insufficient. Measured, loaded, active fullscreen natives own the shared presentation lock; placeholders do not. No viewport inference: explicitly gate lazy/retained pages using the selected index.
 
 ## Adaptive banners
 

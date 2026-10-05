@@ -188,7 +188,7 @@ class CategoryTasksScreen extends StatelessWidget {
             AdNativeView(
               placement: SampleAds.mediumNative,
               placeholder: Container(
-                height: NativeAdTemplate.splitMediaLeft.height,
+                height: NativeAdTemplate.cardContentTop.height,
                 decoration: BoxDecoration(
                   color: TaskColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(10),

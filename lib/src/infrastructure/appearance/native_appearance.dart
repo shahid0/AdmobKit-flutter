@@ -25,7 +25,9 @@ final class NativeAppearance {
   }
 
   Future<void> start() {
-    if (_disposed) return Future.error(StateError('Native appearance session is disposed.'));
+    if (_disposed) {
+      return Future.error(StateError('Native appearance session is disposed.'));
+    }
     final existing = _start;
     if (existing != null) return existing;
     final starting = _enqueue(() {
@@ -96,6 +98,19 @@ final class NativeAppearance {
   Future<void> release(String renderId) {
     if (_disposed || _renders.remove(renderId) == null) return Future.value();
     return _publish();
+  }
+
+  /// Configures and measures the SDK view using native layout before mounting.
+  Future<double> layout(String renderId, NativeLayoutRequest request) {
+    if (_disposed || !_renders.containsKey(renderId)) {
+      return Future.error(StateError('Native render is no longer available.'));
+    }
+    return _enqueue(() {
+      if (_disposed || !_renders.containsKey(renderId)) {
+        throw StateError('Native render is no longer available.');
+      }
+      return _host.layoutNativeAd(sessionId, renderId, request);
+    });
   }
 
   Future<void> dispose() {
