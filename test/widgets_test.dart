@@ -2,27 +2,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 
 void main() {
-  setUp(() {
-    AdmobKit.networkInfoForTesting = _TestNetworkInfo();
-  });
-
-  tearDown(() {
-    AdmobKit.dispose();
-    AdmobKit.networkInfoForTesting = null;
-    AdmobKit.driverForTesting = null;
-  });
+  tearDown(AdmobKit.dispose);
 
   group('Widget Tests', () {
     testWidgets('AdBannerView collapses to SizedBox.shrink when user is premium', (tester) async {
-      await AdmobKit.initialize(
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        initializeNativeGma: false,
         config: AdmobKitConfig(
           placements: const [],
           requestConsent: false,
-          initializeNativeGma: false,
           isPremium: () => true, // User is premium
         ),
       );
@@ -43,13 +40,10 @@ void main() {
     });
 
     testWidgets('AdNativeView collapses to SizedBox.shrink when user is premium', (tester) async {
-      await AdmobKit.initialize(
-        config: AdmobKitConfig(
-          placements: const [],
-          requestConsent: false,
-          initializeNativeGma: false,
-          isPremium: () => true,
-        ),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        initializeNativeGma: false,
+        config: AdmobKitConfig(placements: const [], requestConsent: false, isPremium: () => true),
       );
 
       const native = NativePlacement(androidId: '1', iosId: '1');
@@ -67,10 +61,13 @@ void main() {
 
     testWidgets('AdNativeView reserves template default height when loading', (tester) async {
       final completer = Completer<Object>();
-      AdmobKit.driverForTesting = _TestDriver(onLoad: () => completer.future);
+      final injectedDriver = _TestDriver(onLoad: () => completer.future);
 
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: injectedDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
       );
 
       const bigNative = NativePlacement(template: NativeAdTemplate.feedMediaFirst, androidId: '1', iosId: '1');
@@ -90,8 +87,10 @@ void main() {
     });
 
     testWidgets('AdPaywallGuard renders child content properly', (tester) async {
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
       );
 
       const inter = InterstitialPlacement(androidId: '1', iosId: '1');
@@ -116,10 +115,13 @@ void main() {
           return Object();
         },
       );
-      AdmobKit.driverForTesting = fakeDriver;
+      final injectedDriver = fakeDriver;
 
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: injectedDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
       );
 
       const nativePlacement = NativePlacement(id: 'tab_native', androidId: '1', iosId: '1');
@@ -158,13 +160,16 @@ void main() {
 
     testWidgets('AdNativeView retries lease after deactivation when prior load failed', (tester) async {
       // Simulate offline cold start: load always fails terminally.
-      AdmobKit.driverForTesting = _TrackingDriver(
+      final injectedDriver = _TrackingDriver(
         onLoad: () => throw LoadAdError(1, 'offline', 'network unavailable', null),
         onLoaded: (_) {},
       );
 
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: injectedDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
       );
 
       const nativePlacement = NativePlacement(id: 'retry_native', androidId: '1', iosId: '1');
@@ -213,15 +218,13 @@ void main() {
           return ad;
         },
       );
-      AdmobKit.driverForTesting = fakeDriver;
+      final injectedDriver = fakeDriver;
 
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(
-          placements: [],
-          requestConsent: false,
-          initializeNativeGma: false,
-          placementCapacities: {'multi_native': 2},
-        ),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: injectedDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false, placementCapacities: {'multi_native': 2}),
       );
 
       const nativePlacement = NativePlacement(id: 'multi_native', androidId: '1', iosId: '1');
@@ -256,13 +259,16 @@ void main() {
 
     testWidgets('AdNativeView inside IndexedStack defers until its tab is visible', (tester) async {
       final loadedPlacements = <String>{};
-      AdmobKit.driverForTesting = _TrackingDriver(
+      final injectedDriver = _TrackingDriver(
         onLoad: () => Object(),
         onLoaded: (placement) => loadedPlacements.add(placement.id),
       );
 
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: injectedDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
       );
 
       const tabA = NativePlacement(id: 'tab_a', androidId: '1', iosId: '1');

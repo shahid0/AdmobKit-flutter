@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:flutter_ads_example/screens/onboarding_screen.dart';
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 
@@ -17,12 +19,9 @@ class TestNavigatorObserver extends NavigatorObserver {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await AdmobKit.initialize(
-      config: const AdmobKitConfig(
+    await AdmobKitTestHarness.initialize(initializeNativeGma: false, config: const AdmobKitConfig(
         placements: [],
-        requestConsent: false,
-        initializeNativeGma: false,
-      ),
+        requestConsent: false,),
     );
   });
 
@@ -59,7 +58,7 @@ void main() {
     expect(find.text('Q3 System Architecture Review'), findsOneWidget);
     expect(find.text('High Priority'), findsOneWidget);
     expect(find.text('AdMob Mediation Layer Audit'), findsOneWidget);
-    expect(find.text('0ms Mutex'), findsOneWidget);
+    expect(find.text('Ad lock'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
 
     // Zero ads on Step 1

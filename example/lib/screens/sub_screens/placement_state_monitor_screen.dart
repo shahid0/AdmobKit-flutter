@@ -6,7 +6,7 @@ import '../../theme/task_theme.dart';
 
 /// Interactive diagnostic screen demonstrating real-time placement states,
 /// reactive state streams (`watchState`), deterministic settlement (`waitFor`),
-/// and on-demand preloading across the entire registered ad catalog.
+/// and ad decisions across the registered catalog.
 class PlacementStateMonitorScreen extends StatefulWidget {
   const PlacementStateMonitorScreen({super.key});
 
@@ -17,30 +17,20 @@ class PlacementStateMonitorScreen extends StatefulWidget {
 class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScreen> {
   final Map<String, String> _lastActions = {};
 
-  Future<void> _testWaitFor(AdPlacement placement) async {
+  Future<void> _testWaitFor(AdPlacement placement, {BannerLayout? bannerLayout}) async {
     final sw = Stopwatch()..start();
-    setState(() => _lastActions[placement.id] = 'Waiting (5s max)...');
-    final ready = await AdmobKit.waitFor(placement, timeout: const Duration(seconds: 5));
+    setState(() => _lastActions[placement.id] = 'Waiting (5s ad timeout after eligibility)...');
+    final ready = await AdmobKit.waitFor(placement, timeout: const Duration(seconds: 5), bannerLayout: bannerLayout);
     sw.stop();
     if (!mounted) return;
     setState(() {
       _lastActions[placement.id] = 'waitFor: ${ready ? "SUCCESS" : "TIMEOUT/FAIL"} (${sw.elapsedMilliseconds}ms)';
     });
-    TaskStore.instance.appendLog(
-      '⏳ [waitFor] ${placement.id} -> result: $ready in ${sw.elapsedMilliseconds}ms',
-    );
-  }
-
-  Future<void> _testPreload(AdPlacement placement) async {
-    setState(() => _lastActions[placement.id] = 'Preload dispatched...');
-    await AdmobKit.preload(placement);
-    if (!mounted) return;
-    setState(() => _lastActions[placement.id] = 'Preload completed');
-    TaskStore.instance.appendLog('⚡ [Preload] Explicit preload triggered for ${placement.id}');
+    TaskStore.instance.appendLog('⏳ [waitFor] ${placement.id} -> result: $ready in ${sw.elapsedMilliseconds}ms');
   }
 
   void _testShow(FullscreenPlacement placement) {
-    TaskStore.instance.appendLog('🎬 [Show Test] Invoking 0ms show contract on ${placement.id}');
+    TaskStore.instance.appendLog('🎬 [Show Test] Requesting presentation for ${placement.id}');
     AdmobKit.show(
       placement,
       onDisplayed: () {
@@ -59,10 +49,7 @@ class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScree
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TaskColors.canvasGround,
-      appBar: AppBar(
-        title: const Text('Placement State Monitor'),
-        leading: const BackButton(),
-      ),
+      appBar: AppBar(title: const Text('Placement State Monitor'), leading: const BackButton()),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -101,9 +88,7 @@ class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScree
                 children: [
                   _buildStateBadge(state),
                   const Spacer(),
-                  StatusBadge.slate(
-                    'MUTEX: ${AdmobKit.isShowingAd ? "LOCKED" : "FREE"}',
-                  ),
+                  StatusBadge.slate('MUTEX: ${AdmobKit.isShowingAd ? "LOCKED" : "FREE"}'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -119,11 +104,7 @@ class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScree
               const SizedBox(height: 4),
               Text(
                 'canRequestAds: ${AdmobKit.canRequestAds} · isUserPremium: ${AdmobKit.isUserPremium}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: TaskColors.textSlateMedium,
-                ),
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: TaskColors.textSlateMedium),
               ),
             ],
           ),
@@ -156,122 +137,119 @@ class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScree
       padding: const EdgeInsets.only(bottom: 12),
       child: TaskCard(
         padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            final bannerLayout = placement is BannerPlacement
+                ? BannerLayout(
+                    width: bounds.maxWidth.floor(),
+                    orientation: MediaQuery.orientationOf(context) == Orientation.portrait
+                        ? BannerOrientation.portrait
+                        : BannerOrientation.landscape,
+                  )
+                : null;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: TaskColors.accentSubtle,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    placement.format.name.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: TaskColors.accentPrimary,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    placement.id,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: TaskColors.textInkPrimary,
-                      letterSpacing: -0.2,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                StreamBuilder<AdPlacementState>(
-                  stream: AdmobKit.watchState(placement),
-                  initialData: AdmobKit.getState(placement),
-                  builder: (context, snapshot) {
-                    final pState = snapshot.data ?? AdPlacementState.unloaded;
-                    return _buildPlacementStateBadge(pState);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Priority: ${placement.priority.name} · LoadOnce: ${placement.loadOnce} · Splash: ${placement.isSplash}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: TaskColors.textMutedCaption,
-                fontFamily: 'monospace',
-              ),
-            ),
-            if (lastAction != null) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: TaskColors.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  lastAction,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w500,
-                    color: TaskColors.textSlateMedium,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _testWaitFor(placement),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      side: const BorderSide(color: TaskColors.borderSubtle),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('waitFor(5s)', style: TextStyle(fontSize: 12, color: TaskColors.textInkPrimary)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _testPreload(placement),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      side: const BorderSide(color: TaskColors.borderSubtle),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('Preload', style: TextStyle(fontSize: 12, color: TaskColors.textInkPrimary)),
-                  ),
-                ),
-                if (placement is FullscreenPlacement) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _testShow(placement),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TaskColors.accentPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(color: TaskColors.accentSubtle, borderRadius: BorderRadius.circular(4)),
+                      child: Text(
+                        placement.format.name.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: TaskColors.accentPrimary,
+                          fontFamily: 'monospace',
+                        ),
                       ),
-                      child: const Text('0ms Show', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        placement.id,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: TaskColors.textInkPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    StreamBuilder<AdPlacementState>(
+                      stream: AdmobKit.watchState(placement, bannerLayout: bannerLayout),
+                      initialData: AdmobKit.getState(placement, bannerLayout: bannerLayout),
+                      builder: (context, snapshot) {
+                        final pState = snapshot.data ?? AdPlacementState.unloaded;
+                        return _buildPlacementStateBadge(pState);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Priority: ${placement.priority.name} · LoadOnce: ${placement.loadOnce} · Splash: ${placement.isSplash}',
+                  style: const TextStyle(fontSize: 11, color: TaskColors.textMutedCaption, fontFamily: 'monospace'),
+                ),
+                if (lastAction != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: TaskColors.surfaceSubtle, borderRadius: BorderRadius.circular(6)),
+                    child: Text(
+                      lastAction,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w500,
+                        color: TaskColors.textSlateMedium,
+                      ),
                     ),
                   ),
                 ],
+                const SizedBox(height: 10),
+                if (placement is BannerPlacement) ...[AdBannerView(placement: placement), const SizedBox(height: 10)],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _testWaitFor(placement, bannerLayout: bannerLayout),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          side: const BorderSide(color: TaskColors.borderSubtle),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text(
+                          'waitFor(5s)',
+                          style: TextStyle(fontSize: 12, color: TaskColors.textInkPrimary),
+                        ),
+                      ),
+                    ),
+                    if (placement is FullscreenPlacement) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _testShow(placement),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: TaskColors.accentPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text(
+                            'Show',
+                            style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

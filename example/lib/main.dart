@@ -77,9 +77,8 @@ class PrintingDiagnosticsTracker implements AdDiagnosticsTracker {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await AdmobKit.initialize(
+  final boot = AdmobKit.initialize(
     config: AdmobKitConfig(
-      requestConsent: false,
       timeouts: AdTimeoutConfig.standard,
       isPremium: () => TaskStore.instance.isPremium,
       analytics: PrintingAnalyticsTracker(onLog: TaskStore.instance.appendLog),
@@ -99,6 +98,12 @@ void main() async {
   AdmobKit.registerPlacements(SampleAds.allPlacements, placementCapacities: {'multi_widget_showcase': 2});
 
   runApp(const TaskFlowApp());
+  try {
+    await boot;
+  } catch (error, stack) {
+    FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+    TaskStore.instance.appendLog('Ad initialization failed: $error');
+  }
 }
 
 class TaskFlowApp extends StatefulWidget {

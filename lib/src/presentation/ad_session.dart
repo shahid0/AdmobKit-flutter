@@ -17,6 +17,7 @@ import 'config/admob_kit_config.dart';
 /// Owns one initialization lifetime. Old async completions cannot revive it.
 class AdSession {
   final AdmobKitConfig config;
+  final bool initializeNativeGma;
   final NativeAppearance? appearance;
   final GoogleMobileAdsDriver driver;
   final ConsentCoordinator consent;
@@ -27,6 +28,8 @@ class AdSession {
   late final PresentationMutex mutex = PresentationMutex(logger);
   late EagerAdPool pool = _createPool();
   final _placements = <String, AdPlacement>{};
+  // Consumption belongs to the session, not to its replaceable privacy cache.
+  final _consumedLoadOnceIds = <String>{};
   final _capacities = <String, int>{};
   final _disposed = Completer<void>();
   Completer<bool> _settled = Completer<bool>();
@@ -37,6 +40,7 @@ class AdSession {
 
   AdSession({
     required this.config,
+    this.initializeNativeGma = true,
     this.appearance,
     required this.driver,
     required this.consent,
@@ -64,11 +68,11 @@ class AdSession {
   }
 
   EagerAdPool _createPool() => EagerAdPool(
+    consumedLoadOnceIds: _consumedLoadOnceIds,
     driver: driver,
     mutex: mutex,
     networkInfo: networkInfo,
     timeoutConfig: config.timeouts,
-    retryScheduler: config.retryScheduler,
     logger: logger,
     analytics: config.analytics,
     diagnostics: config.diagnostics,
@@ -123,7 +127,7 @@ class AdSession {
     if (!_sdkReady) {
       _setState(AdInitializationState.initializingSdk);
       if (isDisposed) return;
-      if (config.initializeNativeGma) {
+      if (initializeNativeGma) {
         await driver.initialize(testDeviceIds: config.testDeviceIds);
         if (isDisposed) return;
         await registerNativeFactories();
@@ -221,6 +225,27 @@ class AdSession {
     void Function(num amount, String type)? onRewardGranted,
     void Function()? onDisplayed,
   }) => pool.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+
+  /// Reads the current settled UMP requirement, including concurrent updates.
+  Future<bool> isPrivacyOptionsRequired() async {
+    while (!isDisposed) {
+      final barrier = _settled;
+      await barrier.future;
+      if (!identical(barrier, _settled)) continue;
+      if (isDisposed) return false;
+      final bool required;
+      try {
+        required = await Future.any<bool>([consent.isPrivacyOptionsRequired(), _disposed.future.then((_) => false)]);
+      } catch (_) {
+        if (isDisposed) return false;
+        if (!identical(barrier, _settled)) continue;
+        rethrow;
+      }
+      if (isDisposed) return false;
+      if (identical(barrier, _settled)) return required;
+    }
+    return false;
+  }
 
   /// Coalesces privacy updates and re-resolves eligibility before allowing ads.
   Future<bool> showPrivacyOptionsForm() {

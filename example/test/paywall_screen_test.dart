@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 import 'package:flutter_ads_example/screens/main_tabs_screen.dart';
 import 'package:flutter_ads_example/config/sample_ads.dart';
@@ -33,12 +35,9 @@ class TestNavigatorObserver extends NavigatorObserver {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await AdmobKit.initialize(
-      config: const AdmobKitConfig(
+    await AdmobKitTestHarness.initialize(initializeNativeGma: false, config: const AdmobKitConfig(
         placements: [],
-        requestConsent: false,
-        initializeNativeGma: false,
-      ),
+        requestConsent: false,),
     );
   });
 
@@ -75,8 +74,8 @@ void main() {
     expect(find.text('Structure unbounded project hierarchies with instant filtering.'), findsOneWidget);
     expect(find.text('Automated Accomplishment Reports'), findsOneWidget);
     expect(find.text('Instant one-tap PDF exports without watching rewarded ads.'), findsOneWidget);
-    expect(find.text('0ms Priority Engine'), findsOneWidget);
-    expect(find.text('All executive features primed in memory with zero latency.'), findsOneWidget);
+    expect(find.text('Priority loading'), findsOneWidget);
+    expect(find.text('Ads use the configured loading priority.'), findsOneWidget);
 
     // 4. Pricing Tiers
     expect(find.text('Annual Membership'), findsOneWidget);

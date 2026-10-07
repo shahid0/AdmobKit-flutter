@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/adaptive_banner_ad.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
@@ -91,7 +93,7 @@ void main() {
     testWidgets('disposal during SDK size resolution never starts a native load', (tester) async {
       final size = Completer<Object?>();
       response = (_) => size.future;
-      final pool = EagerAdPool(driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network());
       final pending = pool.preload(_banner, bannerLayout: _narrow);
       await tester.pump();
       pool.dispose();
@@ -105,7 +107,7 @@ void main() {
       final size = Completer<Object?>();
       response = (_) => size.future;
       var allowed = true;
-      final pool = EagerAdPool(driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network(),
+      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network(),
         canRequestAds: () => allowed);
       addTearDown(pool.dispose);
       final pending = pool.preload(_banner, bannerLayout: _narrow);
@@ -191,6 +193,7 @@ void main() {
     testWidgets('different widths never satisfy each other and new demand reloads loadOnce', (tester) async {
       final driver = _Driver();
       final pool = EagerAdPool(
+        consumedLoadOnceIds: {},
         driver: driver,
         mutex: PresentationMutex(),
         networkInfo: _Network(),
@@ -222,7 +225,7 @@ void main() {
 
     testWidgets('shared buffer capacity evicts old layout rather than growing per width', (tester) async {
       final driver = _Driver();
-      final pool = EagerAdPool(driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       final first = pool.preload(_banner, bannerLayout: _narrow);
       await tester.pump();
@@ -238,7 +241,7 @@ void main() {
 
     test('registration does not request a banner without layout; request API rejects it', () {
       final driver = _Driver();
-      final pool = EagerAdPool(driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       pool.primeAll([_banner]);
       expect(driver.requests, isEmpty);
@@ -247,7 +250,7 @@ void main() {
     });
 
     test('same-ID incompatible sizing is rejected', () {
-      final pool = EagerAdPool(driver: _Driver(), mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: _Driver(), mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       pool.validatePlacement(_banner);
       const conflicting = BannerPlacement(

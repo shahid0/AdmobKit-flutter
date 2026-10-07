@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 
 class FakeDriver extends GoogleMobileAdsDriver {
@@ -34,21 +36,18 @@ void main() {
 
   setUp(() {
     fakeDriver = FakeDriver();
-    AdmobKit.driverForTesting = fakeDriver;
   });
 
   tearDown(() {
     AdmobKit.dispose();
-    AdmobKit.driverForTesting = null;
   });
 
   group('Two-Stage Initialization & State Inspection Tests', () {
     test('Stage 1: Initialize boots SDK without initial placements', () async {
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(
-          requestConsent: false,
-          initializeNativeGma: false,
-        ),
+      await AdmobKitTestHarness.initialize(
+        driver: fakeDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(requestConsent: false),
       );
 
       expect(AdmobKit.canRequestAds, true);
@@ -58,11 +57,10 @@ void main() {
     });
 
     test('Stage 2: registerPlacements primes placements and triggers loading state', () async {
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(
-          requestConsent: false,
-          initializeNativeGma: false,
-        ),
+      await AdmobKitTestHarness.initialize(
+        driver: fakeDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(requestConsent: false),
       );
 
       const splashInterstitial = InterstitialPlacement(
@@ -88,11 +86,10 @@ void main() {
     });
 
     test('watchState emits stream of state changes', () async {
-      await AdmobKit.initialize(
-        config: const AdmobKitConfig(
-          requestConsent: false,
-          initializeNativeGma: false,
-        ),
+      await AdmobKitTestHarness.initialize(
+        driver: fakeDriver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(requestConsent: false),
       );
 
       const testPlacement = InterstitialPlacement(

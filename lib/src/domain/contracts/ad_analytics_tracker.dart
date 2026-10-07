@@ -18,7 +18,7 @@ abstract interface class AdAnalyticsTracker {
     int? errorCode,
   );
 
-  /// Handles the event emitted when a full-screen or inline ad is first displayed to the user.
+  /// Reports SDK fullscreen display. Inline impressions are not reported here.
   void onAdDisplayed(AdPlacement placement);
 
   /// Handles the event emitted when a full-screen ad is closed or dismissed by the user.

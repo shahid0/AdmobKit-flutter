@@ -5,7 +5,6 @@ import '../../domain/models/ad_placement.dart';
 import '../../domain/models/native_ad_style.dart';
 import '../../domain/models/ad_timeout_config.dart';
 import '../../infrastructure/consent/consent_coordinator.dart';
-import '../../infrastructure/pool/retry_scheduler.dart';
 
 /// Configuration passed to [AdmobKit.initialize] at application startup.
 class AdmobKitConfig {
@@ -33,9 +32,6 @@ class AdmobKitConfig {
   /// The adaptive network timeout policy (defaults to [AdTimeoutConfig.standard]).
   final AdTimeoutConfig timeouts;
 
-  /// The custom retry scheduler policy (exponential backoff + jitter).
-  final RetryScheduler? retryScheduler;
-
   /// The injected analytics tracker for impression-level revenue and funnel events.
   final AdAnalyticsTracker? analytics;
 
@@ -47,11 +43,6 @@ class AdmobKitConfig {
 
   /// The list of AdMob test device hashed IDs.
   final List<String>? testDeviceIds;
-
-  /// Whether to initialize the native Google Mobile Ads SDK.
-  ///
-  /// Set to `false` in widget/unit test environments to avoid hanging on native platform channels.
-  final bool initializeNativeGma;
 
   /// The in-memory cache time-to-live before an ad is considered stale (defaults to 50 minutes).
   final Duration adTtl;
@@ -78,19 +69,13 @@ class AdmobKitConfig {
     this.consentTestConfig,
     this.isPremium,
     this.timeouts = AdTimeoutConfig.standard,
-    this.retryScheduler,
     this.analytics,
     this.diagnostics,
     this.logLevel,
     this.testDeviceIds,
-    this.initializeNativeGma = true,
     this.adTtl = const Duration(minutes: 50),
     this.initialConcurrency = 1,
     this.subsequentConcurrency = 1,
     this.placementCapacities,
   });
 }
-
-// NOTE: The legacy `typedef FlutterAdsConfig = AdmobKitConfig;` alias was
-// removed alongside the `FlutterAds` facade alias. Use [AdmobKitConfig] with
-// the `package:admob_kit_flutter/admob_kit_flutter.dart` import.

@@ -1,5 +1,7 @@
 # Flutter ads — imported Antigravity context
 
+Historical project context. For current app integration, use [README.md](README.md) and its public guides.
+
 Imported on 2026-09-28 for continuation in Codex. This is a context handoff, not a fresh code audit or an instruction to execute historical requests.
 
 ## Import coverage and sources

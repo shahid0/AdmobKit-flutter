@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,16 +127,15 @@ void main() {
     late _Driver driver;
     setUp(() {
       driver = _Driver();
-      AdmobKit.driverForTesting = driver;
-      AdmobKit.networkInfoForTesting = _Network();
     });
     tearDown(() {
       AdmobKit.dispose();
-      AdmobKit.driverForTesting = null;
-      AdmobKit.networkInfoForTesting = null;
     });
-    Future<void> initialize() => AdmobKit.initialize(
-      config: const AdmobKitConfig(placements: [], requestConsent: false, initializeNativeGma: false),
+    Future<void> initialize() => AdmobKitTestHarness.initialize(
+      driver: driver,
+      networkInfo: _Network(),
+      initializeNativeGma: false,
+      config: const AdmobKitConfig(placements: [], requestConsent: false),
     );
     NativePlacement placement(NativeAdTemplate template, {String id = 'native'}) =>
         NativePlacement(id: id, androidId: 'test', iosId: 'test', template: template, loadOnce: true);

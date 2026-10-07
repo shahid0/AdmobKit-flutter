@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/managed_native_ad.dart';
 import 'package:flutter/material.dart';
@@ -90,12 +94,12 @@ void main() {
     });
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, (_) async => null);
     driver = _Driver();
-    AdmobKit.driverForTesting = driver;
-    AdmobKit.networkInfoForTesting = _Network();
-    await AdmobKit.initialize(
+    await AdmobKitTestHarness.initialize(
+      driver: driver,
+      networkInfo: _Network(),
+      initializeNativeGma: false,
       config: AdmobKitConfig(
         requestConsent: false,
-        initializeNativeGma: false,
         logLevel: AdLogLevel.none,
         initialConcurrency: 2,
         subsequentConcurrency: 2,
@@ -127,8 +131,6 @@ void main() {
 
   tearDown(() {
     AdmobKit.dispose();
-    AdmobKit.driverForTesting = null;
-    AdmobKit.networkInfoForTesting = null;
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(instanceManager.channel, null);
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
@@ -157,7 +159,7 @@ void main() {
   testWidgets('SDK fullscreen owns display first; native waits then mounts after dismissal', (tester) async {
     await initialize(tester);
     const appOpen = AppOpenPlacement(androidId: 'open', iosId: 'open', loadOnce: true);
-    final ready = AdmobKit.preload(appOpen);
+    final ready = AdmobKitTestHarness.preload(appOpen);
     await tester.pump();
     driver.requests.single.complete(Object());
     await ready;
@@ -170,7 +172,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
-    expect(AdmobKit.presentationMutex!.currentHolderId, 'native');
+    expect(AdmobKitTestHarness.presentationMutex!.currentHolderId, 'native');
     driver.dismiss!(); // Late duplicate SDK callback must not release native ownership.
     expect(AdmobKit.isShowingAd, isTrue);
     await finish(tester);
@@ -241,19 +243,19 @@ void main() {
     await completeLoad(tester, index: 0);
     final second = await completeLoad(tester, index: 1);
     expect(find.byType(AdWidget), findsOneWidget);
-    expect(AdmobKit.presentationMutex!.currentHolderId, 'first');
+    expect(AdmobKitTestHarness.presentationMutex!.currentHolderId, 'first');
     await tester.pumpWidget(pair(false));
     await tester.pump();
     expect(find.byType(AdWidget), findsOneWidget);
     expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(second));
-    expect(AdmobKit.presentationMutex!.currentHolderId, 'second');
+    expect(AdmobKitTestHarness.presentationMutex!.currentHolderId, 'second');
     expect(driver.requests, hasLength(2));
     await finish(tester);
   });
 
   testWidgets('expired ad waiting for another owner reloads instead of mounting stale', (tester) async {
     await initialize(tester);
-    final mutex = AdmobKit.presentationMutex!;
+    final mutex = AdmobKitTestHarness.presentationMutex!;
     final other = mutex.tryAcquire('other')!;
     await tester.pumpWidget(page());
     final ad = await completeLoad(tester);
@@ -273,7 +275,7 @@ void main() {
     await initialize(tester);
     await tester.pumpWidget(page());
     final oldDriver = driver;
-    final oldMutex = AdmobKit.presentationMutex!;
+    final oldMutex = AdmobKitTestHarness.presentationMutex!;
     AdmobKit.dispose();
     await initialize(tester);
     await tester.pump();
@@ -359,14 +361,14 @@ void main() {
       ),
     );
     await completeLoad(tester);
-    expect(AdmobKit.presentationMutex!.currentHolderId, 'page0');
+    expect(AdmobKitTestHarness.presentationMutex!.currentHolderId, 'page0');
     controller.jumpToPage(1);
     await tester.pump();
     await tester.pump();
     expect(AdmobKit.isShowingAd, isFalse, reason: 'New page is loading, old cached page cannot own display');
     expect(driver.requests, hasLength(2));
     await completeLoad(tester);
-    expect(AdmobKit.presentationMutex!.currentHolderId, 'page1');
+    expect(AdmobKitTestHarness.presentationMutex!.currentHolderId, 'page1');
     await finish(tester);
     current.dispose();
     controller.dispose();
@@ -423,7 +425,11 @@ void main() {
     await initialize(tester);
     AdmobKit.dispose();
     driver.sdk = Completer<InitializationStatus>();
-    final boot = AdmobKit.initialize(config: const AdmobKitConfig(requestConsent: false, logLevel: AdLogLevel.none));
+    final boot = AdmobKitTestHarness.initialize(
+      driver: driver,
+      networkInfo: _Network(),
+      config: const AdmobKitConfig(requestConsent: false, logLevel: AdLogLevel.none),
+    );
     final failure = expectLater(boot, throwsStateError);
     await tester.pumpWidget(MaterialApp(home: AdNativeView(placement: placement('failure'))));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);

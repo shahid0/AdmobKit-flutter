@@ -184,8 +184,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
         const SizedBox(height: 10),
         _buildFeatureCard(
           icon: Icons.bolt_rounded,
-          title: '0ms Priority Engine',
-          desc: 'All executive features primed in memory with zero latency.',
+          title: 'Priority loading',
+          desc: 'Ads use the configured loading priority.',
         ),
       ],
     );

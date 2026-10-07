@@ -1,4 +1,8 @@
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/appearance/native_appearance.g.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,20 +56,19 @@ void main() {
       return null;
     });
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, (_) async => null);
-    AdmobKit.networkInfoForTesting = _Network();
     addTearDown(() {
       AdmobKit.dispose();
-      AdmobKit.networkInfoForTesting = null;
       messenger.setMockMethodCallHandler(instanceManager.channel, null);
       messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       for (final channel in channels) {
         messenger.setMockDecodedMessageHandler<Object?>(channel, null);
       }
     });
-    await AdmobKit.initialize(
+    await AdmobKitTestHarness.initialize(
+      networkInfo: _Network(),
+      initializeNativeGma: false,
       config: const AdmobKitConfig(
         requestConsent: false,
-        initializeNativeGma: false,
         logLevel: AdLogLevel.none,
         nativeStyle: NativeAdStyle(background: 0xff112233),
       ),

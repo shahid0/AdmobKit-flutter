@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
 import 'package:admob_kit_flutter/src/infrastructure/pool/tiered_ad_queue.dart';
 
 class FakeNetworkInfo implements AdNetworkInfo {

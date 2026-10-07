@@ -34,7 +34,7 @@ class EagerAdPool {
   final Duration _adTtl;
 
   final Map<AdRequestKey, ListQueue<AdCacheEntry>> _cache = {};
-  final Set<String> _consumedLoadOnceIds = {};
+  final Set<String> _consumedLoadOnceIds;
   final Set<String> _settlingPresentations = {};
   final Map<String, int> _placementCapacities;
   final Map<String, AdPlacement> _placements = {};
@@ -48,6 +48,7 @@ class EagerAdPool {
   bool _closed = false;
 
   EagerAdPool({
+    required Set<String> consumedLoadOnceIds,
     required GoogleMobileAdsDriver driver,
     required PresentationMutex mutex,
     required AdNetworkInfo networkInfo,
@@ -62,7 +63,8 @@ class EagerAdPool {
     int initialConcurrency = 1,
     int subsequentConcurrency = 1,
     Map<String, int>? placementCapacities,
-  }) : _driver = driver,
+  }) : _consumedLoadOnceIds = consumedLoadOnceIds,
+       _driver = driver,
        _mutex = mutex,
        _networkInfo = networkInfo,
        _timeoutConfig = timeoutConfig ?? AdTimeoutConfig.standard,
@@ -197,11 +199,10 @@ class EagerAdPool {
       return;
     }
 
-    _queue.markInitialBatch(placements.where((p) => p is! BannerPlacement).map((p) => p.id));
-
-    _logger?.info('[Pool] 🚀 Priming startup queue with ${placements.length} placement(s)...');
-    final sorted = placements.where((placement) => placement is! BannerPlacement).toList()
+    final sorted = placements.where((placement) => placement is! BannerPlacement && !isConsumed(placement)).toList()
       ..sort((a, b) => a.priority.rank.compareTo(b.priority.rank));
+    _queue.markInitialBatch(sorted.map((placement) => placement.id));
+    _logger?.info('[Pool] 🚀 Priming startup queue with ${sorted.length} placement(s)...');
 
     for (final placement in sorted) {
       validatePlacement(placement);

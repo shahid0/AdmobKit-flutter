@@ -1,4 +1,8 @@
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/appearance/native_appearance.g.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -67,15 +71,15 @@ void main() {
       return null;
     });
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, (_) async => null);
-    AdmobKit.networkInfoForTesting = _Network();
-    await AdmobKit.initialize(
-      config: const AdmobKitConfig(requestConsent: false, initializeNativeGma: false, logLevel: AdLogLevel.none),
+    await AdmobKitTestHarness.initialize(
+      networkInfo: _Network(),
+      initializeNativeGma: false,
+      config: const AdmobKitConfig(requestConsent: false, logLevel: AdLogLevel.none),
     );
   }
 
   tearDown(() async {
     AdmobKit.dispose();
-    AdmobKit.networkInfoForTesting = null;
     // Let session cleanup reach the mocked transport before removing handlers.
     await Future<void>.value();
     messenger.setMockMethodCallHandler(instanceManager.channel, null);

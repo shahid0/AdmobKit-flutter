@@ -3,6 +3,32 @@
 All notable changes to the `admob_kit_flutter` package will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Breaking changes
+
+- Removed public pool, mutex, logger, inline lease, freshness, and test controls from `AdmobKit`.
+- Removed public `preload`. Registration prepares reachable placements; `waitFor` gives an explicit ad decision.
+- Removed the legacy `flutter_ads.dart` entry point and test-only SDK/retry configuration from `AdmobKitConfig`.
+- Removed internal network and logger interfaces from public exports. Their public enums remain available.
+- Registration before initialization now throws `StateError` instead of discarding placements.
+- Invalid concurrency, freshness TTL, and request timeouts now fail before initialization instead of preventing useful loading.
+
+### Added
+
+- Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.
+- Added a minimal app using only the public API, plus consumer access and documentation code checks.
+- Added public guides for use cases, API behavior, native layouts, platform setup, and diagnosis.
+- Added generated skill references and a check that prevents them from differing from the public guides.
+
+### Known limit
+
+- The native protected-copy truncation issue remains unresolved. The guides identify it as a production release blocker.
+
+### Fixed
+
+- Privacy updates retain `loadOnce` consumption for the session. They do not restart consumed background work; new inline demand can still request an ad.
+
 ## 0.1.0
 
 Major feature milestone: replaces legacy XML/XIB layout bindings with 19 built-in native ad templates, introduces the `NativeAdStyle` engine with live theming and CTA corner radius via Pigeon, adds adaptive banner sizing, and stabilizes presentation lifecycle locks with `AdSession`.

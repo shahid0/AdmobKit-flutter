@@ -159,7 +159,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                StatusBadge.slate('0ms Mutex'),
+                StatusBadge.slate('Ad lock'),
               ],
             ),
           ),

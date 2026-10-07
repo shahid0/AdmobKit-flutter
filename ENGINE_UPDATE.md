@@ -1,5 +1,8 @@
 # 0.1 engine update and release checks
 
+Historical package-maintenance notes. For current app integration, use [README.md](README.md) and its public guides.
+The counts and checks below record earlier development, not the current API contract or release status.
+
 Internal status for the development branch. Version bump and publication are separate actions; this is not a release announcement. See [CHANGELOG.md](CHANGELOG.md) for user-facing changes.
 
 ## Implemented

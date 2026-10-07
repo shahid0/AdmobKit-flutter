@@ -1,12 +1,15 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../../infrastructure/drivers/managed_native_ad.dart';
-import '../../infrastructure/appearance/native_appearance.g.dart';
-import '../../infrastructure/mutex/presentation_mutex.dart';
+
+import '../../domain/models/ad_initialization_state.dart';
 import '../../domain/models/ad_native_template.dart';
 import '../../domain/models/ad_placement.dart';
-import '../../domain/models/ad_initialization_state.dart';
+import '../../infrastructure/appearance/native_appearance.g.dart';
+import '../../infrastructure/drivers/managed_native_ad.dart';
+import '../../infrastructure/mutex/presentation_mutex.dart';
+import '../ad_runtime.dart';
 import '../admob_kit_facade.dart';
 
 /// Native ad host measured from SDK assets and the available width.
@@ -174,10 +177,12 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
           state == AdInitializationState.updatingConsent;
     }
     final ad = _nativeAd;
+    final ttl = activeAdSession?.config.adTtl;
     if ((reactivating || (_effectiveTemplate.isFullscreen && _token == null)) &&
         ad is ManagedNativeAd &&
         ad.loadedAt != null &&
-        DateTime.now().difference(ad.loadedAt!) > AdmobKit.inlineAdTtl) {
+        ttl != null &&
+        DateTime.now().difference(ad.loadedAt!) > ttl) {
       _resetLease();
     }
     if (!_isSubtreeActive && _nativeAd == null && !_leasePending) {
@@ -250,7 +255,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   }
 
   void _bindPresentation() {
-    final next = _effectiveTemplate.isFullscreen ? AdmobKit.presentationMutex : null;
+    final next = _effectiveTemplate.isFullscreen ? activeAdSession?.mutex : null;
     if (identical(next, _mutex)) return;
     _releasePresentation();
     _presentationChanges?.cancel();
@@ -315,7 +320,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
     // Demand-based lease: the pool delivers a distinct ad instance when one is
     // buffered or replenished. Settles instantly on terminal load failure.
-    AdmobKit.leaseInlineAd(widget.config.placement)
+    (activeAdSession?.leaseInlineAd(widget.config.placement) ?? Future<dynamic>.value(null))
         .then((ad) {
           if (!mounted || generation != _generation) {
             // Never rendered — release the platform resource immediately.

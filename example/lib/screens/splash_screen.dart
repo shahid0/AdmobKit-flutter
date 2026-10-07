@@ -188,7 +188,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
               SizedBox(height: 2),
               Text(
-                'v2.4.0 • 0ms Mutex Ready',
+                'v2.4.0 • Ad lifecycle',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

@@ -311,7 +311,7 @@ class SettingsTab extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   store.isPremium
-                      ? 'All ads suppressed globally with zero latency.'
+                      ? 'Ad requests and presentations are suppressed.'
                       : 'Toggle switch to test instant VIP ad suppression.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

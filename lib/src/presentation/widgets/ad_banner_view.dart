@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart' show AdWidget;
-import '../../domain/models/ad_placement.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
 import '../../domain/models/ad_initialization_state.dart';
+import '../../domain/models/ad_placement.dart';
 import '../../domain/models/banner_layout.dart';
 import '../../infrastructure/drivers/adaptive_banner_ad.dart';
 import '../../infrastructure/pool/ad_cache_entry.dart';
+import '../ad_runtime.dart';
 import '../admob_kit_facade.dart';
 
 /// Adaptive banner sized to its parent's available logical width.
@@ -119,7 +121,8 @@ class _BannerHostState extends State<_BannerHost> {
       return;
     }
     final loadedAt = _ad?.loadedAt;
-    if (loadedAt != null && DateTime.now().difference(loadedAt) > AdmobKit.inlineAdTtl) _resetLease();
+    final ttl = activeAdSession?.config.adTtl;
+    if (loadedAt != null && ttl != null && DateTime.now().difference(loadedAt) > ttl) _resetLease();
     if (_ad == null && !_attempted && !AdmobKit.isUserPremium) _load();
   }
 
@@ -127,8 +130,9 @@ class _BannerHostState extends State<_BannerHost> {
     _attempted = true;
     _pending = true;
     final generation = _generation;
+    final session = activeAdSession;
     try {
-      final ad = await AdmobKit.leaseInlineAd(widget.placement, bannerLayout: widget.layout);
+      final ad = await session?.leaseInlineAd(widget.placement, bannerLayout: widget.layout);
       if (!mounted || generation != _generation) {
         await AdCacheEntry.disposeAdInstance(ad);
         return;
@@ -145,7 +149,7 @@ class _BannerHostState extends State<_BannerHost> {
       });
     } catch (error, stack) {
       if (!mounted || generation != _generation) return;
-      AdmobKit.logger?.error('[Banner] Lease failed for "${widget.placement.id}".', error, stack);
+      session?.logger.error('[Banner] Lease failed for "${widget.placement.id}".', error, stack);
       setState(() {
         _pending = false;
         if (!_active) _attempted = false;

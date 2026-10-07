@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/appearance/native_appearance.g.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/managed_native_ad.dart';
@@ -44,15 +48,11 @@ void main() {
       return null;
     });
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, (_) async => null);
-    AdmobKit.driverForTesting = driver;
-    AdmobKit.networkInfoForTesting = _Network();
-    await AdmobKit.initialize(
-      config: const AdmobKitConfig(
-        placements: [],
-        requestConsent: false,
-        initializeNativeGma: false,
-        logLevel: AdLogLevel.none,
-      ),
+    await AdmobKitTestHarness.initialize(
+      driver: driver,
+      networkInfo: _Network(),
+      initializeNativeGma: false,
+      config: const AdmobKitConfig(placements: [], requestConsent: false, logLevel: AdLogLevel.none),
     );
   }
 
@@ -99,8 +99,6 @@ void main() {
 
   tearDown(() {
     AdmobKit.dispose();
-    AdmobKit.driverForTesting = null;
-    AdmobKit.networkInfoForTesting = null;
     messenger.setMockMethodCallHandler(instanceManager.channel, null);
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
   });
