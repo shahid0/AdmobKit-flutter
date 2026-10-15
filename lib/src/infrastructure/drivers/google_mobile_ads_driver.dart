@@ -269,6 +269,21 @@ class GoogleMobileAdsDriver {
     }
 
     FullScreenContentCallback<T> createCallback<T extends Ad>() {
+      var completed = false;
+      void finishTerminal(T ad) {
+        if (completed) return;
+        completed = true;
+        try {
+          unawaited(ad.dispose().catchError((Object error, StackTrace stack) {
+            _logger?.warning('[Show] Failed to dispose ad: $error');
+          }));
+        } catch (error) {
+          _logger?.warning('[Show] Error while disposing ad: $error');
+        } finally {
+          onDismissed();
+        }
+      }
+
       return FullScreenContentCallback<T>(
         onAdShowedFullScreenContent: (ad) {
           _logger?.info('[Show] Ad displayed on screen: ${placement.id}');
@@ -278,11 +293,11 @@ class GoogleMobileAdsDriver {
         onAdDismissedFullScreenContent: (ad) {
           _logger?.info('[Show] Ad dismissed by user: ${placement.id}');
           _analytics?.onAdDismissed(placement);
-          onDismissed();
+          finishTerminal(ad);
         },
         onAdFailedToShowFullScreenContent: (ad, error) {
           _logger?.warning('[Show] Ad failed to display: [${error.code}] ${error.message}');
-          onDismissed();
+          finishTerminal(ad);
         },
         onAdClicked: (ad) {
           _logger?.debug('[Show] Ad clicked: ${placement.id}');
@@ -319,6 +334,15 @@ class GoogleMobileAdsDriver {
       adInstance.show();
     } else {
       _logger?.error('[Show] Unknown fullscreen ad instance type: ${adInstance.runtimeType}');
+      if (adInstance is Ad) {
+        try {
+          unawaited(adInstance.dispose().catchError((Object error, StackTrace stack) {
+            _logger?.warning('[Show] Failed to dispose unknown ad: $error');
+          }));
+        } catch (error) {
+          _logger?.warning('[Show] Error while disposing unknown ad: $error');
+        }
+      }
       onDismissed();
     }
   }
