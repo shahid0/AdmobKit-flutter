@@ -190,7 +190,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
       // failure): reset so reactivating this tab retries the lease instead of
       // staying blank. Skipped while a lease is still in-flight.
       _hasAttemptedLoad = false;
-    } else if (_isSubtreeActive && _nativeAd == null && !_hasAttemptedLoad && AdmobKit.canRequestAds) {
+    } else if (_isSubtreeActive && _nativeAd == null && !_hasAttemptedLoad && !_leasePending && AdmobKit.canRequestAds) {
       _loadNative();
     }
     if (_nativeAd != null) _configureLayout();
@@ -320,11 +320,25 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
     // Demand-based lease: the pool delivers a distinct ad instance when one is
     // buffered or replenished. Settles instantly on terminal load failure.
-    (activeAdSession?.leaseInlineAd(widget.config.placement) ?? Future<dynamic>.value(null))
+    (activeAdSession?.leaseInlineAd(
+          widget.config.placement,
+          isMounted: () => mounted && _attached && _isSubtreeActive,
+        ) ??
+        Future<dynamic>.value(null))
         .then((ad) {
           if (!mounted || generation != _generation) {
             // Never rendered — release the platform resource immediately.
             if (ad is Ad) ad.dispose();
+            return;
+          }
+          if (ad is Ad && !_isSubtreeActive) {
+            ad.dispose();
+            _leasePending = false;
+            setState(() {
+              _nativeAd = null;
+              _isLoading = false;
+              _hasAttemptedLoad = false;
+            });
             return;
           }
           _leasePending = false;

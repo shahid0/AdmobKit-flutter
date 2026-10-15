@@ -28,7 +28,17 @@ abstract final class AdmobKitTestHarness {
   static PresentationMutex? get presentationMutex => activeAdSession?.mutex;
   static Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) =>
       activeAdSession?.preload(placement, bannerLayout: bannerLayout) ?? Future<void>.value();
-  static Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) =>
-      activeAdSession?.leaseInlineAd(placement, timeout: timeout, bannerLayout: bannerLayout) ??
+  static Future<dynamic> leaseInlineAd(
+    InlinePlacement placement, {
+    Duration? timeout,
+    BannerLayout? bannerLayout,
+    bool Function()? isMounted,
+  }) =>
+      activeAdSession?.leaseInlineAd(
+        placement,
+        timeout: timeout,
+        bannerLayout: bannerLayout,
+        isMounted: isMounted,
+      ) ??
       Future<dynamic>.value(null);
 }

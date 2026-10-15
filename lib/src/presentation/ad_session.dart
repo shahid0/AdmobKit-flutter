@@ -203,14 +203,25 @@ class AdSession {
   }
 
   /// Waits for eligibility and leases an exclusive inline ad from the current pool.
-  /// Discards stale-pool results and returns null when no ad can be leased.
-  Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) async {
+  Future<dynamic> leaseInlineAd(
+    InlinePlacement placement, {
+    Duration? timeout,
+    BannerLayout? bannerLayout,
+    bool Function()? isMounted,
+  }) async {
     while (!isDisposed) {
+      if (isMounted != null && !isMounted()) return null;
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return null;
+      if (isMounted != null && !isMounted()) return null;
       final currentPool = pool;
-      final ad = await currentPool.leaseInlineAd(placement, timeout: timeout, bannerLayout: bannerLayout);
+      final ad = await currentPool.leaseInlineAd(
+        placement,
+        timeout: timeout,
+        bannerLayout: bannerLayout,
+        isMounted: isMounted,
+      );
       if (identical(currentPool, pool) && canRequestAds) return ad;
       await AdCacheEntry.disposeAdInstance(ad);
       if (isDisposed) return null;

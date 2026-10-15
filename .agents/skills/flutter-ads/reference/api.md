@@ -244,7 +244,13 @@ and 10/15/8/12 seconds for inline. `aggressive` and `relaxed` are optional profi
 
 Implement all methods of `AdAnalyticsTracker`: `onAdRequested`, `onAdLoaded`, `onAdFailedToLoad`,
 `onAdDisplayed`, `onAdDismissed`, `onAdClicked`, and `onPaidEvent`.
-`onAdLoaded` includes elapsed load time. Load failure includes an error string and optional SDK code.
+Load callbacks (`onAdRequested`, `onAdLoaded`, `onAdFailedToLoad`) report settled logical load cycles,
+not individual underlying SDK retry attempts. `onAdRequested` is emitted once when a logical load begins.
+If transient failures occur and are retried, each underlying attempt is recorded through `AdDiagnosticsTracker`,
+leaving analytics free from premature failure counts.
+When the request resolves, `onAdLoaded` reports total elapsed duration once upon readiness, or
+`onAdFailedToLoad` reports the error string and optional SDK code once upon terminal failure
+(fatal SDK code, exhausted retries, or watchdog timeout). Contradictory load outcomes are never emitted.
 `onPaidEvent` includes `AdRevenueValue`: `micros`, `currencyCode`, `precision`, and the converted `value`.
 Precision is `unknown`, `estimated`, `publisherProvided`, or `precise`.
 Do not grant rewards from analytics events.

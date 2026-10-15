@@ -476,7 +476,7 @@ class TieredAdQueue {
       if (!task.completer.isCompleted) {
         task.completer.complete(adInstance);
       }
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
       stopwatch.stop();
 
       if (_handleCancelledInFlightTask(task)) return;
@@ -518,7 +518,7 @@ class TieredAdQueue {
       );
 
       _inFlightTasks.remove(task);
-      _handleFailure(task, isTimeout: true);
+      _handleFailure(task, isTimeout: true, error: e);
     } catch (error) {
       stopwatch.stop();
 

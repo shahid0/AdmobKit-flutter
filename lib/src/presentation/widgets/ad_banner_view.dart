@@ -132,7 +132,11 @@ class _BannerHostState extends State<_BannerHost> {
     final generation = _generation;
     final session = activeAdSession;
     try {
-      final ad = await session?.leaseInlineAd(widget.placement, bannerLayout: widget.layout);
+      final ad = await session?.leaseInlineAd(
+        widget.placement,
+        bannerLayout: widget.layout,
+        isMounted: () => mounted && _active,
+      );
       if (!mounted || generation != _generation) {
         await AdCacheEntry.disposeAdInstance(ad);
         return;

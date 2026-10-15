@@ -3,6 +3,7 @@ import 'dart:collection';
 import '../../domain/models/banner_layout.dart';
 import '../../domain/models/ad_request_key.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart' show LoadAdError;
 import '../../domain/contracts/ad_analytics_tracker.dart';
 import '../../domain/contracts/ad_diagnostics_tracker.dart';
 import '../../domain/contracts/ad_network_info.dart';
@@ -40,9 +41,9 @@ class EagerAdPool {
   final Map<String, AdPlacement> _placements = {};
   final Map<String, BannerLayout> _preferredBannerLayouts = {};
 
-  /// Registered inline-lease demand per placement ID, served FIFO when the
-  /// replenished ad arrives. Guarantees each waiter gets its own ad instance.
-  final Map<AdRequestKey, ListQueue<Completer<dynamic>>> _leaseWaiters = {};
+  /// Registered inline-lease demand per placement ID, served LIFO to active mounted
+  /// widgets when an ad arrives. Guarantees each widget gets its own distinct ad.
+  final Map<AdRequestKey, ListQueue<_LeaseWaiter>> _leaseWaiters = {};
 
   /// Whether [dispose] has run; guards microtask-scheduled replenishments.
   bool _closed = false;
@@ -256,7 +257,9 @@ class EagerAdPool {
       if (totalBuffered + _queue.pendingTaskCount(placement.id, allLayouts: true) >= getCapacity(placement.id)) return;
     }
     final pending = _queue.pendingTaskCount(placement.id, bannerLayout: bannerLayout);
-    final openLeases = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.length ?? 0;
+    final openLeases = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]
+        ?.where((w) => w.isActive)
+        .length ?? 0;
     final targetCapacity = getCapacity(placement.id);
     final effectiveCapacity = placement.loadOnce
         ? (forInlineDemand && openLeases > targetCapacity ? openLeases : targetCapacity)
@@ -270,6 +273,7 @@ class EagerAdPool {
     }
 
     _analytics?.onAdRequested(placement);
+    final stopwatch = Stopwatch()..start();
 
     try {
       final adInstance = await _queue.enqueue(
@@ -283,13 +287,22 @@ class EagerAdPool {
         throw AdTaskCancelledException(placement.id);
       }
 
-      // Demand-based delivery: serve the oldest registered lease first so a
-      // concurrent widget receives its own instance without a re-lease race.
+      stopwatch.stop();
+      _analytics?.onAdLoaded(placement, stopwatch.elapsed);
+
+      // Demand-based delivery: serve active lease waiters on a LIFO basis
+      // so the currently visible / most recently mounted widget receives the ad first.
       final waiters = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)];
-      if (waiters != null && waiters.isNotEmpty) {
-        final waiter = waiters.removeFirst();
+      while (waiters != null && waiters.isNotEmpty) {
+        final waiter = waiters.removeLast();
         if (waiters.isEmpty) _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
-        if (!waiter.isCompleted) waiter.complete(adInstance);
+        if (waiter.completer.isCompleted) continue;
+        if (!waiter.isActive) {
+          _logger?.info('[Pool] Skipping unmounted lease waiter for "${placement.id}".');
+          waiter.completer.complete(null);
+          continue;
+        }
+        waiter.completer.complete(adInstance);
         if (placement.loadOnce) {
           _markConsumed(placement, bannerLayout: bannerLayout);
         } else {
@@ -298,30 +311,45 @@ class EagerAdPool {
         _logger?.info('[Pool] Delivered ad for "${placement.id}" directly to a waiting lease.');
 
         // Buffer replenishment: after direct delivery, keep the warm buffer
-        // full so the NEXT widget still gets a 0ms lease. Without this, the
-        // pool starves at 0/target after every demand-served lease.
+        // full so the NEXT widget still gets a 0ms lease.
         if (!placement.loadOnce && !isUserPremium) {
           _scheduleReplenish(placement, bannerLayout: bannerLayout);
         }
-      } else {
-        if (placement is BannerPlacement) _makeBannerCacheRoom(placement.id);
-        queue.addLast(AdCacheEntry(placement: placement, adInstance: adInstance, ttl: _adTtl));
-        _queue.notifyReady(placement.id, bannerLayout: bannerLayout);
-        _logger?.info(
-          '[Pool] Buffer filled for "${placement.id}" (${queue.length}/$targetCapacity). Ready for instant display.',
-        );
+        return;
       }
+
+      if (placement is BannerPlacement) _makeBannerCacheRoom(placement.id);
+      queue.addLast(AdCacheEntry(placement: placement, adInstance: adInstance, ttl: _adTtl));
+      _queue.notifyReady(placement.id, bannerLayout: bannerLayout);
+      _logger?.info(
+        '[Pool] Buffer filled for "${placement.id}" (${queue.length}/$targetCapacity). Ready for instant display.',
+      );
     } catch (error) {
-      // Failure logging and retries are managed within TieredAdQueue. However,
-      // no ad is coming from THIS task. Settle the oldest registered lease
-      // waiter with null so it renders its empty state instantly instead of
-      // hanging until its timeout (e.g. AdMob NO_FILL returning in ~200ms).
-      final waiters = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)];
-      if (waiters != null && waiters.isNotEmpty) {
-        final waiter = waiters.removeFirst();
-        if (waiters.isEmpty) _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
-        if (!waiter.isCompleted) waiter.complete(null);
-        _logger?.warning('[Pool] Ad load failed for "${placement.id}". Settling oldest lease waiter with null.');
+      stopwatch.stop();
+      if (error is! AdTaskCancelledException && !_closed) {
+        int? errorCode;
+        String errorMessage = error.toString();
+        if (error is LoadAdError) {
+          errorCode = error.code;
+          errorMessage = error.message.isNotEmpty ? error.message : error.toString();
+        } else if (error is TimeoutException) {
+          errorMessage = error.message ?? 'Ad load timed out';
+        }
+        _analytics?.onAdFailedToLoad(placement, errorMessage, errorCode);
+      }
+
+      // Failure logging and retries are managed within TieredAdQueue.
+      // If retries are scheduled or in-flight, keep active waiters waiting.
+      // Settle waiters with null only on terminal failure (no more tasks pending).
+      final pending = _queue.pendingTaskCount(placement.id, bannerLayout: bannerLayout);
+      if (pending == 0) {
+        final waiters = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)];
+        while (waiters != null && waiters.isNotEmpty) {
+          final waiter = waiters.removeFirst();
+          if (!waiter.completer.isCompleted) waiter.completer.complete(null);
+        }
+        _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
+        _logger?.warning('[Pool] Ad load failed terminally for "${placement.id}". Settling lease waiters with null.');
       }
     }
   }
@@ -566,7 +594,12 @@ class EagerAdPool {
   /// If the buffer is empty, registers demand and completes when a replenished
   /// ad arrives (each waiter receives its own distinct instance), or returns
   /// `null` after [timeout] elapses without settlement.
-  Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) async {
+  Future<dynamic> leaseInlineAd(
+    InlinePlacement placement, {
+    Duration? timeout,
+    BannerLayout? bannerLayout,
+    bool Function()? isMounted,
+  }) async {
     _validateRequest(placement, bannerLayout);
     if (!_adsAllowed) return null;
     if (bannerLayout != null) _preferredBannerLayouts[placement.id] = bannerLayout;
@@ -604,35 +637,31 @@ class EagerAdPool {
     // low-priority background preloads.
     _queue.promote(placement.id, AdPriority.immediate, bannerLayout: bannerLayout);
 
-    final waiter = Completer<dynamic>();
+    final waiter = _LeaseWaiter(completer: Completer<dynamic>(), isMounted: isMounted);
     _leaseWaiters
-        .putIfAbsent((placementId: placement.id, bannerLayout: bannerLayout), () => ListQueue<Completer<dynamic>>())
+        .putIfAbsent((placementId: placement.id, bannerLayout: bannerLayout), () => ListQueue<_LeaseWaiter>())
         .addLast(waiter);
     _load(placement, forInlineDemand: true, bannerLayout: bannerLayout);
 
-    final effectiveTimeout =
-        timeout ??
-        _timeoutConfig.resolve(
-          format: placement.format,
-          network: await _networkInfo.getNetworkType(),
-          isSplash: placement.isSplash,
-        );
+    if (timeout != null) {
+      return waiter.completer.future.timeout(
+        timeout,
+        onTimeout: () {
+          _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.remove(waiter);
+          if (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.isEmpty ?? false) {
+            _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
+          }
+          if (placement.loadOnce && !_leaseWaiters.containsKey((placementId: placement.id, bannerLayout: bannerLayout))) {
+            _queue.cancel(placement.id, bannerLayout: bannerLayout);
+            _markConsumed(placement, bannerLayout: bannerLayout);
+          }
+          _logger?.warning('[Pool] Inline lease for "${placement.id}" timed out. Returning null.');
+          return null;
+        },
+      );
+    }
 
-    return waiter.future.timeout(
-      effectiveTimeout,
-      onTimeout: () {
-        _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.remove(waiter);
-        if (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.isEmpty ?? false) {
-          _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
-        }
-        if (placement.loadOnce && !_leaseWaiters.containsKey((placementId: placement.id, bannerLayout: bannerLayout))) {
-          _queue.cancel(placement.id, bannerLayout: bannerLayout);
-          _markConsumed(placement, bannerLayout: bannerLayout);
-        }
-        _logger?.warning('[Pool] Inline lease for "${placement.id}" timed out. Returning null.');
-        return null;
-      },
-    );
+    return waiter.completer.future;
   }
 
   /// Schedules a microtask-level buffer replenishment without blocking the
@@ -640,8 +669,9 @@ class EagerAdPool {
   void _scheduleReplenish(AdPlacement placement, {BannerLayout? bannerLayout}) {
     scheduleMicrotask(() {
       if (bannerLayout != null && _preferredBannerLayouts[placement.id] != bannerLayout) return;
-      if (_closed || (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.isNotEmpty ?? false)) {
-        // Waiters get priority; the load triggered by their lease already ran.
+      if (_closed ||
+          (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.any((w) => w.isActive) ?? false)) {
+        // Active waiters get priority; the load triggered by their lease already ran.
         return;
       }
       _load(placement, bannerLayout: bannerLayout, background: true);
@@ -673,10 +703,18 @@ class EagerAdPool {
     _cache.clear();
     for (final waiters in _leaseWaiters.values) {
       for (final waiter in waiters) {
-        if (!waiter.isCompleted) waiter.complete(null);
+        if (!waiter.completer.isCompleted) waiter.completer.complete(null);
       }
     }
     _leaseWaiters.clear();
     _mutex.forceRelease();
   }
+}
+
+class _LeaseWaiter {
+  final Completer<dynamic> completer;
+  final bool Function()? isMounted;
+  _LeaseWaiter({required this.completer, this.isMounted});
+
+  bool get isActive => isMounted == null || isMounted!();
 }
