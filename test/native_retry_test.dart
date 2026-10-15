@@ -7,7 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_mobile_ads/src/ad_instance_manager.dart' show instanceManager;
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 // ignore: implementation_imports
@@ -70,7 +70,7 @@ void main() {
     );
     await tester.pumpWidget(host(true));
     expect(driver.requests, hasLength(1));
-    await tester.pump(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 20));
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
     expect(driver.requests, hasLength(2));
@@ -123,7 +123,7 @@ void main() {
     );
     await tester.pumpWidget(host(true));
     expect(driver.requests, hasLength(1));
-    await tester.pump(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 20));
     await tester.pump();
 
     // Deactivate host before retry completes

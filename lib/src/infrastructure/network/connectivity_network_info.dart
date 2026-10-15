@@ -1,5 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../domain/contracts/ad_network_info.dart';
+import '../../domain/ad_network.dart';
 
 /// Implementation of [AdNetworkInfo] backed by `connectivity_plus`.
 class ConnectivityNetworkInfo implements AdNetworkInfo {

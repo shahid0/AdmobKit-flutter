@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import '../../config/sample_ads.dart';
 import '../../state/task_store.dart';
@@ -23,7 +24,7 @@ class SettingsTab extends StatelessWidget {
         return Scaffold(
           backgroundColor: TaskColors.canvasGround,
           body: ListView(
-            cacheExtent: 1500,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(1500),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               _buildHeader(),

@@ -1,7 +1,7 @@
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
-import 'package:admob_kit_flutter/src/presentation/ad_runtime.dart';
+import 'package:admob_kit_flutter/src/presentation/ad_session.dart';
 import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart';
 import 'package:admob_kit_flutter/src/presentation/widgets/ad_banner_view.dart' as banner;
 import 'package:admob_kit_flutter/src/presentation/widgets/ad_native_view.dart' as native;
@@ -37,7 +37,7 @@ void main() {
     final session = activeAdSession!;
     expect(session.driver, same(driver));
     expect(session.networkInfo, same(network));
-    expect(AdmobKitTestHarness.pool, same(session.pool));
+    expect(AdmobKitTestHarness.engine, same(session.engine));
     expect(AdmobKitTestHarness.presentationMutex, same(session.mutex));
     expect(AdmobKit.initializationStateListenable, same(adInitializationStateListenable));
     expect(AdmobKit.canRequestAds, isTrue);

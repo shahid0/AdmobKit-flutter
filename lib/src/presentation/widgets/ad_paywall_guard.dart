@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/ad_placement.dart';
+import '../../domain/ad_placements.dart';
 import '../admob_kit_facade.dart';
 
 /// Full-coverage paywall guard intercepting system/hardware back gestures (`PopScope`)

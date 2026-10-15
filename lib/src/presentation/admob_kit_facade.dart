@@ -1,12 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-import '../domain/models/ad_initialization_state.dart';
-import '../domain/models/ad_placement.dart';
-import '../domain/models/ad_placement_state.dart';
-import '../domain/models/banner_layout.dart';
-import '../domain/models/native_ad_style.dart';
-import 'ad_runtime.dart';
+import '../domain/ad_placements.dart';
+import 'ad_session.dart';
 import 'config/admob_kit_config.dart';
 
 /// Unified developer-facing facade for the AdmobKit plugin.
@@ -83,22 +79,22 @@ abstract final class AdmobKit {
 
   /// Whether a fresh buffered ad is available for this placement/layout.
   static bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) {
-    return activeAdSession?.pool.isReady(placement, bannerLayout: bannerLayout) ?? false;
+    return activeAdSession?.isReady(placement, bannerLayout: bannerLayout) ?? false;
   }
 
   /// Whether queued, in-flight or retry work exists for this placement/layout.
   static bool isLoading(AdPlacement placement, {BannerLayout? bannerLayout}) {
-    return activeAdSession?.pool.isLoading(placement, bannerLayout: bannerLayout) ?? false;
+    return activeAdSession?.isLoading(placement, bannerLayout: bannerLayout) ?? false;
   }
 
   /// Returns the current lifecycle state of [placement].
   static AdPlacementState getState(AdPlacement placement, {BannerLayout? bannerLayout}) {
-    return activeAdSession?.pool.getState(placement, bannerLayout: bannerLayout) ?? AdPlacementState.unloaded;
+    return activeAdSession?.getState(placement, bannerLayout: bannerLayout) ?? AdPlacementState.unloaded;
   }
 
   /// Observes buffer state for diagnosis. Use [waitFor] for an ad decision.
   static Stream<AdPlacementState> watchState(AdPlacement placement, {BannerLayout? bannerLayout}) {
-    return activeAdSession?.pool.watchState(placement, bannerLayout: bannerLayout) ?? const Stream.empty();
+    return activeAdSession?.watchState(placement, bannerLayout: bannerLayout) ?? const Stream.empty();
   }
 
   /// Deterministically awaits [placement] until it is ready, fails, or times out.
@@ -116,7 +112,7 @@ abstract final class AdmobKit {
 
   /// Whether SDK fullscreen or loaded active fullscreen-native ownership is held.
   /// App dialogs and paywalls are not tracked.
-  static bool get isShowingAd => activeAdSession?.pool.mutex.isLocked ?? false;
+  static bool get isShowingAd => activeAdSession?.mutex.isLocked ?? false;
 
   /// Snapshot: consent AND SDK/factories are ready and the user is not premium.
   /// False can mean still resolving. Await [waitUntilCanRequestAds] for a decision.

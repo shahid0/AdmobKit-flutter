@@ -2,16 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show Orientation;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../../domain/contracts/ad_analytics_tracker.dart';
-import '../../domain/models/ad_format.dart';
-import '../../domain/models/ad_placement.dart';
-import '../../domain/models/ad_native_template.dart';
-import '../../domain/models/banner_layout.dart';
+import '../../domain/ad_placements.dart';
+import '../../domain/ad_telemetry.dart';
+import '../appearance/native_appearance.dart';
+import '../logging/platform_ad_logger.dart';
 import 'adaptive_banner_ad.dart';
 import 'managed_native_ad.dart';
-import '../appearance/native_appearance.dart';
-import '../../domain/models/ad_revenue_value.dart';
-import '../logging/platform_ad_logger.dart';
 
 /// Adapter wrapping the Google Mobile Ads (GMA) SDK.
 class GoogleMobileAdsDriver {

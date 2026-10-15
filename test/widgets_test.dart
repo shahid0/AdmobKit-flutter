@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:google_mobile_ads/google_mobile_ads.dart';

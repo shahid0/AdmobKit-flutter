@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-import '../../domain/models/ad_initialization_state.dart';
-import '../../domain/models/ad_placement.dart';
-import '../../domain/models/banner_layout.dart';
+import '../../domain/ad_placements.dart';
 import '../../infrastructure/drivers/adaptive_banner_ad.dart';
-import '../../infrastructure/pool/ad_cache_entry.dart';
-import '../ad_runtime.dart';
+import '../../infrastructure/engine/ad_cache_entry.dart';
+import '../ad_session.dart';
 import '../admob_kit_facade.dart';
 
 /// Adaptive banner sized to its parent's available logical width.

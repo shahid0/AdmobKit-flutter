@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
@@ -142,14 +142,14 @@ void main() {
       config: const AdmobKitConfig(requestConsent: false, logLevel: AdLogLevel.none),
     );
     const placement = RewardedPlacement(id: 'reward', androidId: '3', iosId: '3', loadOnce: true);
-    await AdmobKitTestHarness.pool!.preload(placement);
-    final oldPool = AdmobKitTestHarness.pool;
+    await AdmobKitTestHarness.engine!.preload(placement);
+    final oldPool = AdmobKitTestHarness.engine;
     final privacy = AdmobKit.showPrivacyOptionsForm();
     form.complete();
     await tester.pump();
     expect(await privacy, isTrue);
-    expect(AdmobKitTestHarness.pool, isNot(same(oldPool)));
-    await AdmobKitTestHarness.pool!.preload(placement);
+    expect(AdmobKitTestHarness.engine, isNot(same(oldPool)));
+    await AdmobKitTestHarness.engine!.preload(placement);
     final events = <String>[];
 
     AdmobKit.show(
@@ -569,7 +569,7 @@ void main() {
     await tester.pump();
     expect(driver.initializations, 0);
     expect(AdmobKit.initializationState, AdInitializationState.disposed);
-    expect(AdmobKitTestHarness.pool, isNull);
+    expect(AdmobKitTestHarness.engine, isNull);
   });
 
   testWidgets('old SDK completion cannot overwrite a newer session', (tester) async {
@@ -593,11 +593,11 @@ void main() {
     );
     await tester.pump();
     await current;
-    final currentPool = AdmobKitTestHarness.pool;
+    final currentPool = AdmobKitTestHarness.engine;
     oldDriver.sdk.complete(InitializationStatus({}));
     await tester.pump();
     await old;
-    expect(identical(AdmobKitTestHarness.pool, currentPool), isTrue);
+    expect(identical(AdmobKitTestHarness.engine, currentPool), isTrue);
     expect(AdmobKit.canRequestAds, isTrue);
     expect(oldDriver.loads, isEmpty);
   });
@@ -822,7 +822,7 @@ void main() {
     factories.complete(true);
     await tester.pump();
     expect(AdmobKit.canRequestAds, isFalse);
-    expect(AdmobKitTestHarness.pool, isNull);
+    expect(AdmobKitTestHarness.engine, isNull);
   });
 
   testWidgets('readiness observer can dispose without starting a stale SDK request', (tester) async {
@@ -915,7 +915,7 @@ void main() {
     );
     await tester.pump();
     await init;
-    expect(AdmobKitTestHarness.pool!.mutex.tryAcquire(_placement.id), isNotNull);
+    expect(AdmobKitTestHarness.engine!.mutex.tryAcquire(_placement.id), isNotNull);
     expect(await AdmobKit.showPrivacyOptionsForm(), isFalse);
     expect(AdmobKit.isShowingAd, isTrue);
     expect(AdmobKit.initializationState, AdInitializationState.ready);

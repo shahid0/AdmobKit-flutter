@@ -7,10 +7,10 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_mobile_ads/src/ad_instance_manager.dart' show instanceManager;
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/infrastructure/pool/eager_ad_pool.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
 
@@ -303,7 +303,7 @@ void main() {
     });
   });
 
-  group('EagerAdPool: End-to-end fullscreen presentation lifecycle', () {
+  group('AdEngine: End-to-end fullscreen presentation lifecycle', () {
     testWidgets('recurring placement: normal dismissal disposes ad, releases mutex, and replenishes', (tester) async {
       final allocated = <int>[];
       final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -318,7 +318,7 @@ void main() {
       });
 
       final mutex = PresentationMutex();
-      final pool = EagerAdPool(
+      final pool = AdEngine(
         consumedLoadOnceIds: {},
         driver: GoogleMobileAdsDriver(),
         mutex: mutex,
@@ -391,7 +391,7 @@ void main() {
       });
 
       final mutex = PresentationMutex();
-      final pool = EagerAdPool(
+      final pool = AdEngine(
         consumedLoadOnceIds: {},
         driver: GoogleMobileAdsDriver(),
         mutex: mutex,
@@ -453,7 +453,7 @@ void main() {
       });
 
       final mutex = PresentationMutex();
-      final pool = EagerAdPool(
+      final pool = AdEngine(
         consumedLoadOnceIds: {},
         driver: GoogleMobileAdsDriver(),
         mutex: mutex,

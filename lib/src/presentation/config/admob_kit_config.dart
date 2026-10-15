@@ -1,9 +1,6 @@
-import '../../domain/contracts/ad_analytics_tracker.dart';
-import '../../domain/contracts/ad_diagnostics_tracker.dart';
-import '../../domain/contracts/ad_logger.dart';
-import '../../domain/models/ad_placement.dart';
-import '../../domain/models/native_ad_style.dart';
-import '../../domain/models/ad_timeout_config.dart';
+import '../../domain/ad_network.dart';
+import '../../domain/ad_placements.dart';
+import '../../domain/ad_telemetry.dart';
 import '../../infrastructure/consent/consent_coordinator.dart';
 
 /// Configuration passed to [AdmobKit.initialize] at application startup.

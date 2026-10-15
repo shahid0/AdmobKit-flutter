@@ -1,7 +1,6 @@
 import 'dart:math';
 
-import '../../domain/models/ad_placement.dart';
-import '../../domain/models/native_ad_style.dart';
+import '../../domain/ad_placements.dart';
 import 'native_appearance.g.dart';
 
 /// Owns appearance for one session, including requests whose native view has

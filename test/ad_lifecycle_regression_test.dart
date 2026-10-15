@@ -2,14 +2,13 @@ import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/eager_ad_pool.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/retry_scheduler.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/tiered_ad_queue.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/retry_scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -96,7 +95,7 @@ class _DeniedConsent extends ConsentInformation {
 void main() {
   testWidgets('waitFor sees readiness reached during network lookup', (tester) async {
     final gate = Completer<AdNetworkType>();
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: _Driver(),
       mutex: PresentationMutex(),
@@ -116,7 +115,7 @@ void main() {
   test('waitFor settles false when the pool is disposed', () async {
     final pending = Completer<dynamic>();
     final driver = _Driver(pending);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -134,7 +133,7 @@ void main() {
 
   testWidgets('cancelling backoff settles the original future without retrying', (tester) async {
     var calls = 0;
-    final queue = TieredAdQueue(
+    final queue = AdEngine(
       executor: (_, {bannerLayout, validateRequest}) async {
         calls++;
         throw Exception('network');
@@ -167,7 +166,7 @@ void main() {
   testWidgets('cancellation during network lookup never starts an SDK request', (tester) async {
     final gate = Completer<AdNetworkType>();
     var calls = 0;
-    final queue = TieredAdQueue(
+    final queue = AdEngine(
       executor: (_, {bannerLayout, validateRequest}) async {
         calls++;
         return Object();
@@ -188,7 +187,7 @@ void main() {
     testWidgets('late SDK result after watchdog is disposed (cancelled: $cancelled)', (tester) async {
       final pending = Completer<dynamic>();
       final ad = _Banner();
-      final queue = TieredAdQueue(
+      final queue = AdEngine(
         executor: (_, {bannerLayout, validateRequest}) => pending.future,
         networkInfo: _Network(),
         timeoutConfig: _timeouts,
@@ -209,7 +208,7 @@ void main() {
   testWidgets('cancelled fullscreen result is disposed exactly once', (tester) async {
     final pending = Completer<dynamic>();
     final ad = _Fullscreen();
-    final queue = TieredAdQueue(
+    final queue = AdEngine(
       executor: (_, {bannerLayout, validateRequest}) => pending.future,
       networkInfo: _Network(),
     );
@@ -225,7 +224,7 @@ void main() {
 
   testWidgets('loadOnce serves all cached slots and reloads only on new widget demand', (tester) async {
     final driver = _Driver();
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -259,7 +258,7 @@ void main() {
   testWidgets('loadOnce still serves pending slots after first consumption', (tester) async {
     final gate = Completer<dynamic>();
     final driver = _Driver(gate);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -301,8 +300,8 @@ void main() {
     var dismissed = false;
     AdmobKit.show(_fullscreen, onDismissed: () => dismissed = true);
     expect(dismissed, isTrue);
-    AdmobKitTestHarness.pool!.primeAll([_fullscreen]);
-    await AdmobKitTestHarness.pool!.preload(_inline);
+    AdmobKitTestHarness.engine!.primeAll([_fullscreen]);
+    await AdmobKitTestHarness.engine!.preload(_inline);
     await tester.pump();
     expect(driver.calls, 0);
   });
@@ -311,7 +310,7 @@ void main() {
     var allowed = true;
     final gate = Completer<AdNetworkType>();
     final driver = _Driver();
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),

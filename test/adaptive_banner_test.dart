@@ -2,12 +2,11 @@ import 'dart:async';
 
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/adaptive_banner_ad.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/eager_ad_pool.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/tiered_ad_queue.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -93,7 +92,7 @@ void main() {
     testWidgets('disposal during SDK size resolution never starts a native load', (tester) async {
       final size = Completer<Object?>();
       response = (_) => size.future;
-      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network());
       final pending = pool.preload(_banner, bannerLayout: _narrow);
       await tester.pump();
       pool.dispose();
@@ -107,7 +106,7 @@ void main() {
       final size = Completer<Object?>();
       response = (_) => size.future;
       var allowed = true;
-      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network(),
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: GoogleMobileAdsDriver(), mutex: PresentationMutex(), networkInfo: _Network(),
         canRequestAds: () => allowed);
       addTearDown(pool.dispose);
       final pending = pool.preload(_banner, bannerLayout: _narrow);
@@ -192,7 +191,7 @@ void main() {
   group('Layout-aware engine', () {
     testWidgets('different widths never satisfy each other and new demand reloads loadOnce', (tester) async {
       final driver = _Driver();
-      final pool = EagerAdPool(
+      final pool = AdEngine(
         consumedLoadOnceIds: {},
         driver: driver,
         mutex: PresentationMutex(),
@@ -225,7 +224,7 @@ void main() {
 
     testWidgets('shared buffer capacity evicts old layout rather than growing per width', (tester) async {
       final driver = _Driver();
-      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       final first = pool.preload(_banner, bannerLayout: _narrow);
       await tester.pump();
@@ -241,7 +240,7 @@ void main() {
 
     test('registration does not request a banner without layout; request API rejects it', () {
       final driver = _Driver();
-      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       pool.primeAll([_banner]);
       expect(driver.requests, isEmpty);
@@ -250,7 +249,7 @@ void main() {
     });
 
     test('same-ID incompatible sizing is rejected', () {
-      final pool = EagerAdPool(consumedLoadOnceIds: {}, driver: _Driver(), mutex: PresentationMutex(), networkInfo: _Network());
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: _Driver(), mutex: PresentationMutex(), networkInfo: _Network());
       addTearDown(pool.dispose);
       pool.validatePlacement(_banner);
       const conflicting = BannerPlacement(
@@ -265,7 +264,7 @@ void main() {
 
     testWidgets('queue cancellation is isolated to the exact banner layout', (tester) async {
       final results = <BannerLayout?, Completer<dynamic>>{};
-      final queue = TieredAdQueue(
+      final queue = AdEngine(
         executor: (_, {bannerLayout, validateRequest}) => (results[bannerLayout] = Completer<dynamic>()).future,
         networkInfo: _Network(),
         subsequentConcurrency: 2,

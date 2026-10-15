@@ -86,7 +86,7 @@ import 'package:flutter_ads_example/minimal.dart' show AppAds, ExampleApp;
       'disposeAdSession();',
       'adInitializationStateListenable;',
       'adSessionLogger;',
-      'EagerAdPool;',
+      'AdEngine;',
       'GoogleMobileAdsDriver;',
       'ConsentCoordinator;',
       'AdNetworkInfo;',

@@ -5,7 +5,7 @@ import 'package:admob_kit_flutter/src/infrastructure/appearance/native_appearanc
 import 'package:admob_kit_flutter/src/infrastructure/appearance/native_appearance.g.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/managed_native_ad.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/ad_cache_entry.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_cache_entry.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';

@@ -1,5 +1,5 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../../domain/models/ad_placement.dart';
+import '../../domain/ad_placements.dart';
 import '../drivers/adaptive_banner_ad.dart';
 import '../drivers/managed_native_ad.dart';
 

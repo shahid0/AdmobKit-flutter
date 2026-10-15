@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart';
 
-import '../domain/contracts/ad_network_info.dart';
-import '../domain/models/ad_placement.dart';
-import '../domain/models/banner_layout.dart';
+import '../domain/ad_network.dart';
+import '../domain/ad_placements.dart';
 import '../infrastructure/drivers/google_mobile_ads_driver.dart';
 import '../infrastructure/mutex/presentation_mutex.dart';
-import '../infrastructure/pool/eager_ad_pool.dart';
-import 'ad_runtime.dart';
+import '../infrastructure/engine/ad_engine.dart';
+import 'ad_session.dart';
 import 'config/admob_kit_config.dart';
 
 /// Package test support. Not exported by the public library.
@@ -24,7 +23,7 @@ abstract final class AdmobKitTestHarness {
     initializeNativeGma: initializeNativeGma,
   );
 
-  static EagerAdPool? get pool => activeAdSession?.pool;
+  static AdEngine? get engine => activeAdSession?.engine;
   static PresentationMutex? get presentationMutex => activeAdSession?.mutex;
   static Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) =>
       activeAdSession?.preload(placement, bannerLayout: bannerLayout) ?? Future<void>.value();

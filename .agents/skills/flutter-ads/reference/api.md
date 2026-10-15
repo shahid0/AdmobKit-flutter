@@ -235,8 +235,9 @@ A stale retained inline ad is checked on reactivation, not replaced while a user
 
 `AdTimeoutConfig` contains `fullscreen`, `inline`, and `splash` policies.
 Each `AdTimeoutPolicy` has `wifiTimeout`, `cellularTimeout`, `ethernetTimeout`, and `otherTimeout`.
-The standard profiles, in that order, are 15/25/12/20 seconds for fullscreen and splash,
-and 10/15/8/12 seconds for inline. `aggressive` and `relaxed` are optional profiles.
+The standard profiles, in that order, are 30/50/20/40 seconds for fullscreen,
+25/45/20/35 seconds for splash, and 20/35/15/25 seconds for inline.
+Optional profiles include `emergingMarkets` (calibrated for high-latency or 2G/3G connectivity in regions like Ethiopia and Pakistan), `relaxed`, and `aggressive`.
 `AdNetworkType` has `wifi`, `cellular`, `ethernet`, `none`, and `unknown`.
 `none` and `unknown` use the other timeout. No timeout guarantees an ad will be available.
 

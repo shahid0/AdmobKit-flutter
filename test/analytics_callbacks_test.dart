@@ -10,11 +10,11 @@ import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_d
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/infrastructure/pool/eager_ad_pool.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/domain/contracts/ad_network_info.dart';
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 // ignore: implementation_imports
-import 'package:admob_kit_flutter/src/infrastructure/pool/retry_scheduler.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/retry_scheduler.dart';
 
 class FixtureNetwork implements AdNetworkInfo {
   @override
@@ -72,7 +72,7 @@ void main() {
   testWidgets('PACKAGE: actual SDK load success and failure reach analytics callbacks', (tester) async {
     final tracker = RecordingTracker();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -127,7 +127,7 @@ void main() {
   testWidgets('native load path invokes onAdLoaded on success and onAdFailedToLoad on error', (tester) async {
     final tracker = RecordingTracker();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -179,7 +179,7 @@ void main() {
   testWidgets('banner load path invokes onAdLoaded on success and onAdFailedToLoad on error', (tester) async {
     final tracker = RecordingTracker();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -236,7 +236,7 @@ void main() {
     final tracker = RecordingTracker();
     final diagnostics = RecordingDiagnostics();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -307,7 +307,7 @@ void main() {
     final diagnostics = RecordingDiagnostics();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
     // Custom retry scheduler with maxRetries = 1
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),
@@ -378,7 +378,7 @@ void main() {
     final tracker = RecordingTracker();
     final driver = GoogleMobileAdsDriver(analytics: tracker);
     // TimeoutConfig with minimal timeout (1 millisecond) and no retries
-    final pool = EagerAdPool(
+    final pool = AdEngine(
       consumedLoadOnceIds: {},
       driver: driver,
       mutex: PresentationMutex(),

@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-import '../../domain/models/ad_initialization_state.dart';
-import '../../domain/models/ad_native_template.dart';
-import '../../domain/models/ad_placement.dart';
+import '../../domain/ad_placements.dart';
 import '../../infrastructure/appearance/native_appearance.g.dart';
 import '../../infrastructure/drivers/managed_native_ad.dart';
 import '../../infrastructure/mutex/presentation_mutex.dart';
-import '../ad_runtime.dart';
+import '../ad_session.dart';
 import '../admob_kit_facade.dart';
 
 /// Native ad host measured from SDK assets and the available width.
@@ -423,12 +421,12 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   }
 
   Widget _buildDefaultPlaceholder(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141416) : const Color(0xFFF1F5F9),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? const Color(0x28FFFFFF) : const Color(0xFFE2E8F0)),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       alignment: Alignment.center,
       child: SizedBox(
@@ -436,7 +434,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
         height: 20,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(isDark ? const Color(0xFF9185E9) : const Color(0xFF4338CA)),
+          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
         ),
       ),
     );
