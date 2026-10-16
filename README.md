@@ -1,50 +1,61 @@
 # AdmobKit for Flutter
 
-AdmobKit manages Google AdMob ads in Flutter apps on Android and iOS.
-The engine automates user consent, loading queues, warm caching, network timeouts, retries, and presentation safety.
+AdmobKit is a production-grade Google AdMob engine for Flutter on Android and iOS.
+The engine preloads ads into a warm memory cache to provide 0ms instant display.
+It prevents banner layout shifts, automates Google UMP consent, and handles network retries.
 
-Your app declares placements and triggers display at natural navigation points.
-Use `show` for fullscreen ads.
-Use `waitFor` only when a user flow must pause for an ad decision.
-Mount `AdBannerView` and `AdNativeView` directly in your widget tree.
-Do not build custom ad-loading controllers or retry loops.
+Traditional AdMob integrations force apps to manage complex ad lifecycles.
+Apps suffer from slow cold-start loads, jumping banner heights, and thread pauses.
+AdmobKit automates these operations in the background.
+Your application only declares placements and triggers display at natural transition points.
 
-## What the Engine Automates
+## Comparison: Raw GMA SDK vs. AdmobKit
 
-- **Zero-latency presentation**: Preloads ads into a warm memory cache for 0ms display.
+| Capability | Raw Google Mobile Ads SDK | AdmobKit |
+| :--- | :--- | :--- |
+| **Presentation Latency** | 2 to 5 second network download wait | **0ms instant display** from eager memory pool |
+| **Banner Layout** | Jumps and causes Cumulative Layout Shift (CLS) | **Zero layout shift** via reserved adaptive heights |
+| **Consent Management** | Manual Google UMP boilerplate and state loops | **Automated UMP and Apple ATT** synchronization |
+| **Network Resilience** | Fails silently on network errors | **Exponential backoff with randomized jitter** |
+| **Slow Connections** | Requests drop on high-latency networks | **`emergingMarkets` timeout profile** (up to 75s) |
+| **Hidden Tabs and Pages** | Ads stay active in memory and cause leaks | **Automatic pause and detachment** via `active` flag |
+| **Presentation Safety** | Overlapping fullscreen ads crash or hide content | **Hardware presentation mutex** prevents collisions |
+
+## System Responsibilities
+
+### What the Engine Automates
+
+- **Zero-latency display**: Preloads ads into a warm memory cache before user navigation.
 - **Privacy compliance**: Gathers consent through Google UMP and requests iOS ATT permission.
 - **Automatic replenishment**: Preloads replacement ads in the background after each display.
-- **Network resilience**: Adjusts timeouts dynamically for cellular data and high-latency networks.
+- **Network resilience**: Adjusts timeouts dynamically for cellular data and slow connections.
 - **Intelligent retries**: Schedules exponential backoff with randomized jitter on network errors.
 - **Stale ad eviction**: Disposes ads automatically when their time-to-live expires.
 - **Presentation safety**: Locks fullscreen presentation to prevent multiple overlapping ads.
 - **Non-blocking leasing**: Mounts inline ads cleanly without causing layout shifts.
 
-## What Your App Controls
+### What Your App Controls
 
 - Declare placement identifiers and format specifications.
-- Choose when to trigger fullscreen display during navigation.
+- Choose when to trigger fullscreen display during user navigation.
 - Supply an entitlement callback to suppress ads for premium users.
 
-## Setup
+## Quickstart
 
-Requires Dart 3.11.5 or later and Flutter 3.41.0 or later.
+### 1. Add the Dependency
+
+Add the package to your Flutter project:
 
 ```sh
 flutter pub add admob_kit_flutter
 ```
 
-Complete platform configuration in [Platform setup](docs/setup.md) before you run the app.
-Use test ad unit identifiers during development.
+Configure your AdMob App ID in your Android Manifest and iOS `Info.plist`.
+Read the [Platform setup guide](docs/setup.md) for platform instructions.
 
-Native templates have a known text-truncation limit.
-Read the [native ad guide](docs/native-ads.md#production-limit) before production release.
+### 2. Complete Minimal App
 
-## Complete Example
-
-This example uses only the supported package import.
-You can register placements while initialization is pending.
-The engine resolves consent and SDK readiness before it requests ads.
+The minimal app demonstrates initialization, placement registration, and display:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -120,18 +131,141 @@ class ExampleScreen extends StatelessWidget {
 Put your normal button action inside `onDismissed`.
 The engine executes `onDismissed` even when an ad cannot show.
 
-## Decision Matrix
+## Production Recipes
+
+### 1. Screen Transitions (0ms Display)
+
+Show an interstitial ad during natural transitions, such as completing a task.
+Put your normal navigation logic in `onDismissed`.
+The engine calls `onDismissed` immediately if no ad is ready.
+
+```dart
+void triggerScreenTransition(BuildContext context, VoidCallback navigate) {
+  AdmobKit.show(
+    AppAds.transition,
+    onDismissed: navigate,
+  );
+}
+```
+
+### 2. Cold-Start Launch and Splash Screens
+
+Use `AdmobKit.waitFor()` only when a user flow must pause for an ad decision.
+`waitFor` handles pending consent and SDK initialization automatically.
+
+```dart
+Future<void> handleAppColdStart(VoidCallback launchHome) async {
+  final ready = await AdmobKit.waitFor(
+    AppAds.transition,
+    timeout: const Duration(seconds: 4),
+  );
+  if (ready) {
+    AdmobKit.show(AppAds.transition, onDismissed: launchHome);
+  } else {
+    launchHome();
+  }
+}
+```
+
+### 3. Rewarded User Actions
+
+Grant rewards only inside `onRewardGranted`.
+Never grant rewards inside `onDismissed`.
+`onDismissed` also runs when an ad is skipped or unavailable.
+
+```dart
+const rewardedPlacement = RewardedPlacement(
+  id: 'rewarded_coins',
+  androidId: AdMobTestIds.rewardedAndroid,
+  iosId: AdMobTestIds.rewardedIos,
+);
+
+void requestReward(VoidCallback onGranted) {
+  AdmobKit.show(
+    rewardedPlacement,
+    onRewardGranted: (amount, type) => onGranted(),
+    onDismissed: () {
+      debugPrint('Ad dismissed or unavailable.');
+    },
+  );
+}
+```
+
+### 4. Anchored Bottom Banners (Zero Layout Shift)
+
+Mount `AdBannerView` directly inside your `Scaffold.bottomNavigationBar`.
+The banner reserves its maximum adaptive height automatically.
+
+```dart
+Widget buildBottomBanner() {
+  return const SafeArea(
+    child: AdBannerView(placement: AppAds.banner),
+  );
+}
+```
+
+### 5. In-Feed Native Ads
+
+Mount `AdNativeView` directly inside your `ListView` or `CustomScrollView`.
+Make certain the container has at least 320 logical pixels of bounded width.
+
+```dart
+Widget buildFeedNativeAd() {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < AppAds.native.template.minWidth) {
+        return const SizedBox.shrink();
+      }
+      return const AdNativeView(placement: AppAds.native);
+    },
+  );
+}
+```
+
+### 6. Paywall Dismissal Guard
+
+Use `AdPaywallGuard` to display an ad when a non-paying user closes a paywall.
+`AdPaywallGuard` intercepts both the UI close button and the hardware Android back button.
+
+```dart
+Widget buildPaywallScreen(VoidCallback dismissPaywall) {
+  return AdPaywallGuard(
+    placement: AppAds.transition,
+    onDismiss: dismissPaywall,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Upgrade to Pro')),
+      body: const Center(child: Text('Paywall Content')),
+    ),
+  );
+}
+```
+
+## Emerging Markets and Low-Bandwidth Networks
+
+In countries like Ethiopia, Pakistan, or India, cellular connections often have high latency.
+Standard network timeouts can abort ad downloads prematurely.
+
+AdmobKit provides an `emergingMarkets` timeout profile.
+This profile allocates up to 75 seconds on cellular data to maximize fill rate:
+
+```dart
+AdmobKitConfig emergingMarketsConfig() => const AdmobKitConfig(
+  timeouts: AdTimeoutConfig.emergingMarkets,
+);
+```
+
+## Decision Framework
 
 ### Ad Format Selection
 
-| Ad Format | Placement Class | Primary Use Case |
-| :--- | :--- | :--- |
-| **Interstitial** | `InterstitialPlacement` | Natural screen transitions, completed actions, step changes |
-| **Rewarded** | `RewardedPlacement` | Optional user rewards, extra lives, currency unlock |
-| **Rewarded Interstitial** | `RewardedInterstitialPlacement` | Pre-announced rewards without opt-in prompts |
-| **App Open** | `AppOpenPlacement` | Cold app launch and return from background |
-| **Adaptive Banner** | `BannerPlacement` | Anchored screen headers, footers, or inline feed breaks |
-| **Native Template** | `NativePlacement` | Content feeds matching app design and typography |
+| Ad Format | Placement Class | Primary Use Case | User Experience Impact |
+| :--- | :--- | :--- | :--- |
+| **Interstitial** | `InterstitialPlacement` | Natural screen transitions, completed steps | Fullscreen overlay; dismissed by user |
+| **Rewarded** | `RewardedPlacement` | Optional user rewards, currency, unlocks | Opt-in fullscreen; rewards on completion |
+| **Rewarded Interstitial** | `RewardedInterstitialPlacement` | Pre-announced rewards without opt-in prompts | Fullscreen overlay with countdown timer |
+| **App Open** | `AppOpenPlacement` | Cold app launch and return from background | Fullscreen overlay on app foregrounding |
+| **Adaptive Banner** | `BannerPlacement` | Anchored screen headers, footers, feed breaks | Anchored inline bar; zero layout shift |
+| **Native Template** | `NativePlacement` | Content feeds matching app design and theme | Custom styled inline widget |
 
 ### Method Selection
 
@@ -158,12 +292,6 @@ The engine executes `onDismissed` even when an ad cannot show.
   Profile for regions with high latency or constrained 2G/3G connectivity (e.g. Ethiopia, Pakistan).
   Allocates up to 75s on cellular data to prevent premature download aborts.
 
-```dart
-AdmobKitConfig emergingMarketsConfig() => const AdmobKitConfig(
-  timeouts: AdTimeoutConfig.emergingMarkets,
-);
-```
-
 ## Rules for Developers and AI Agents
 
 Follow these architectural rules when integrating this package:
@@ -186,14 +314,30 @@ Follow these architectural rules when integrating this package:
    Pass a synchronous boolean function to `AdmobKitConfig(isPremium: () => false)`.
    When entitlement changes, rebuild your widget tree.
 
-## Guides
+## Diagnostics and Ad Inspector
+
+Open the native Google Ad Inspector to verify mediation adapters and ad units on device:
+
+```dart
+void inspectAdIntegration() {
+  AdmobKit.openAdInspector((error) {
+    if (error != null) {
+      debugPrint('Ad Inspector error: $error');
+    }
+  });
+}
+```
+
+Read [Troubleshooting](docs/troubleshooting.md) for standard error codes (`0`, `1`, `2`, `3`) and layout solutions.
+
+## Documentation Guides
 
 | Guide | Description |
 | :--- | :--- |
-| [Use cases](docs/recipes.md) | Recipes for transitions, rewards, banners, feeds, tabs, and splash |
-| [Public API](docs/api.md) | Methods, parameters, return types, error contracts, and defaults |
-| [Native ads](docs/native-ads.md) | Templates, styling parameters, layout bounds, and truncation limits |
-| [Platform setup](docs/setup.md) | Android manifest, iOS Info.plist, UMP consent, and test devices |
+| [Use cases and recipes](docs/recipes.md) | Complete recipes for transitions, rewards, banners, feeds, tabs, and splash |
+| [Public API surface](docs/api.md) | Methods, parameters, return types, error contracts, and engine defaults |
+| [Native ads catalog](docs/native-ads.md) | Templates, styling parameters, layout bounds, and truncation limits |
+| [Platform setup](docs/setup.md) | Android manifest, iOS Info.plist, UMP consent, ATT, and test devices |
 | [Troubleshooting](docs/troubleshooting.md) | Common errors, missing ads, Ad Inspector, and network diagnostics |
 
 ## AI Coding Agents

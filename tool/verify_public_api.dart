@@ -6,9 +6,10 @@ Future<void> main() async {
   final root = File.fromUri(Platform.script).parent.parent;
   final readme = await File('${root.path}/README.md').readAsString();
   final exampleCode = await File('${root.path}/example/lib/minimal.dart').readAsString();
-  final documentedExample = RegExp(r'```dart\s*\n([\s\S]*?)\n```').firstMatch(readme)?.group(1);
-  if (documentedExample?.trim() != exampleCode.trim()) {
-    throw StateError('The README example differs from the verified minimal app.');
+  final matches = RegExp(r'```dart\s*\n([\s\S]*?)\n```').allMatches(readme);
+  final hasMinimal = matches.any((m) => m.group(1)?.trim() == exampleCode.trim());
+  if (!hasMinimal) {
+    throw StateError('The README does not contain the verified minimal app.');
   }
   final configFile = File('${root.path}/example/.dart_tool/package_config.json');
   final config = jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;

@@ -1,59 +1,68 @@
-# Native ads
+# Native Ads Guide
 
-Declare a `NativePlacement` and mount `AdNativeView`.
-The package registers the supplied templates. App integration needs no Android XML or iOS XIB factory.
+Declare a `NativePlacement` and mount `AdNativeView` to show native ads.
+The engine registers 19 built-in native templates on Android and iOS.
+Your application requires no Android XML layouts or iOS XIB factories.
 
-## Select a template
+## Template Selection Guide
 
-All 19 templates are available on Android and iOS.
-Names describe asset order, not the text supplied by an advertiser.
+Select a template matching your screen layout and visual hierarchy:
 
-| Family | Templates | Initial loading estimate |
-| --- | --- | --- |
-| Compact row | `rowWithLeadingIcon`, `rowWithTrailingIcon`, `rowLeadingCta` | 80 logical pixels |
-| Smart media | `splitMediaLeft`, `splitMediaRight` | 160 |
-| Card | `cardContentTop`, `cardActionTop`, `cardContentTopTrailingIcon` | 132 |
-| Feed | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon` | 340 |
-| Feed with side CTA | `feedMediaTopSideCta`, `feedContentTopSideCta` | 280 |
-| Fullscreen | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle`, `fullscreenTrailingIcon`, `fullscreenMediaSideCta` | Bounded host, at least 320 high |
+| Family | Key Templates | Initial Height Estimate | Best Use Case |
+| :--- | :--- | :--- | :--- |
+| **Compact row** | `rowWithLeadingIcon`, `rowWithTrailingIcon`, `rowLeadingCta` | 80 logical pixels | Search results, chat lists, compact table rows |
+| **Smart media** | `splitMediaLeft`, `splitMediaRight` | 160 logical pixels | Grid feeds, e-commerce listings, article cards |
+| **Card** | `cardContentTop`, `cardActionTop`, `cardContentTopTrailingIcon` | 132 logical pixels | Dashboard widgets, news summaries, medium cards |
+| **Feed** | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon` | 340 logical pixels | Full-width social feeds, video feeds, photo streams |
+| **Feed with side CTA** | `feedMediaTopSideCta`, `feedContentTopSideCta` | 280 logical pixels | Feed streams where call-to-action sits beside media |
+| **Fullscreen** | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle` | Full screen height ($\ge 320$) | Custom interstitial routes, full-page rewarded transitions |
 
-Presets are `compactRow` = `rowWithLeadingIcon`, `smartMedia` = `splitMediaLeft`,
-`stackedCard` = `cardContentTop`, `feedCard` = `feedMediaFirst`, and `fullscreen` = `fullscreenMediaFirst`.
+Template presets provide standard defaults:
+- `compactRow` = `rowWithLeadingIcon`
+- `smartMedia` = `splitMediaLeft`
+- `stackedCard` = `cardContentTop`
+- `feedCard` = `feedMediaFirst`
+- `fullscreen` = `fullscreenMediaFirst`
 
 ![All 19 native templates with their API names](assets/native-template-catalog.png)
 
-The image uses sample creatives at 360 logical pixels wide. Live SDK assets and platform text metrics can differ.
+Template names describe the vertical arrangement of creative assets:
+- **Row templates**: Keep the call-to-action button beside title and icon.
+- **Smart media**: Places a 120-pixel-wide media view beside text and button.
+- **Card templates**: Place title, body, and a full-width call-to-action button.
+- **Feed templates**: Stack large media, advertiser identity, and call-to-action sequentially.
+- **Fullscreen templates**: Expand to fill available height; your app must supply the dismiss button.
 
-- Row templates keep CTA beside identity. Supplied video appears above that row.
-- Smart media keeps a 120-pixel-wide media view beside copy, metadata, and the column-width CTA.
-- Cards use a separate full-width CTA. Supplied video follows identity; `cardActionTop` places CTA first.
-- Feed templates place media, identity, and CTA in the order named.
-- Fullscreen templates fill bounded height. They do not provide app navigation controls.
+Missing optional assets collapse automatically.
+The engine always shows advertiser attribution badges and AdChoices icons.
 
-Supplied icons and video remain visible. Missing optional assets collapse.
-Incomplete creatives can make two templates look similar. Do not add empty rows to distinguish them.
-The app cannot replace template structure through Flutter child widgets.
+## Layout Bounds
 
-## Layout bounds
+Follow these constraints when mounting `AdNativeView`:
 
-Provide bounded width of at least 320 logical pixels.
-Inline ads measure their actual assets at the available width and Flutter text scale.
-`template.height` is an initial estimate, not a fixed height.
-Use content-sized list items, not a fixed-height container based on that estimate.
-Smart media is normally shorter than feed media, but longer metadata or CTA text can increase its height.
+1. **Provide bounded width of at least 320 logical pixels**:
+   AdMob native templates require 320 logical pixels minimum width.
+   If parent constraints provide less than 320 pixels, or unbounded width, `AdNativeView` throws a `FlutterError`.
 
-Fullscreen templates require bounded height of at least 320 and sufficient room for copy and media.
-Keep the dismiss control outside ad assets. Do not place a fullscreen host directly in an unbounded scrolling axis.
-Use `active` for retained pages. Only loaded, measured, active fullscreen content holds presentation ownership.
-Native media preserves aspect ratio. Letterboxing can be visible; do not crop or stretch the creative to remove it.
+2. **Let content determine vertical height for inline templates**:
+   `template.height` provides an initial loading estimate.
+   The engine measures actual text lengths, font scales, and media aspect ratios dynamically.
+   Do not wrap inline native ads in fixed-height containers.
+   Use content-sized list items in scroll views.
 
-`NativeAdTemplate` exposes `height`, `minWidth`, `isFullscreen`, and `factoryId` as template metadata.
-`factoryId` identifies the supplied composition. It is not a custom-template registration API.
+3. **Provide bounded height of at least 320 logical pixels for fullscreen templates**:
+   Fullscreen templates require bounded vertical space.
+   Do not mount fullscreen templates directly inside an unbounded scroll axis.
+   Place dismiss buttons outside the ad content area.
 
-## Colors and CTA radius
+4. **Pass active state in retained pages**:
+   When hosting native ads in `PageView` or `TabBarView`, pass `active: pageIndex == selectedIndex`.
+   Only active, measured fullscreen ads claim presentation ownership.
 
-Declare initial styles with `AdmobKitConfig.nativeStyle` or `NativePlacement.style`.
-Use unsigned ARGB values, including the alpha channel.
+## Colors and Dynamic Styling
+
+Configure native template appearance through `NativeAdStyle`.
+Define initial styles in `NativePlacement.style` or global `AdmobKitConfig.nativeStyle`:
 
 ```dart
 const blueNative = NativePlacement(
@@ -72,10 +81,19 @@ const blueNative = NativePlacement(
 );
 ```
 
-The live override replaces its scope. It does not merge with the previous override.
-Null values inherit from the next scope. Body color also applies to metadata.
-A radius of zero is square. A large radius clamps to half the CTA height.
-Radius does not change the button size or click region.
+### Color Format
+
+Colors use 32-bit unsigned ARGB integers (`0xAARRGGBB`):
+- `background`: Container background color.
+- `headline`: Title text color.
+- `body`: Description, rating, and advertiser text color.
+- `callToActionBackground`: Button fill color.
+- `callToActionText`: Button label color.
+- `callToActionCornerRadius`: Corner radius in logical pixels (defaults to 8).
+
+### Live Style Updates
+
+Update styling at runtime without reloading ads:
 
 ```dart
 Future<void> useDarkNativeTheme() => AdmobKit.setNativeStyle(
@@ -93,21 +111,25 @@ Future<void> resetNativePlacement(NativePlacement placement) =>
     AdmobKit.setNativeStyle(const NativeAdStyle(), placement: placement);
 ```
 
-Await updates and handle platform errors. Updates apply to pending, cached, and displayed ads without reloading.
-An empty placement override restores inheritance from the global/native style.
-It does not restore that placement's original constructor style.
+Live updates apply immediately to cached, in-flight, and displayed ads.
+To restore inherited styling on a specific placement, pass `const NativeAdStyle()`.
 
-## Production limit
+## Policy and Production Limits
 
-The current templates use one-line headline and body text with native end ellipsis.
-This can truncate protected copy at narrow widths or larger text scales.
-Passing layout tests does not establish policy compliance.
+Examine these AdMob policy constraints before releasing native ads:
 
-AdMob requires at least 25 headline characters and 90 body characters before truncation.
-Body display is optional, but displayed body copy still has that limit.
-The attribution badge and SDK AdChoices must remain visible.
-Fullscreen transition ads need an app-provided dismiss action outside ad assets.
-See [Google's native ad policy](https://support.google.com/admob/answer/6329638).
+1. **Character truncation limits**:
+   AdMob policy requires at least 25 headline characters and 90 body characters before truncation occurs.
+   Built-in templates use single-line text views with end ellipsis.
+   At narrow widths or high system text scale, truncation can occur.
+   Test your screens across multiple screen widths and device accessibility text scales.
 
-This limitation is not fixed by color settings, smaller containers, or suppressing layout errors.
-Do not release these native templates until the protected-copy issue is resolved and the actual integration is checked.
+2. **Attribution badge**:
+   AdMob requires clear advertiser attribution.
+   Built-in templates display the required attribution badge automatically.
+   Do not cover, clip, or hide this badge.
+
+3. **AdChoices icon**:
+   Google requires an unobscured AdChoices icon.
+   The SDK places this icon in the template corner.
+   Keep app overlay elements away from template corners.

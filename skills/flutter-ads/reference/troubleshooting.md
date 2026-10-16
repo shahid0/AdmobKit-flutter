@@ -1,101 +1,157 @@
 # Troubleshooting
 
-Use public status, logs, tracker events, and Ad Inspector first.
-You do not need to inspect internal source to diagnose normal integration problems.
+Use public status getters, logger output, and Ad Inspector for diagnosis.
+Do not inspect package source code to diagnose normal integration problems.
 
-## No ads appear
+## Diagnostic Workflow
 
-1. Check the AdMob app ID in the platform file. Check the unit IDs separately.
-2. Use the correct platform and format test unit IDs.
-3. Check that `initialize` was called before registration or widget mounting.
-4. Check initialization errors and `initializationState`.
-5. Check premium entitlement and consent configuration.
-6. Check network access, VPN filters, DNS filters, and ad blockers.
-7. Check layout bounds and widget activity.
-8. Open Ad Inspector and inspect the reported load error.
+Follow these steps to find integration problems:
 
-Do not disable consent or add timers to force ads to load.
-No fill is a normal unavailable-ad result. A loaded test ad does not guarantee future production fill.
+1. Examine `AdmobKit.initializationState`.
+2. Make certain that `initialize` completed before you register placements or mount widgets.
+3. Verify that device network access is active. Disable VPN filters and ad blockers.
+4. Open Ad Inspector to examine the reported error.
 
 ```dart
 void inspectAdIntegration() {
   AdmobKit.openAdInspector((error) {
-    if (error != null) debugPrint('Ad Inspector: $error');
+    if (error != null) {
+      debugPrint('Ad Inspector error: $error');
+    }
   });
+}
+
+void logPlacementState(AdPlacement placement) {
+  final state = AdmobKit.getState(placement);
+  debugPrint('Placement ${placement.id} state: $state');
 }
 ```
 
-## A first ad is missing
+## AdMob Error Codes
 
-`canRequestAds == false` can mean initialization is pending, not that consent was denied.
-Do not return early from startup on that snapshot.
-Use `waitFor` for a waiting flow, or mount the inline widget. Both handle eligibility resolution.
-Registration during initialization is retained. Registration before initialization throws `StateError`.
+Google Mobile Ads SDK returns these standard error codes:
 
-`show` is not a download wait for normal placements. Register reachable placements early.
-Use `waitFor` if the feature explicitly needs a ready/unavailable decision.
-A splash placement can wait for an already pending load. It does not guarantee immediate dismissal.
+| Code | Name | Cause | Correct Action |
+| :--- | :--- | :--- | :--- |
+| `0` | `ERROR_CODE_INTERNAL_ERROR` | OS failure, platform view failure, or network stack failure. | Examine device logs in logcat or Xcode console. Verify that the device has network connectivity. |
+| `1` | `ERROR_CODE_INVALID_REQUEST` | Missing App ID, mismatched ad format, or invalid ad unit ID. | Verify that the unit ID matches the placement format. Verify manifest and `Info.plist` IDs. |
+| `2` | `ERROR_CODE_NETWORK_ERROR` | Device has no internet connection, or connection timed out. | Verify device network. In low-bandwidth regions, use `AdmobKitTimeoutConfig.emergingMarkets()`. |
+| `3` | `ERROR_CODE_NO_FILL` | The ad server has no ad inventory available for this request. | Expected behavior for new accounts and unverified apps. Use official Google test IDs during development. |
 
-## A wait returns false
+> [!NOTE]
+> `ERROR_CODE_NO_FILL` (Code 3) is not an engine defect.
+> It means Google ad servers currently have no matching inventory for that unit.
+> Never write custom loops to retry a failed ad request.
+> The engine handles retries automatically with exponential backoff.
 
-False means no usable buffered ad at the decision point.
-It can result from denial, failure, timeout, premium access, disposal, or consumed `loadOnce` state.
-Check initialization state and diagnostic reports to distinguish those causes.
-An ad timeout starts after eligibility resolution. It is not a total initialization deadline.
-Do not poll `isReady` or add a custom retry loop.
+## Common Problems and Solutions
 
-## Banner errors
+### 1. No Ads Appear on Screen
 
-Use `AdBannerView` for normal banner loading.
-An explicit banner wait or state query needs `BannerLayout` with actual width and orientation.
-Registration alone cannot know a banner's layout.
-Requests for different layouts do not share readiness.
-Do not impose an estimated banner height. Inline banners reserve their configured maximum height.
+- Verify that the AdMob App ID is present in `AndroidManifest.xml` and `Info.plist`.
+- Verify that you use test ad unit IDs during development.
+- Make certain that `AdmobKit.initialize()` runs before you call `registerPlacements()` or mount ad widgets.
+- Examine `AdmobKit.initializationState`. If status is `consentDenied`, the engine blocks ad requests.
+- Verify that `isUserPremium` is false.
+- Disable active VPN connections, DNS filters, and ad blocker profiles.
+- Make certain that host widgets provide bounded dimensions.
 
-## Native layout errors
+### 2. Missing First Ad on App Launch
 
-Use at least 320 logical pixels of bounded width.
-For inline templates, let content determine height. Do not use `template.height` as a fixed loaded height.
-For fullscreen templates, provide bounded height and enough room for actual text and media.
-If the available space is insufficient, show normal app content instead of that native placement.
-Do not hide required SDK assets or clip them to suppress an error.
-Read the [known native production limit](native-ads.md#production-limit).
+`AdmobKit.canRequestAds` is false before consent and SDK initialization finish.
+Do not abort app startup when `canRequestAds` returns false initially.
+Do not poll `AdmobKit.isReady()`.
 
-## Ads in hidden pages
+Instead, use `AdmobKit.waitFor()` for cold start flows:
 
-Check `active`, ancestor `Visibility`, and `TickerMode`.
-Pass selected-page activity for retained `PageView`, `TabBarView`, or custom lazy hosts.
-Mounting alone does not establish viewport visibility.
-Do not acquire or release presentation locks in app code.
+- `waitFor` pauses until consent resolves, SDK initializes, and the ad buffers.
+- If the ad is not ready before the timeout expires, `waitFor` returns false.
+- Your app then proceeds immediately without showing an ad.
 
-## Premium access changes
+### 3. `waitFor()` Returns False
 
-The `isPremium` callback supplies current entitlement; it does not notify widgets.
-Rebuild ad hosts when entitlement changes. The library checks entitlement at request and presentation boundaries.
-Do not call package-wide `dispose` on each screen or purchase state change.
+A false return value means that no buffered ad was available when the timeout expired.
+Common causes:
 
-## Configuration changes
+- User denied consent during the UMP consent form.
+- The user has premium ad-free entitlement.
+- Google ad servers returned No Fill (Code 3).
+- The network request exceeded the timeout duration.
+- The placement configured `loadOnce: true` and the single ad was already displayed.
 
-An active session keeps its first initialization configuration.
-For a new session configuration, dispose and initialize again, then register reachable placements.
-Use unique IDs for different formats, templates, unit IDs, or banner sizing.
-For native appearance only, use `setNativeStyle` and await its result.
+To diagnose, check `AdmobKit.initializationState` and `AdmobKit.getState(placement)`.
 
-## Privacy changes and status streams
+### 4. Banner Layout Errors and Overflows
 
-`showPrivacyOptionsForm` refreshes eligibility and pending loading.
-It cannot display over an active fullscreen ad.
-A true form result does not mean ads are allowed.
-A failed requirement query is not a false requirement decision; retry the settings query.
-An unknown UMP requirement is also reported as an error, not as a not-required result.
+- An `AdBannerView` requires bounded horizontal width.
+- Do not place `AdBannerView` inside an unconstrained horizontal `Row`.
+- Do not place `AdBannerView` inside an unconstrained vertical `Column` without bounded height.
+- Wrap `AdBannerView` with `Expanded` or `SizedBox(width: double.infinity)`.
+- Adaptive banners reserve their maximum measured height automatically.
+- Do not assign a hardcoded estimated height to `AdBannerView`.
 
-A placement stream can end when privacy changes or the session is disposed.
-Reattach diagnostic streams after an initialization-state change.
-Normal ad widgets handle session changes themselves.
+### 5. Native Ad Layout and Truncation Errors
 
-## Information for a bug report
+- Native ad containers require at least 320 logical pixels of bounded width.
+- For inline native templates, let content determine the widget height.
+- Do not use `template.height` as a rigid container height constraint.
+- For fullscreen native templates, provide bounded height and sufficient space for text and media.
+- If available screen space is too small, hide the ad widget and show standard app content.
+- Never hide required AdMob assets such as the Ad attribution badge or CTA button.
+- Review [Native ads](native-ads.md) for known policy truncation limits.
 
-Include the package version, platform, placement type, template or banner sizing,
-initialization state, whether test IDs reproduce the issue, and relevant diagnostic events.
-Remove secrets and user identifiers from logs. Include host bounds and activity state for layout problems.
-If supported usage still fails, report a package defect. Do not work around it through private SDK objects.
+### 6. Retained Tabs and Hidden Pages
+
+Widgets like `PageView`, `TabBarView`, and `IndexedStack` keep inactive pages alive in memory.
+Inactive ad views can waste memory and trigger background refreshes.
+
+To prevent background activity:
+
+- Pass the page visibility flag to the `active` parameter of `AdBannerView` and `AdNativeView`.
+- When `active` is false, the widget detaches from layout rendering.
+- When the user navigates back to the tab, set `active: true` to resume rendering.
+
+### 7. Premium Access Changes
+
+- The `isPremium` callback supplies entitlement to the engine.
+- The callback does not notify existing UI widgets automatically.
+- Rebuild your ad host widgets when user purchase state changes.
+- Do not call `AdmobKit.dispose()` when the user buys an entitlement.
+- Re-mounting ad widgets or calling `show()` will respect the updated `isPremium` value.
+
+### 8. Release Build Errors and Minification
+
+When building a release APK or AAB with R8 code shrinking enabled, classes can be stripped.
+If release builds crash on startup or fail to show ads:
+
+Add these keep rules to your `android/app/proguard-rules.pro` file:
+
+```proguard
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.ads.mediation.** { *; }
+```
+
+Make certain your `android/app/build.gradle` references the ProGuard file:
+
+```groovy
+buildTypes {
+    release {
+        minifyEnabled true
+        proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+    }
+}
+```
+
+On iOS, make certain `Info.plist` contains `GADApplicationIdentifier` and all required `SKAdNetworkItems`.
+
+## Submitting a Bug Report
+
+If an issue continues after you complete this diagnostic workflow, collect this evidence:
+
+1. AdmobKit package version and Flutter SDK version.
+2. Target platform (Android API level or iOS version) and device model.
+3. Exact placement configuration and template name.
+4. Initialization state logs and diagnostic events from `AdmobKit.watchState()`.
+5. Confirmation of whether the issue reproduces with official Google test ad unit IDs.
+
+Remove private keys, API secrets, and user personal data before you submit the report.
