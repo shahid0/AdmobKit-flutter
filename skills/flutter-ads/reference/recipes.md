@@ -1,15 +1,35 @@
-# Use cases
+# Use Cases and Recipes
 
-Each example below uses the public API. Imports and `AppAds` come from the
-[complete example](https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md#complete-example).
-Initialize once before registration, waits, or widget mounting.
-Declare and register placements when their unit IDs and screen reachability are known.
-The app owns navigation and business rules. The library owns ad loading and presentation safety.
+This document provides recipes for production ad integration in Flutter apps.
+Imports and `AppAds` come from the [complete example](https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md#complete-example).
 
-## Normal transitions
+Call `AdmobKit.initialize()` once in your app entry point.
+Declare and register placements when their unit identifiers and screen routes are known.
+Your app owns navigation logic and business rules.
+The engine manages background loading, warm caching, retry intervals, and presentation locks.
 
-Use `show` when the user action must continue without waiting for a download.
-No `isReady`, premium, or consent pre-check is needed.
+## Recipe Decision Guide
+
+| User Flow | Recommended Recipe | Key Public API |
+| :--- | :--- | :--- |
+| Screen navigation, completed level | [Normal Transitions](#normal-transitions) | `AdmobKit.show()` |
+| Optional reward for user action | [Rewarded Ads](#rewarded-ads) | `AdmobKit.show(onRewardGranted: ...)` |
+| Sticky screen banners | [Banners and Native Content](#banners-and-native-content) | `AdBannerView()` |
+| In-feed cards matching app design | [Banners and Native Content](#banners-and-native-content) | `AdNativeView()` |
+| High-latency networks (Pakistan, Ethiopia) | [High-Latency and Emerging Markets](#high-latency-and-emerging-markets) | `AdTimeoutConfig.emergingMarkets` |
+| Startup and cold app open | [Startup and Remote Configuration](#startup-and-remote-configuration) | `AdmobKit.waitFor()` |
+| Bottom tabs and PageViews | [Tabs and Retained Pages](#tabs-and-retained-pages) | `AdNativeView(active: ...)` |
+| Paywall dismiss and hardware back | [Paywall Exit Guard](#paywall-exit-guard) | `AdPaywallGuard()` |
+| App foreground from background | [App-Open Ads on Resume](#app-open-ads-on-resume) | `AdmobKit.show(AppOpenPlacement)` |
+| Paid subscriber ad removal | [Premium Access](#premium-access) | `AdmobKitConfig(isPremium: ...)` |
+| Mandatory GDPR / UMP settings button | [Privacy Settings](#privacy-settings) | `AdmobKit.showPrivacyOptionsForm()` |
+| Revenue and diagnostic telemetry | [Analytics and Diagnostics](#analytics-and-diagnostics) | `AdAnalyticsTracker`, `AdDiagnosticsTracker` |
+
+## Normal Transitions
+
+Use `show` when the user completes an action and navigation must proceed immediately.
+The engine shows the cached ad or executes `onDismissed` at once.
+You do not need manual readiness checks or consent checks.
 
 ```dart
 void continueWithAd(VoidCallback onContinue) {
@@ -17,14 +37,87 @@ void continueWithAd(VoidCallback onContinue) {
 }
 ```
 
-The callback also runs when the library skips the ad. Do not run the same navigation
-both before `show` and inside `onDismissed`. Guard repeated app actions when needed.
+The engine calls `onDismissed` even when an ad is unavailable or skipped.
+Do not execute navigation before `show` and inside `onDismissed` at the same time.
 
-## Startup and remote configuration
+## Rewarded Ads
 
-Start initialization before the remote configuration request completes.
-Register placements after IDs resolve. Registration can occur while consent is pending.
-Do not use a `canRequestAds` snapshot to skip registration or the first wait.
+Register your reward placement before the reward feature becomes reachable to users.
+Both `RewardedPlacement` and `RewardedInterstitialPlacement` use the same reward callback.
+
+```dart
+void requestFeatureReward(
+  FullscreenPlacement placement, {
+  required void Function(num amount, String type) grantReward,
+  required VoidCallback refreshFeature,
+}) {
+  AdmobKit.show(
+    placement,
+    onRewardGranted: grantReward,
+    onDismissed: refreshFeature,
+  );
+}
+```
+
+Unlock user benefits exclusively inside `onRewardGranted`.
+Never unlock benefits in `onDismissed`, because `onDismissed` also runs after skipped or failed presentations.
+If your user interface requires an explicit ready decision before opening, call `await AdmobKit.waitFor(placement)`.
+
+## Banners and Native Content
+
+Host widgets load their own ads and manage their own memory.
+Mount inline widgets directly in your widget tree.
+Do not await inline ads before mounting.
+
+```dart
+Widget nativeFeedItem() => const AdNativeView(placement: AppAds.native);
+
+Widget stickyBanner() => const SafeArea(child: AdBannerView(placement: AppAds.banner));
+```
+
+Give native ads bounded width of at least 320 logical pixels.
+Let content determine native ad height.
+Give banners bounded width; adaptive sizing calculates the height automatically.
+For a banner in a scrolling list, declare a separate placement with inline adaptive sizing:
+
+```dart
+const feedBanner = BannerPlacement(
+  id: 'feed_banner',
+  androidId: AdMobTestIds.bannerAndroid,
+  iosId: AdMobTestIds.bannerIos,
+  sizing: BannerSizing.inlineAdaptive(maxHeight: 160),
+);
+
+Widget inlineBanner() => const AdBannerView(placement: feedBanner);
+```
+
+Only call `waitFor` on a banner when your app must prepare the exact layout before rendering.
+Supply the available width and screen orientation:
+
+```dart
+Future<bool> prepareBanner(int logicalWidth, BannerOrientation orientation) => AdmobKit.waitFor(
+  AppAds.banner,
+  bannerLayout: BannerLayout(width: logicalWidth, orientation: orientation),
+);
+```
+
+## High-Latency and Emerging Markets
+
+In regions with high packet loss or 2G/3G mobile data (such as Ethiopia or Pakistan), video ads need longer download windows.
+Short timeouts abort rich media downloads prematurely and waste user mobile data.
+Supply the `emergingMarkets` profile during initialization to allocate up to 75 seconds on cellular connections:
+
+```dart
+AdmobKitConfig emergingMarketsConfig() => const AdmobKitConfig(
+  timeouts: AdTimeoutConfig.emergingMarkets,
+);
+```
+
+## Startup and Remote Configuration
+
+Start initialization before remote configuration network requests complete.
+Register placements as soon as remote identifiers resolve.
+You can register placements while consent collection is pending.
 
 ```dart
 Future<void> registerRemotePlacements(Future<Iterable<AdPlacement>> resolvedPlacements) async {
@@ -32,8 +125,7 @@ Future<void> registerRemotePlacements(Future<Iterable<AdPlacement>> resolvedPlac
 }
 ```
 
-If the chosen splash placement itself depends on remote configuration, resolve that
-placement before waiting for it. Do not wait for an old or guessed placement in parallel.
+If your splash placement identifier comes from remote configuration, resolve that placement before waiting:
 
 ```dart
 Future<void> finishStartup(
@@ -50,77 +142,12 @@ Future<void> finishStartup(
 }
 ```
 
-Set `isSplash: true` on a splash interstitial or app-open placement.
-Set `loadOnce: true` when background replacement is not needed after consumption.
-`waitFor` includes eligibility resolution. Its false result is a normal unavailable-ad outcome.
-It does not guarantee that `show` will display an ad; presentation can be blocked later.
-Initialization errors and remote configuration errors need app-owned error handling.
-An ad timeout does not limit how long consent or SDK initialization can take.
+Set `isSplash: true` on cold-launch placements.
+Set `loadOnce: true` when you do not need background replacement after the first display.
 
-## Rewards
+## Tabs and Retained Pages
 
-Register the selected reward placement before the feature becomes reachable.
-Both reward formats use the same earned-reward callback.
-
-```dart
-void requestFeatureReward(
-  FullscreenPlacement placement, {
-  required void Function(num amount, String type) grantReward,
-  required VoidCallback refreshFeature,
-}) {
-  AdmobKit.show(
-    placement,
-    onRewardGranted: grantReward,
-    onDismissed: refreshFeature,
-  );
-}
-```
-
-Pass a `RewardedPlacement` or `RewardedInterstitialPlacement` here.
-Do not unlock from `onDismissed`; it also runs after a skipped or unsuccessful presentation.
-For a button that needs a ready-state decision, use `await waitFor(placement)` before `show`.
-Handle a false result with normal unavailable-ad UI. Do not add a custom retry loop.
-
-## Native and banner content
-
-Widgets load their own ads and dispose their own instances. Do not wait for an inline ad
-before mounting its widget. A widget can load on demand after a `loadOnce` ad was consumed.
-
-```dart
-Widget nativeFeedItem() => const AdNativeView(placement: AppAds.native);
-
-Widget stickyBanner() => const SafeArea(child: AdBannerView(placement: AppAds.banner));
-```
-
-Give native ads bounded width of at least 320 logical pixels and content-sized inline height.
-Give banners bounded width; their height comes from adaptive sizing.
-For a banner in a scrolling feed, declare a separate placement:
-
-```dart
-const feedBanner = BannerPlacement(
-  id: 'feed_banner',
-  androidId: AdMobTestIds.bannerAndroid,
-  iosId: AdMobTestIds.bannerIos,
-  sizing: BannerSizing.inlineAdaptive(maxHeight: 160),
-);
-
-Widget inlineBanner() => const AdBannerView(placement: feedBanner);
-```
-
-Only an explicit early banner wait needs the known future host layout.
-Use the actual available width and device orientation, not a universal hardcoded width.
-
-```dart
-Future<bool> prepareBanner(int logicalWidth, BannerOrientation orientation) => AdmobKit.waitFor(
-  AppAds.banner,
-  bannerLayout: BannerLayout(width: logicalWidth, orientation: orientation),
-);
-```
-
-## Tabs and retained pages
-
-For `PageView`, `TabBarView`, or a custom retained-page container, pass selection state.
-`active` cannot override an inactive `Visibility` or `TickerMode` ancestor.
+When using `PageView`, `TabBarView`, or retained page containers, pass the selection status to `active`.
 
 ```dart
 Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
@@ -129,20 +156,15 @@ Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
 );
 ```
 
-The widgets use Flutter's visibility signals, including `IndexedStack` visibility.
-An ordinary offscreen list item is not necessarily inactive. Mounting does not measure viewport visibility.
-For fullscreen natives, always supply the actual selected-page activity.
-The library must not infer fullscreen ownership from a mounted offscreen page.
+The host widget responds to Flutter visibility signals automatically.
+For fullscreen native ads, always supply the actual page activity.
+The engine does not grant fullscreen presentation ownership to inactive offscreen pages.
 
-## First-run screens and shared placements
+## First-Run Screens and Shared Placements
 
-Register first-run placements only when onboarding is reachable.
-The app must also avoid mounting those screens for returning users.
-Registration alone does not prevent an inline host from requesting an ad.
-
-Several native widgets can share a placement if their configuration is identical.
-They receive distinct instances. If two slots are normally visible together, a capacity of two can prepare both.
-Do not reuse an ID for different native templates or banner sizing.
+Register first-launch placements only when onboarding is reachable.
+Do not mount onboarding ad widgets for returning users.
+Multiple native widgets can share one placement identifier if their template and sizing are identical:
 
 ```dart
 void registerReachableAds({required bool firstLaunch, required NativePlacement onboarding}) {
@@ -153,10 +175,11 @@ void registerReachableAds({required bool firstLaunch, required NativePlacement o
 }
 ```
 
-## Fullscreen native ads
+## Fullscreen Native Ads
 
-Use a native placement with a fullscreen template and `AdNativeView`, not `show`.
-Keep the app's dismiss control outside SDK ad assets.
+Use a native placement with a fullscreen template and `AdNativeView`.
+Do not use `AdmobKit.show()` for native ads.
+Place your dismiss button outside the ad content:
 
 ```dart
 Widget fullscreenNativeRoute(NativePlacement placement, VoidCallback onContinue) => Scaffold(
@@ -167,15 +190,14 @@ Widget fullscreenNativeRoute(NativePlacement placement, VoidCallback onContinue)
 );
 ```
 
-The placement must use a fullscreen template. The body must have bounded width and height of at least 320.
-Actual copy and media may require more room. There is no package close button.
-Only loaded, measured, active fullscreen content owns presentation. A loading placeholder does not.
-Read the [native production limit](native-ads.md#production-limit) before release.
+Provide bounded width and height of at least 320 logical pixels.
+Only active, measured fullscreen content owns presentation.
+A loading placeholder never claims presentation ownership.
 
-## Paywall exit
+## Paywall Exit Guard
 
-Use one trigger for the close button and intercepted system back action.
-Pass purchase completion to the guard. The app controls the final navigation.
+Use `AdPaywallGuard` to manage modal close buttons and Android system back buttons with one trigger.
+Pass subscription purchase status to `isPurchased`.
 
 ```dart
 Widget guardedPaywall(FullscreenPlacement placement, VoidCallback onClose, {bool purchased = false}) => AdPaywallGuard(
@@ -189,11 +211,13 @@ Widget guardedPaywall(FullscreenPlacement placement, VoidCallback onClose, {bool
 );
 ```
 
-## App-open ads on resume
+If the user purchases a subscription, set `isPurchased: true`.
+The guard closes the screen immediately without showing an ad.
 
-Register an `AppOpenPlacement`. Request it from the app's lifecycle handler only when app policy permits.
-Exclude cold-start duplicates, permission interruptions, short background transitions, and app-owned dialogs or paywalls.
-The app owns dwell time and cooldown. The library rejects conflicting ad presentation.
+## App-Open Ads on Resume
+
+Register an `AppOpenPlacement`.
+Call `show` from your app lifecycle handler when app policy permits:
 
 ```dart
 void showResumeAd(AppOpenPlacement placement, {required bool appPolicyAllowsResumeAd}) {
@@ -202,26 +226,26 @@ void showResumeAd(AppOpenPlacement placement, {required bool appPolicyAllowsResu
 }
 ```
 
-`isShowingAd` can support a status UI. It does not detect arbitrary app overlays.
-Use `onDisplayed` to start a display-based cooldown, not the time when `show` was called.
+Exclude cold-start duplicates, permission dialogs, and active paywalls in your policy logic.
+Use `onDisplayed` to start a cooldown timer.
 
-## Premium access
+## Premium Access
 
-Supply one callback that reads current entitlement. Do not repeat the premium check before each ad call.
-Rebuild ad hosts when entitlement changes; the callback is not a subscription.
+Pass one synchronous callback to `AdmobKitConfig(isPremium: ...)` that reports current entitlement.
+Do not write repetitive entitlement checks before every ad call.
 
 ```dart
 AdmobKitConfig premiumConfig(bool Function() hasAdFreeAccess) => AdmobKitConfig(isPremium: hasAdFreeAccess);
 ```
 
-Premium users skip ad requests and fullscreen presentation. Rebuilt inline hosts collapse.
-For a purchase inside a paywall, also update `isPurchased` so the exit guard can immediately bypass its ad.
+Premium users bypass all ad requests and fullscreen presentations.
+Rebuilt inline host widgets collapse automatically.
+When user entitlement changes, rebuild your widget tree.
 
-## Privacy settings
+## Privacy Settings
 
-Check the public requirement API after initialization has started.
-Show the settings control only when required. A query error is not a not-required result.
-Keep a stable future for the settings UI and permit a retry after an error.
+Examine if privacy options are required after initialization starts.
+Display the privacy settings button only when the platform requires it:
 
 ```dart
 class PrivacySettingsTile extends StatefulWidget {
@@ -256,14 +280,11 @@ class _PrivacySettingsTileState extends State<PrivacySettingsTile> {
 }
 ```
 
-The form result does not mean consent was granted. Loading eligibility is resolved by the library afterward.
-Do not request another form while a fullscreen ad is visible.
-See [Setup](setup.md) for AdMob privacy-message configuration and test geography.
+Do not show the privacy options form while a fullscreen ad is visible.
 
-## Analytics and diagnostics
+## Analytics and Diagnostics
 
-Implement the public tracker contracts and pass them to configuration.
-Tracker callbacks must handle service errors themselves.
+Implement `AdAnalyticsTracker` and `AdDiagnosticsTracker` to record production telemetry:
 
 ```dart
 class ExampleAnalytics implements AdAnalyticsTracker {
@@ -296,7 +317,4 @@ AdmobKitConfig trackedConfig() => AdmobKitConfig(
 );
 ```
 
-## Native styling
-
-Choose colors and CTA radius through `NativeAdStyle`. Await live updates.
-Read [Native ads](native-ads.md#colors-and-cta-radius) for inheritance and resets.
+Handle service errors inside tracker callbacks.
