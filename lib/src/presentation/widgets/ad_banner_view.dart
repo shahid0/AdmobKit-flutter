@@ -1,49 +1,136 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../../domain/models/ad_placement.dart';
+
+import '../../domain/ad_placements.dart';
+import '../../infrastructure/drivers/adaptive_banner_ad.dart';
+import '../../infrastructure/engine/ad_cache_entry.dart';
+import '../ad_session.dart';
 import '../admob_kit_facade.dart';
 
-/// Zero-CLS (Cumulative Layout Shift) banner container.
+/// Adaptive or fixed banner centered within its parent's available logical width.
 ///
-/// Automatically collapses to [SizedBox.shrink] if the user is premium.
-/// Pre-reserves layout bounds to prevent visual jumping when the ad renders.
-///
-/// Deferred loading: ad loads are gated on [TickerMode] (route coverage via
-/// Overlay) **and** [Visibility] (e.g. hidden `IndexedStack` tabs). A tab
-/// inside an `IndexedStack` defers its ad request until switched to. Custom
-/// tab containers that neither gate must be wrapped in `TickerMode` or
-/// `Visibility` explicitly to opt into deferral.
-class AdBannerView extends StatefulWidget {
-  /// The type-safe banner placement descriptor.
+/// Inline and fixed banners reserve their configured height by default. Set
+/// [reserveSpace] to false to collapse while loading and use the actual loaded
+/// height. Anchored banners always use the SDK-selected height when available.
+/// Loading and rendering honor Visibility, TickerMode, and [active].
+class AdBannerView extends StatelessWidget {
   final BannerPlacement placement;
 
-  /// The reserved height for the banner ad (defaults to 50.0 for standard banner).
-  final double height;
+  /// Host width. Defaults to the parent's width, or the fixed banner width in an
+  /// unbounded parent. Adaptive banners require a width in unbounded parents.
+  final double? width;
 
-  /// The reserved width for the banner ad (defaults to 320.0).
-  final double width;
+  /// Overrides [BannerSizing.reserveSpace]. Null uses the placement's policy.
+  /// When true, reserves maxHeight or fixedHeight, including while loading.
+  /// When false, collapses until render dimensions are available.
+  final bool? reserveSpace;
 
-  /// The optional placeholder rendered while the ad buffer is filling.
+  /// Displayed while loading only when space is reserved.
   final Widget? placeholder;
 
-  /// Creates an [AdBannerView] for a given [placement].
+  /// Additional gate for retained-page hosts without Flutter visibility signals.
+  final bool active;
+
   const AdBannerView({
     super.key,
     required this.placement,
-    this.height = 50.0,
-    this.width = 320.0,
+    this.width,
+    this.reserveSpace,
+    this.placeholder,
+    this.active = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (AdmobKit.isUserPremium) return const SizedBox.shrink();
+    final orientation = MediaQuery.orientationOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wait for a renderable width during cold-start and collapse frames.
+        if (constraints.maxWidth <= 0) return const SizedBox.shrink();
+        final available = width != null
+            ? constraints.constrainWidth(width!)
+            : constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : placement.sizing.fixedWidth?.toDouble() ?? double.infinity;
+        if (!available.isFinite ||
+            available < 1 ||
+            (width != null && (!width!.isFinite || width! <= 0))) {
+          throw FlutterError(
+            'AdBannerView requires a positive bounded width. Supply width in an unbounded parent.',
+          );
+        }
+        return _BannerHost(
+          placement: placement,
+          layout: BannerLayout(
+            width: available.floor(),
+            orientation: orientation == Orientation.portrait ? BannerOrientation.portrait : BannerOrientation.landscape,
+          ),
+          active: active,
+          reserveSpace: reserveSpace ?? placement.sizing.reserveSpace,
+          placeholder: placeholder,
+        );
+      },
+    );
+  }
+}
+
+class _BannerHost extends StatefulWidget {
+  final BannerPlacement placement;
+  final BannerLayout layout;
+  final bool active;
+  final bool reserveSpace;
+  final Widget? placeholder;
+
+  const _BannerHost({
+    required this.placement,
+    required this.layout,
+    required this.active,
+    required this.reserveSpace,
     this.placeholder,
   });
 
   @override
-  State<AdBannerView> createState() => _AdBannerViewState();
+  State<_BannerHost> createState() => _BannerHostState();
 }
 
-class _AdBannerViewState extends State<AdBannerView> {
-  BannerAd? _bannerAd;
-  bool _isLoading = true;
-  bool _hasAttemptedLoad = false;
-  bool _leasePending = false;
+class _BannerHostState extends State<_BannerHost> {
+  AdaptiveBannerAd? _ad;
+  bool _pending = false;
+  bool _attempted = false;
+  int _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    AdmobKit.initializationStateListenable.addListener(_onInitializationChanged);
+  }
+
+  void _resetLease() {
+    _generation++;
+    _ad?.renderSize.removeListener(_sizeChanged);
+    _ad?.dispose();
+    _ad = null;
+    _pending = false;
+    _attempted = false;
+  }
+
+  void _sizeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onInitializationChanged() {
+    if (!mounted) return;
+    final state = AdmobKit.initializationState;
+    if (state == AdInitializationState.disposed ||
+        state == AdInitializationState.updatingConsent ||
+        state == AdInitializationState.consentDenied ||
+        state == AdInitializationState.failed) {
+      setState(_resetLease);
+    } else if (state == AdInitializationState.ready) {
+      setState(_checkAndActivate);
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -52,92 +139,87 @@ class _AdBannerViewState extends State<AdBannerView> {
   }
 
   @override
-  void didUpdateWidget(AdBannerView oldWidget) {
+  void didUpdateWidget(_BannerHost oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.placement.id != widget.placement.id) {
-      _bannerAd?.dispose();
-      _bannerAd = null;
-      _isLoading = true;
-      _hasAttemptedLoad = false;
-      _checkAndActivate();
-    }
+    if (oldWidget.placement.id != widget.placement.id || oldWidget.layout != widget.layout) _resetLease();
+    _checkAndActivate();
   }
+
+  bool get _active => widget.active && TickerMode.valuesOf(context).enabled && Visibility.of(context);
 
   void _checkAndActivate() {
-    if (!_isSubtreeActive && _bannerAd == null && !_leasePending) {
-      // Deactivated with nothing loaded or settled (e.g. prior offline
-      // failure): reset so reactivating this tab retries the lease instead of
-      // staying blank. Skipped while a lease is still in-flight.
-      _hasAttemptedLoad = false;
-    } else if (_isSubtreeActive && _bannerAd == null && !_hasAttemptedLoad) {
-      _loadBanner();
-    }
-  }
-
-  void _loadBanner() {
-    if (AdmobKit.isUserPremium) {
-      if (mounted) setState(() => _isLoading = false);
+    if (!_active) {
+      if (_ad == null && !_pending) _attempted = false;
       return;
     }
+    final loadedAt = _ad?.loadedAt;
+    final ttl = activeAdSession?.config.adTtl;
+    if (loadedAt != null && ttl != null && DateTime.now().difference(loadedAt) > ttl) _resetLease();
+    if (_ad == null && !_attempted && !AdmobKit.isUserPremium) _load();
+  }
 
-    _hasAttemptedLoad = true;
-    _leasePending = true;
-
-    // Demand-based lease: the pool delivers a distinct ad instance when one is
-    // buffered or replenished. Settles instantly on terminal load failure.
-    AdmobKit.leaseInlineAd(widget.placement).then((ad) {
-      _leasePending = false;
-      if (!mounted) {
-        // Never rendered — release the platform resource immediately.
-        if (ad is BannerAd) ad.dispose();
+  Future<void> _load() async {
+    _attempted = true;
+    _pending = true;
+    final generation = _generation;
+    final session = activeAdSession;
+    try {
+      final ad = await session?.leaseInlineAd(
+        widget.placement,
+        bannerLayout: widget.layout,
+        isMounted: () => mounted && _active,
+      );
+      if (!mounted || generation != _generation) {
+        await AdCacheEntry.disposeAdInstance(ad);
         return;
       }
+      if (ad != null && ad is! AdaptiveBannerAd) {
+        await AdCacheEntry.disposeAdInstance(ad);
+        throw StateError('Banner driver returned an unmanaged banner ad.');
+      }
+      _pending = false;
       setState(() {
-        _bannerAd = ad is BannerAd ? ad : null;
-        _isLoading = false;
+        _ad = ad as AdaptiveBannerAd?;
+        _ad?.renderSize.addListener(_sizeChanged);
+        if (_ad == null && !_active) _attempted = false;
       });
-    }).catchError((_) {
-      // AdMob no-fill / network failure / timeout: render the empty state
-      // instead of hanging on the placeholder.
-      if (mounted) setState(() => _isLoading = false);
-    });
+    } catch (error, stack) {
+      if (!mounted || generation != _generation) return;
+      session?.logger.error('[Banner] Lease failed for "${widget.placement.id}".', error, stack);
+      setState(() {
+        _pending = false;
+        if (!_active) _attempted = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    AdmobKit.initializationStateListenable.removeListener(_onInitializationChanged);
+    _resetLease();
     super.dispose();
   }
 
-  /// Deferred-loading gate: active only when the subtree both animates
-  /// (TickerMode, e.g. route coverage) and is visible (Visibility, e.g.
-  /// IndexedStack hidden tabs). Plain screens satisfy both by default.
-  bool get _isSubtreeActive =>
-      TickerMode.valuesOf(context).enabled && Visibility.of(context);
-
   @override
   Widget build(BuildContext context) {
-    if (AdmobKit.isUserPremium) {
-      return const SizedBox.shrink();
-    }
-
-    final isSubtreeActive = _isSubtreeActive;
-
-    // Preserves zero CLS layout bounds while offstage without mounting native platform view
-    if (!isSubtreeActive && _bannerAd == null) {
-      return SizedBox(
-        height: widget.height,
-        width: widget.width,
-        child: widget.placeholder ?? const SizedBox.shrink(),
-      );
-    }
-
+    if (AdmobKit.isUserPremium) return const SizedBox.shrink();
+    final ad = _ad;
+    final size = ad?.renderSize.value;
+    final sizing = widget.placement.sizing;
+    final reservedHeight = widget.reserveSpace ? (sizing.maxHeight ?? sizing.fixedHeight)?.toDouble() : null;
+    final height = reservedHeight ?? size?.height.toDouble() ?? 0;
     return SizedBox(
-      height: widget.height,
-      width: widget.width,
-      child: _bannerAd != null
-          ? AdWidget(ad: _bannerAd!)
-          : (_isLoading ? (widget.placeholder ?? const SizedBox.shrink()) : const SizedBox.shrink()),
+      width: widget.layout.width.toDouble(),
+      height: height,
+      child: _active && ad != null && size != null
+          ? Center(
+              child: SizedBox(
+                width: size.width.toDouble(),
+                height: size.height.toDouble(),
+                child: AdWidget(key: ObjectKey(ad), ad: ad),
+              ),
+            )
+          : (_pending && widget.reserveSpace ? widget.placeholder : null),
     );
   }
 }

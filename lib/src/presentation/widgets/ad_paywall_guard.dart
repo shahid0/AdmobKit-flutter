@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../domain/models/ad_placement.dart';
+
+import '../../domain/ad_placements.dart';
 import '../admob_kit_facade.dart';
 
 /// Full-coverage paywall guard intercepting system/hardware back gestures (`PopScope`)
@@ -41,10 +42,7 @@ class AdPaywallGuard extends StatelessWidget {
       return;
     }
 
-    AdmobKit.show(
-      placement,
-      onDismissed: onDismiss,
-    );
+    AdmobKit.show(placement, onDismissed: onDismiss);
   }
 
   @override
@@ -61,4 +59,3 @@ class AdPaywallGuard extends StatelessWidget {
     );
   }
 }
-

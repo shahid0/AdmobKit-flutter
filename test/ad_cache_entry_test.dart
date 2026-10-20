@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/ad_cache_entry.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_cache_entry.dart';
 
 void main() {
   group('AdCacheEntry Freshness & TTL Tests', () {

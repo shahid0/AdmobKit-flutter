@@ -9,7 +9,8 @@ abstract final class SampleAds {
     priority: AdPriority.medium,
   );
 
-  static const splashBigNative = NativePlacement.big(
+  static const splashBigNative = NativePlacement(
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'splash_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -25,7 +26,8 @@ abstract final class SampleAds {
     loadOnce: true,
   );
 
-  static const onboardingBigNative = NativePlacement.big(
+  static const onboardingBigNative = NativePlacement(
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
@@ -57,22 +59,53 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.appOpenIos,
   );
 
-  static const bigNative = NativePlacement.big(
+  static const bigNative = NativePlacement(
+    template: NativeAdTemplate.feedMediaFirst,
     id: 'native_big_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const mediumNative = NativePlacement.medium(
+  static const mediumNative = NativePlacement(
+    template: NativeAdTemplate.smartMedia,
     id: 'native_medium_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const smallNative = NativePlacement.small(
+  static const smallNative = NativePlacement(
+    template: NativeAdTemplate.rowWithLeadingIcon,
     id: 'native_small_showcase',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
+  );
+
+  static const multiWidgetNative = NativePlacement(
+    template: NativeAdTemplate.splitMediaRight,
+    id: 'multi_widget_showcase',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+  );
+
+  static const fullscreenNative = NativePlacement(
+    template: NativeAdTemplate.fullscreenMediaFirst,
+    id: 'fullscreen_native_showcase',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+  );
+
+  static const inlineAdaptiveBanner = BannerPlacement(
+    id: 'inline_adaptive_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.inlineAdaptive(maxHeight: 250),
+  );
+
+  static const anchoredAdaptiveBanner = BannerPlacement(
+    id: 'anchored_adaptive_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.anchoredAdaptive(),
   );
 
   static const allPlacements = [
@@ -82,9 +115,14 @@ abstract final class SampleAds {
     onboardingBigNative,
     mainInterstitial,
     rewardedBonus,
+    rewardedInterstitial,
     appOpen,
     bigNative,
     mediumNative,
     smallNative,
+    multiWidgetNative,
+    fullscreenNative,
+    inlineAdaptiveBanner,
+    anchoredAdaptiveBanner,
   ];
 }

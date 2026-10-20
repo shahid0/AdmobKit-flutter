@@ -3,6 +3,78 @@
 All notable changes to the `admob_kit_flutter` package will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Breaking changes
+
+- Removed public pool, mutex, logger, inline lease, freshness, and test controls from `AdmobKit`.
+- Removed public `preload`. Registration prepares reachable placements; `waitFor` gives an explicit ad decision.
+- Removed the legacy `flutter_ads.dart` entry point and test-only SDK/retry configuration from `AdmobKitConfig`.
+- Removed internal network and logger interfaces from public exports. Their public enums remain available.
+- Registration before initialization now throws `StateError` instead of discarding placements.
+- Invalid concurrency, freshness TTL, and request timeouts now fail before initialization instead of preventing useful loading.
+
+### Added
+
+- Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.
+- Added a minimal app using only the public API, plus consumer access and documentation code checks.
+- Added public guides for use cases, API behavior, native layouts, platform setup, and diagnosis.
+- Added generated skill references and a check that prevents them from differing from the public guides.
+
+### Known limit
+
+- The native protected-copy truncation issue remains unresolved. The guides identify it as a production release blocker.
+
+### Fixed
+
+- Privacy updates retain `loadOnce` consumption for the session. They do not restart consumed background work; new inline demand can still request an ad.
+
+## 0.1.0
+
+Major feature milestone: replaces legacy XML/XIB layout bindings with 19 built-in native ad templates, introduces the `NativeAdStyle` engine with live theming and CTA corner radius via Pigeon, adds adaptive banner sizing, and stabilizes presentation lifecycle locks with `AdSession`.
+
+### Breaking Changes
+
+- **Removed XML/XIB native factories**: Removed Android XML (`big_native_ad.xml`, etc.) and iOS XIB layout bindings. All native ads now render through 19 built-in, platform-native templates.
+- **Replaced `NativeAdColors` with `NativeAdStyle`**: Replaced colors-only styling with `NativeAdStyle` (adds `callToActionCornerRadius` alongside `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`).
+- **Updated `NativePlacement` signature**: Replaced `colors:` with `style:`. Layout template is now configured via `template:` (`NativeAdTemplate.cardContentTop` by default).
+- **Named Native Compositions**: 19 layouts: three compact rows, two smart-media layouts, three cards, six feed layouts, and five fullscreen layouts. Removed misleading text-only/minimal-copy aliases; retained useful leading/trailing same-row actions, side-action media layouts, and trailing-icon variants. Default remains `cardContentTop`.
+- **Content-sized Inline Natives**: `template.height` is now a loading estimate. Inline hosts measure real SDK assets at their available width and Flutter text scale; do not constrain them to the estimate. Fullscreen hosts remain bounded.
+- **Adaptive Banner Sizing**: `BannerPlacement` now uses `BannerSizing` (`BannerSizing.anchoredAdaptive()` default or `BannerSizing.inlineAdaptive(maxHeight:)`). Removed fixed height property.
+
+### Added
+
+- **19 Built-in Native Templates**: Row, Smart Media, Card, Feed Card, and Fullscreen compositions with native-measured sizing via Pigeon.
+- **5 Canonical Template Presets**: `NativeAdTemplate.compactRow`, `smartMedia`, `stackedCard`, `feedCard`, `fullscreen`.
+- **Live Dynamic Native Styling**: `AdmobKit.setNativeStyle(style, placement:)` instantly updates cached, pending, and rendered native ads without triggering reloads.
+- **Configurable CTA Corner Radius**: `callToActionCornerRadius` supports square (0), rounded (6/8), or pill buttons via native canvas clipping.
+- **Fullscreen Native Placement**: Five bounded native compositions, including same-row action and trailing-icon variants, with exclusive presentation mutex integration.
+- **Adaptive Banner Support**: Width and orientation-aware anchored and inline adaptive banners via `BannerLayout` and SDK native sizing.
+- **Initialization State Machine**: Added `AdInitializationState` and `AdmobKit.initializationStateListenable` for reactive UI monitoring without polling.
+- **Explicit Viewport Gating**: Added `active:` flag on `AdNativeView` and `AdBannerView` for manual activation control in retained `PageView` or tab containers.
+- **Interactive Showcase Gallery**: Full gallery screen in example app demonstrating all 19 native templates, adaptive banners, live palette switcher, and diagnostics console.
+
+### Changed
+
+- **Compact Smart Media**: `splitMediaLeft` and `splitMediaRight` restore medium ads with media beside identity, metadata and CTA on Android/iOS. A 160-pixel loading estimate, compact 36-pixel identity icon, and natural text measurement keep ordinary creatives shorter than feed natives without discarding supplied video.
+
+- **Compact Native Identity**: 48-pixel icons (36 pixels in smart-media identities), 15-pixel headlines, 12-pixel body text, 11-pixel metadata and 13-pixel CTA text with 2-pixel copy gaps; single-line headline/body copy with native ellipsis, naturally wrapping CTA copy, inline "Ad · rating ★ · price" metadata, and rounded CTA defaults on Android/iOS. Supplied body copy remains visible on one line with native end ellipsis; only missing or empty bodies collapse. Missing optional assets collapse; provided icons and video remain visible. All templates use consistent 8-pixel outer insets. Side actions clear SDK AdChoices without bottom-aligning the entire identity row; action-first cards use bottom-right SDK AdChoices and symmetric full-width buttons. Same-row CTAs retain their position while CTA copy wraps; compact rows use an 80-pixel loading estimate, not a fixed height.
+- **Fullscreen Navigation**: No built-in top close button. Example screens use bottom Continue navigation outside SDK ad assets.
+- **Platform Alignment**: Aligned with Google Mobile Ads 25.4.0 (Android) and 13.7.0 (iOS). Example app targets iOS 15.0+; core plugin continues to support iOS 13.0+.
+
+### Fixed
+
+- **Native Body Visibility**: Removed width-based hiding of supplied body text. Android/iOS text views keep it visible on one line with native end ellipsis, including after resizing and text scaling. Missing or empty body assets still collapse.
+
+- **Catalog Accuracy**: Gallery labels and previews now match native asset order on both platforms. Geometry tests catch duplicate compositions, preserve side actions at narrow widths and scaled text, and preserve ordering when video is supplied.
+
+- **Native Layout Races**: Stale resize measurements cannot mount an ad or acquire fullscreen ownership after unmounting, disposal, or a newer layout request. Fullscreen ownership begins only after layout is measured successfully.
+- **Native Asset Clipping**: CTA/metadata copy and scaled text grow naturally; insufficient fullscreen media space is rejected instead of clipping required assets. SDK AdChoices retains its own corner.
+- **Android High-Density Corner Scaling**: Fixed bug where card corners were density-scaled twice on high-DPI Android devices.
+- **Deterministic Splash Settlement**: Prevented presentation mutex race condition when awaiting splash ads during cold-start.
+- **Multi-Widget Memory Isolation**: Guaranteed distinct native ad instances when multiple widgets share a placement, eliminating `This AdWidget is already in the Widget tree` crashes.
+- **Stale Session Cleanup**: Auto-evicted expired cached ads on route deactivation.
+
 ## 0.0.2
 
 Hardening release: eliminates three classes of silent production failures (multi-widget ad collisions, splash presentation races, and AdMob request storms), removes the legacy `FlutterAds` facade alias, and overhauls the README and AI-agent skill with a complete API reference, behavioral guarantees, and a table of contents.
@@ -51,4 +123,3 @@ Initial public release of **AdmobKit-flutter** (`admob_kit_flutter`) — a deter
   - Diagnostic monitoring and health telemetry (`AdDiagnosticsTracker`, `AdDiagnosticReport`).
   - Production logger contracts (`AdLogger`) with zero spam.
   - Full support for Banner, Interstitial, Rewarded, Rewarded Interstitial, Native, and App Open ad formats.
-

@@ -4,11 +4,7 @@ import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 void main() {
   group('AdPlacement Hierarchy & Priority Inference Tests', () {
     test('Splash inline placement defaults to splash priority', () {
-      const banner = BannerPlacement(
-        androidId: 'android_banner',
-        iosId: 'ios_banner',
-        isSplash: true,
-      );
+      const banner = BannerPlacement(androidId: 'android_banner', iosId: 'ios_banner', isSplash: true);
 
       expect(banner.isSplash, true);
       expect(banner.priority, AdPriority.splash);
@@ -32,18 +28,12 @@ void main() {
     });
 
     test('Regular placements infer standard priorities and formats', () {
-      const rewarded = RewardedPlacement(
-        androidId: 'android_reward',
-        iosId: 'ios_reward',
-      );
-      const appOpen = AppOpenPlacement(
-        androidId: 'android_open',
-        iosId: 'ios_open',
-      );
+      const rewarded = RewardedPlacement(androidId: 'android_reward', iosId: 'ios_reward');
+      const appOpen = AppOpenPlacement(androidId: 'android_open', iosId: 'ios_open');
       const native = NativePlacement(
         androidId: 'android_native',
         iosId: 'ios_native',
-        factoryId: 'card_factory',
+        template: NativeAdTemplate.cardContentTopTrailingIcon,
       );
 
       expect(rewarded.format, AdFormat.rewarded);
@@ -51,41 +41,38 @@ void main() {
       expect(appOpen.format, AdFormat.appOpen);
       expect(appOpen.priority, AdPriority.high);
       expect(native.format, AdFormat.native);
-      expect(native.factoryId, 'card_factory');
+      expect(native.template.factoryId, 'admobKit.cardContentTopTrailingIcon');
     });
 
     test('Native placement template constructors set correct factory IDs and properties', () {
-      const big = NativePlacement.big(
+      const big = NativePlacement(
+        template: NativeAdTemplate.feedMediaFirst,
         androidId: 'big_android',
         iosId: 'big_ios',
       );
-      expect(big.factoryId, 'bigNativeAd');
-      expect(big.template, NativeAdTemplate.big);
-      expect(big.template?.height, 300.0);
-      expect(big.template?.width, double.infinity);
-      expect(big.template?.defaultHeight, 300.0);
+      expect(big.template.factoryId, 'admobKit.feedMediaFirst');
+      expect(big.template, NativeAdTemplate.feedMediaFirst);
+      expect(big.template.height, 340.0);
       expect(big.priority, AdPriority.medium);
 
-      const medium = NativePlacement.medium(
+      const medium = NativePlacement(
+        template: NativeAdTemplate.cardContentTop,
         androidId: 'med_android',
         iosId: 'med_ios',
       );
-      expect(medium.factoryId, 'listTileMedium');
-      expect(medium.template, NativeAdTemplate.medium);
-      expect(medium.template?.height, 130.0);
-      expect(medium.template?.width, double.infinity);
-      expect(medium.template?.defaultHeight, 130.0);
+      expect(medium.template.factoryId, 'admobKit.cardContentTop');
+      expect(medium.template, NativeAdTemplate.cardContentTop);
+      expect(medium.template.height, 132.0);
 
-      const small = NativePlacement.small(
+      const small = NativePlacement(
+        template: NativeAdTemplate.cardActionTop,
         androidId: 'small_android',
         iosId: 'small_ios',
         isSplash: true,
       );
-      expect(small.factoryId, 'smallNativeAd');
-      expect(small.template, NativeAdTemplate.small);
-      expect(small.template?.height, 74.0);
-      expect(small.template?.width, double.infinity);
-      expect(small.template?.defaultHeight, 74.0);
+      expect(small.template.factoryId, 'admobKit.cardActionTop');
+      expect(small.template, NativeAdTemplate.cardActionTop);
+      expect(small.template.height, 132.0);
       expect(small.priority, AdPriority.splash);
     });
 

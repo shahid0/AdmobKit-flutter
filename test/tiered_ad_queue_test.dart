@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
-import 'package:admob_kit_flutter/src/infrastructure/pool/tiered_ad_queue.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/domain/ad_network.dart';
+import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
 
 class FakeNetworkInfo implements AdNetworkInfo {
   AdNetworkType current = AdNetworkType.wifi;
@@ -29,7 +31,7 @@ class FakeDiagnosticsTracker implements AdDiagnosticsTracker {
 }
 
 void main() {
-  group('TieredAdQueue Tests', () {
+  group('AdEngine Tests', () {
     late FakeNetworkInfo networkInfo;
     late FakeDiagnosticsTracker diagnostics;
 
@@ -42,8 +44,8 @@ void main() {
       int activeCount = 0;
       int maxConcurrent = 0;
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           activeCount++;
           if (activeCount > maxConcurrent) {
             maxConcurrent = activeCount;
@@ -80,8 +82,8 @@ void main() {
       int maxConcurrentSubsequent = 0;
       bool isSubsequentPhase = false;
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           activeCount++;
           if (!isSubsequentPhase) {
             if (activeCount > maxConcurrentInitial) {
@@ -137,8 +139,8 @@ void main() {
     test('Queue drain order: Splash drains before Immediate, Medium, and Low', () async {
       final executionOrder = <String>[];
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           return Object();
         },
@@ -168,8 +170,8 @@ void main() {
     test('Priority 0 Dispatch: Splash Inline loads before Splash Fullscreen under concurrency = 1', () async {
       final executionOrder = <String>[];
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           return Object();
         },
@@ -204,8 +206,8 @@ void main() {
       final executionOrder = <String>[];
       final completerMap = <String, Completer<void>>{};
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executionOrder.add(placement.id);
           final c = Completer<void>();
           completerMap[placement.id] = c;
@@ -248,8 +250,8 @@ void main() {
     test('Black Hole Detection: Consecutive cellular timeouts trigger blackHoleSuspected', () async {
       networkInfo.current = AdNetworkType.cellular;
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           await Future.delayed(const Duration(milliseconds: 80));
           return Object();
         },
@@ -280,8 +282,8 @@ void main() {
 
     test('Inline placements generate distinct slot keys while fullscreen deduplicates', () async {
       int execCount = 0;
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           execCount++;
           await Future.delayed(const Duration(milliseconds: 20));
           return Object();
@@ -311,8 +313,8 @@ void main() {
       final executedIds = <String>[];
       final completers = <String, Completer<void>>{};
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executedIds.add(placement.id);
           final c = Completer<void>();
           completers[placement.id] = c;
@@ -355,12 +357,12 @@ void main() {
       queue.dispose();
     });
 
-    test('TieredAdQueue.cancel purges queued tasks and active retry timers', () async {
+    test('AdEngine.cancel purges queued tasks and active retry timers', () async {
       final executedIds = <String>[];
       final completers = <String, Completer<void>>{};
 
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           executedIds.add(placement.id);
           final c = Completer<void>();
           completers[placement.id] = c;
@@ -401,10 +403,10 @@ void main() {
       queue.dispose();
     });
 
-    test('TieredAdQueue.cancel marks in-flight tasks and discards completed result with error', () async {
+    test('AdEngine.cancel marks in-flight tasks and discards completed result with error', () async {
       final completer = Completer<void>();
-      final queue = TieredAdQueue(
-        executor: (placement) async {
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
           await completer.future;
           return Object();
         },
@@ -412,14 +414,14 @@ void main() {
         diagnostics: diagnostics,
       );
 
-      const placement = BannerPlacement(id: 'inflight_cancel', androidId: '1', iosId: '1');
+      const placement = InterstitialPlacement(id: 'inflight_cancel', androidId: '1', iosId: '1');
       bool caughtError = false;
       final future = queue.enqueue(placement).catchError((e) {
         caughtError = true;
       });
 
       await Future.delayed(const Duration(milliseconds: 10));
-      expect(queue.isLoading('inflight_cancel'), true);
+      expect(queue.isLoading(placement), true);
 
       // Cancel while in-flight
       queue.cancel('inflight_cancel');
@@ -429,7 +431,7 @@ void main() {
       await future;
 
       expect(caughtError, true, reason: 'Cancelled task future must reject with error');
-      expect(queue.getState('inflight_cancel'), AdPlacementState.unloaded);
+      expect(queue.getState(placement), AdPlacementState.unloaded);
 
       queue.dispose();
     });

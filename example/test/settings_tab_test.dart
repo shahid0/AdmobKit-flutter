@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
+// ignore: implementation_imports
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart' show AdmobKitTestHarness;
 import 'package:flutter_ads_example/screens/paywall_screen.dart';
 import 'package:flutter_ads_example/screens/tabs/settings_tab.dart';
 import 'package:flutter_ads_example/state/task_store.dart';
@@ -10,12 +12,9 @@ import 'package:flutter_ads_example/widgets/app_drawer_console.dart';
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await AdmobKit.initialize(
-      config: const AdmobKitConfig(
+    await AdmobKitTestHarness.initialize(initializeNativeGma: false, config: const AdmobKitConfig(
         placements: [],
-        requestConsent: false,
-        initializeNativeGma: false,
-      ),
+        requestConsent: false,),
     );
   });
 
@@ -55,7 +54,7 @@ void main() {
 
     // Active VIP strings must NOT appear
     expect(find.text('TaskFlow PRO Active'), findsNothing);
-    expect(find.text('All ads suppressed globally with zero latency.'), findsNothing);
+    expect(find.text('Ad requests and presentations are suppressed.'), findsNothing);
 
     // 3. Section label
     expect(find.text('MONETIZATION & ADS VERIFICATION'), findsOneWidget);
@@ -143,7 +142,7 @@ void main() {
     // Verify PRO Active slot strings are rendered
     expect(find.text('TaskFlow PRO Active'), findsOneWidget);
     expect(
-      find.text('All ads suppressed globally with zero latency.'),
+      find.text('Ad requests and presentations are suppressed.'),
       findsOneWidget,
     );
 

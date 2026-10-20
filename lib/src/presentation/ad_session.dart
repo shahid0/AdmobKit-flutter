@@ -1,19 +1,96 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
-import '../domain/contracts/ad_network_info.dart';
-import '../domain/models/ad_initialization_state.dart';
-import '../domain/models/ad_placement.dart';
+import '../domain/ad_network.dart';
+import '../domain/ad_placements.dart';
+import '../infrastructure/appearance/native_appearance.dart';
 import '../infrastructure/consent/consent_coordinator.dart';
 import '../infrastructure/drivers/google_mobile_ads_driver.dart';
 import '../infrastructure/logging/platform_ad_logger.dart';
 import '../infrastructure/mutex/presentation_mutex.dart';
-import '../infrastructure/pool/ad_cache_entry.dart';
-import '../infrastructure/pool/eager_ad_pool.dart';
+import '../infrastructure/network/connectivity_network_info.dart';
+import '../infrastructure/engine/ad_cache_entry.dart';
+import '../infrastructure/engine/ad_engine.dart';
 import 'config/admob_kit_config.dart';
+
+AdSession? _activeSession;
+PlatformAdLogger? _sessionLogger;
+final _sessionInitState = ValueNotifier(AdInitializationState.uninitialized);
+
+@internal
+AdSession? get activeAdSession => _activeSession;
+
+@internal
+PlatformAdLogger? get adSessionLogger => _sessionLogger;
+
+@internal
+ValueListenable<AdInitializationState> get adInitializationStateListenable => _sessionInitState;
+
+/// Ends the current lifetime and notifies retained widget hosts.
+@internal
+void disposeAdSession() {
+  final session = _activeSession;
+  _activeSession = null;
+  session?.dispose();
+  _sessionInitState.value = AdInitializationState.disposed;
+}
+
+/// Composes one session. Dependencies apply only to this initialization call.
+@internal
+Future<void> initializeAdSession({
+  required AdmobKitConfig config,
+  GoogleMobileAdsDriver? driver,
+  AdNetworkInfo? networkInfo,
+  bool initializeNativeGma = true,
+}) {
+  final existing = _activeSession;
+  if (existing != null && existing.state != AdInitializationState.failed && !existing.isDisposed) {
+    return existing.initialize();
+  }
+  if (config.initialConcurrency < 1 || config.subsequentConcurrency < 1) {
+    throw ArgumentError('Ad request concurrency must be positive.');
+  }
+  if (config.adTtl <= Duration.zero) throw ArgumentError('Ad freshness TTL must be positive.');
+  for (final policy in [config.timeouts.fullscreen, config.timeouts.inline, config.timeouts.splash]) {
+    if ([
+      policy.wifiTimeout,
+      policy.cellularTimeout,
+      policy.ethernetTimeout,
+      policy.otherTimeout,
+    ].any((timeout) => timeout <= Duration.zero)) {
+      throw ArgumentError('Ad request timeouts must be positive.');
+    }
+  }
+  disposeAdSession();
+  _sessionLogger = PlatformAdLogger(level: config.logLevel);
+  final appearance = NativeAppearance(defaults: config.nativeStyle);
+  late final AdSession session;
+  session = AdSession(
+    config: config,
+    appearance: appearance,
+    driver: driver ?? GoogleMobileAdsDriver(logger: _sessionLogger, analytics: config.analytics, appearance: appearance),
+    consent: ConsentCoordinator(_sessionLogger),
+    networkInfo: networkInfo ?? ConnectivityNetworkInfo(),
+    initializeNativeGma: initializeNativeGma,
+    logger: _sessionLogger!,
+    registerNativeFactories: () async {
+      final registered = await const MethodChannel('flutter_ads').invokeMethod<bool>('registerNativeAdFactories');
+      if (registered != true) throw StateError('Native ad factory registration failed.');
+    },
+    onStateChanged: (state) {
+      if (identical(_activeSession, session)) _sessionInitState.value = state;
+    },
+  );
+  _activeSession = session;
+  return session.initialize();
+}
 
 /// Owns one initialization lifetime. Old async completions cannot revive it.
 class AdSession {
   final AdmobKitConfig config;
+  final bool initializeNativeGma;
+  final NativeAppearance? appearance;
   final GoogleMobileAdsDriver driver;
   final ConsentCoordinator consent;
   final AdNetworkInfo networkInfo;
@@ -21,8 +98,10 @@ class AdSession {
   final Future<void> Function() registerNativeFactories;
   final void Function(AdInitializationState) onStateChanged;
   late final PresentationMutex mutex = PresentationMutex(logger);
-  late EagerAdPool pool = _createPool();
+  late AdEngine engine = _createEngine();
   final _placements = <String, AdPlacement>{};
+  // Consumption belongs to the session, not to its replaceable privacy cache.
+  final _consumedLoadOnceIds = <String>{};
   final _capacities = <String, int>{};
   final _disposed = Completer<void>();
   Completer<bool> _settled = Completer<bool>();
@@ -33,6 +112,8 @@ class AdSession {
 
   AdSession({
     required this.config,
+    this.initializeNativeGma = true,
+    this.appearance,
     required this.driver,
     required this.consent,
     required this.networkInfo,
@@ -42,6 +123,7 @@ class AdSession {
   }) {
     _capacities.addAll(config.placementCapacities ?? {});
     for (final placement in config.placements ?? <AdPlacement>[]) {
+      engine.validatePlacement(placement);
       _placements[placement.id] = placement;
     }
   }
@@ -51,12 +133,18 @@ class AdSession {
   bool get canRequestAds => state == AdInitializationState.ready && !isDisposed && !isPremium;
   bool get _isResolving => !_settled.isCompleted;
 
-  EagerAdPool _createPool() => EagerAdPool(
+  /// Applies initial or live appearance independently of consent/ad requests.
+  Future<void> setNativeStyle(NativeAdStyle style, {NativePlacement? placement}) {
+    if (isDisposed || appearance == null) return Future.error(StateError('No active native appearance session.'));
+    return appearance!.setStyle(style, placement: placement);
+  }
+
+  AdEngine _createEngine() => AdEngine(
+    consumedLoadOnceIds: _consumedLoadOnceIds,
     driver: driver,
     mutex: mutex,
     networkInfo: networkInfo,
     timeoutConfig: config.timeouts,
-    retryScheduler: config.retryScheduler,
     logger: logger,
     analytics: config.analytics,
     diagnostics: config.diagnostics,
@@ -111,7 +199,7 @@ class AdSession {
     if (!_sdkReady) {
       _setState(AdInitializationState.initializingSdk);
       if (isDisposed) return;
-      if (config.initializeNativeGma) {
+      if (initializeNativeGma) {
         await driver.initialize(testDeviceIds: config.testDeviceIds);
         if (isDisposed) return;
         await registerNativeFactories();
@@ -121,7 +209,7 @@ class AdSession {
     }
     _setState(AdInitializationState.ready);
     if (isDisposed) return;
-    pool.primeAll(_placements.values);
+    engine.primeAll(_placements.values);
     if (!_settled.isCompleted) _settled.complete(true);
   }
 
@@ -147,67 +235,116 @@ class AdSession {
     if (isDisposed) return;
     final added = placements.toList();
     for (final placement in added) {
+      engine.validatePlacement(placement);
       _placements[placement.id] = placement;
     }
     if (capacities != null) {
       _capacities.addAll(capacities);
       for (final entry in capacities.entries) {
-        pool.setCapacity(entry.key, entry.value);
+        engine.setCapacity(entry.key, entry.value);
       }
     }
-    if (canRequestAds) pool.primeAll(added);
+    if (canRequestAds) engine.primeAll(added);
   }
 
-  /// Waits for eligibility, then preloads into the current privacy-safe pool.
-  Future<void> preload(AdPlacement placement) async {
+  /// Checks whether an ad is primed and ready in memory.
+  bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) =>
+      engine.isReady(placement, bannerLayout: bannerLayout);
+
+  /// Checks whether [placement] is currently in-flight downloading or queued.
+  bool isLoading(AdPlacement placement, {BannerLayout? bannerLayout}) =>
+      engine.isLoading(placement, bannerLayout: bannerLayout);
+
+  /// Returns the current lifecycle state of [placement].
+  AdPlacementState getState(AdPlacement placement, {BannerLayout? bannerLayout}) =>
+      engine.getState(placement, bannerLayout: bannerLayout);
+
+  /// Observes state transitions for [placement].
+  Stream<AdPlacementState> watchState(AdPlacement placement, {BannerLayout? bannerLayout}) =>
+      engine.watchState(placement, bannerLayout: bannerLayout);
+
+  /// Waits for eligibility, then preloads into the current privacy-safe engine.
+  Future<void> preload(AdPlacement placement, {BannerLayout? bannerLayout}) async {
     while (!isDisposed) {
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return;
-      final currentPool = pool;
-      await currentPool.preload(placement);
-      if (identical(currentPool, pool) && !_isResolving) return;
+      final currentEngine = engine;
+      await currentEngine.preload(placement, bannerLayout: bannerLayout);
+      if (identical(currentEngine, engine) && !_isResolving) return;
     }
   }
 
   /// Waits for eligibility and ad readiness; [timeout] starts after eligibility.
   /// Returns false on denial, failure, timeout, or disposal.
-  Future<bool> waitFor(AdPlacement placement, {Duration? timeout}) async {
+  Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) async {
     while (!isDisposed) {
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return false;
-      final currentPool = pool;
-      final ready = await currentPool.waitFor(placement, timeout: timeout);
+      final currentEngine = engine;
+      final ready = await currentEngine.waitFor(placement, timeout: timeout, bannerLayout: bannerLayout);
       if (isDisposed) return false;
-      if (identical(currentPool, pool) && !_isResolving) return ready && canRequestAds;
+      if (identical(currentEngine, engine) && !_isResolving) return ready && canRequestAds;
     }
     return false;
   }
 
-  /// Waits for eligibility and leases an exclusive inline ad from the current pool.
-  /// Discards stale-pool results and returns null when no ad can be leased.
-  Future<dynamic> leaseInlineAd(InlinePlacement placement, {Duration? timeout}) async {
+  /// Waits for eligibility and leases an exclusive inline ad from the current engine.
+  Future<dynamic> leaseInlineAd(
+    InlinePlacement placement, {
+    Duration? timeout,
+    BannerLayout? bannerLayout,
+    bool Function()? isMounted,
+  }) async {
     while (!isDisposed) {
+      if (isMounted != null && !isMounted()) return null;
       final allowed = await waitUntilCanRequestAds();
       if (_isResolving) continue;
       if (!allowed || !canRequestAds) return null;
-      final currentPool = pool;
-      final ad = await currentPool.leaseInlineAd(placement, timeout: timeout);
-      if (identical(currentPool, pool) && canRequestAds) return ad;
+      if (isMounted != null && !isMounted()) return null;
+      final currentEngine = engine;
+      final ad = await currentEngine.leaseInlineAd(
+        placement,
+        timeout: timeout,
+        bannerLayout: bannerLayout,
+        isMounted: isMounted,
+      );
+      if (identical(currentEngine, engine) && canRequestAds) return ad;
       await AdCacheEntry.disposeAdInstance(ad);
       if (isDisposed) return null;
     }
     return null;
   }
 
-  /// Presents through the current pool, preserving its splash settlement policy.
+  /// Presents through the current engine, preserving its splash settlement policy.
   void show(
     FullscreenPlacement placement, {
     void Function()? onDismissed,
     void Function(num amount, String type)? onRewardGranted,
     void Function()? onDisplayed,
-  }) => pool.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+  }) => engine.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+
+  /// Reads the current settled UMP requirement, including concurrent updates.
+  Future<bool> isPrivacyOptionsRequired() async {
+    while (!isDisposed) {
+      final barrier = _settled;
+      await barrier.future;
+      if (!identical(barrier, _settled)) continue;
+      if (isDisposed) return false;
+      final bool required;
+      try {
+        required = await Future.any<bool>([consent.isPrivacyOptionsRequired(), _disposed.future.then((_) => false)]);
+      } catch (_) {
+        if (isDisposed) return false;
+        if (!identical(barrier, _settled)) continue;
+        rethrow;
+      }
+      if (isDisposed) return false;
+      if (identical(barrier, _settled)) return required;
+    }
+    return false;
+  }
 
   /// Coalesces privacy updates and re-resolves eligibility before allowing ads.
   Future<bool> showPrivacyOptionsForm() {
@@ -233,8 +370,8 @@ class AdSession {
       _settled = Completer<bool>();
       _setState(AdInitializationState.updatingConsent);
       if (isDisposed) return false;
-      pool.dispose();
-      pool = _createPool();
+      engine.dispose();
+      engine = _createEngine();
       final shown = await consent.showPrivacyOptionsForm();
       if (isDisposed) return false;
       final allowed = await consent.canRequestAds();
@@ -255,8 +392,14 @@ class AdSession {
     _disposed.complete();
     state = AdInitializationState.disposed;
     consent.dispose();
-    pool.dispose();
+    engine.dispose();
+    mutex.dispose();
     if (!_settled.isCompleted) _settled.complete(false);
+    unawaited(
+      appearance?.dispose().catchError((Object error, StackTrace stack) {
+        logger.error('[Native] Appearance disposal failed', error, stack);
+      }),
+    );
     onStateChanged(state);
   }
 }

@@ -13,19 +13,21 @@ import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
  * FlutterAdsPlugin
  *
  * Automatically registers and unregisters custom Native Ad factories
- * (`bigNativeAd`, `listTileMedium`, `listTile`, `listTiles`, `smallNativeAd`)
+ * for the typed inline template catalog
  * with the active [FlutterEngine].
  */
 class FlutterAdsPlugin :
     FlutterPlugin,
     MethodCallHandler {
 
+    private val appearance = NativeAppearanceStore()
     private var channel: MethodChannel? = null
     private var attachedEngine: FlutterEngine? = null
     private var applicationContext: Context? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         val messenger = flutterPluginBinding.binaryMessenger
+        NativeAppearanceHost.setUp(messenger, appearance)
         channel = MethodChannel(messenger, "flutter_ads")
         channel?.setMethodCallHandler(this)
 
@@ -34,7 +36,7 @@ class FlutterAdsPlugin :
         attachedEngine = engine
         applicationContext = context
 
-        registerNativeAdFactories(engine, context)
+        // Registration is awaited by AdSession after all engine plugins attach.
     }
 
     override fun onMethodCall(
@@ -58,6 +60,8 @@ class FlutterAdsPlugin :
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        NativeAppearanceHost.setUp(binding.binaryMessenger, null)
+        appearance.clear()
         channel?.setMethodCallHandler(null)
         channel = null
         attachedEngine?.let { engine ->
@@ -67,61 +71,22 @@ class FlutterAdsPlugin :
         applicationContext = null
     }
 
-    companion object {
-        const val BIG_NATIVE_FACTORY_ID = "bigNativeAd"
-        const val MEDIUM_NATIVE_FACTORY_ID = "listTileMedium"
-        const val LIST_TILE_FACTORY_ID = "listTile"
-        const val LIST_TILES_FACTORY_ID = "listTiles"
-        const val SMALL_NATIVE_FACTORY_ID = "smallNativeAd"
-
-        fun registerNativeAdFactories(flutterEngine: FlutterEngine, context: Context): Boolean {
-            return try {
-                unregisterNativeAdFactories(flutterEngine)
-                val bigFactory = BigNativeAdFactory(context)
-                val mediumFactory = MediumNativeAdFactory(context)
-                val smallFactory = SmallNativeAdFactory(context)
-
-                GoogleMobileAdsPlugin.registerNativeAdFactory(
-                    flutterEngine,
-                    BIG_NATIVE_FACTORY_ID,
-                    bigFactory
-                )
-                GoogleMobileAdsPlugin.registerNativeAdFactory(
-                    flutterEngine,
-                    MEDIUM_NATIVE_FACTORY_ID,
-                    mediumFactory
-                )
-                GoogleMobileAdsPlugin.registerNativeAdFactory(
-                    flutterEngine,
-                    LIST_TILE_FACTORY_ID,
-                    mediumFactory
-                )
-                GoogleMobileAdsPlugin.registerNativeAdFactory(
-                    flutterEngine,
-                    LIST_TILES_FACTORY_ID,
-                    mediumFactory
-                )
-                GoogleMobileAdsPlugin.registerNativeAdFactory(
-                    flutterEngine,
-                    SMALL_NATIVE_FACTORY_ID,
-                    smallFactory
-                )
-                true
-            } catch (ignored: Throwable) {
-                // If GoogleMobileAdsPlugin is not yet attached to engine in test harness
-                false
-            }
+    private fun registerNativeAdFactories(flutterEngine: FlutterEngine, context: Context): Boolean {
+        if (!flutterEngine.plugins.has(GoogleMobileAdsPlugin::class.java)) return false
+        unregisterNativeAdFactories(flutterEngine)
+        var registered = true
+        for (template in NativeTemplate.entries) {
+            val added = GoogleMobileAdsPlugin.registerNativeAdFactory(
+                flutterEngine, template.factoryId, NativeTemplateFactory(context, template, appearance))
+            registered = added && registered
         }
+        if (!registered) unregisterNativeAdFactories(flutterEngine)
+        return registered
+    }
 
-        fun unregisterNativeAdFactories(flutterEngine: FlutterEngine) {
-            try {
-                GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, BIG_NATIVE_FACTORY_ID)
-                GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, MEDIUM_NATIVE_FACTORY_ID)
-                GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, LIST_TILE_FACTORY_ID)
-                GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, LIST_TILES_FACTORY_ID)
-                GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, SMALL_NATIVE_FACTORY_ID)
-            } catch (ignored: Throwable) {
-            }
+    private fun unregisterNativeAdFactories(flutterEngine: FlutterEngine) {
+        for (template in NativeTemplate.entries) {
+            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, template.factoryId)
         }
     }
 }

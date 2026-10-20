@@ -1,6 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
-import '../../domain/contracts/ad_logger.dart';
+import '../../domain/ad_telemetry.dart';
 
 /// Platform-aware, structured console logger for AdmobKit.
 class PlatformAdLogger implements AdLogger {

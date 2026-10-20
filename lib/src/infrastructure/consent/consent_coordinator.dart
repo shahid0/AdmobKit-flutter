@@ -105,12 +105,11 @@ class ConsentCoordinator {
 
   /// Returns true if the user requires a privacy options link in the app (e.g. in settings).
   Future<bool> isPrivacyOptionsRequired() async {
-    try {
-      final status = await ConsentInformation.instance.getPrivacyOptionsRequirementStatus();
-      return status == PrivacyOptionsRequirementStatus.required;
-    } catch (_) {
-      return false;
+    final status = await ConsentInformation.instance.getPrivacyOptionsRequirementStatus();
+    if (status == PrivacyOptionsRequirementStatus.unknown) {
+      throw StateError('UMP privacy options requirement has not resolved.');
     }
+    return status == PrivacyOptionsRequirementStatus.required;
   }
 
   /// Presents the Google UMP privacy options form so users can change their consent settings.

@@ -1,6 +1,6 @@
 name: admob_kit_flutter
-description: Production-grade Google AdMob plugin for Flutter with instant 0ms display, UMP GDPR consent, zero-CLS native ad templates, banners, interstitials, and rewarded ads.
-version: 0.0.2
+description: Flutter AdMob ads with adaptive banners, native templates, consent-aware loading, fullscreen presentation and live native styling.
+version: 0.1.0
 homepage: https://github.com/shahid0/AdmobKit-flutter
 repository: https://github.com/shahid0/AdmobKit-flutter
 issue_tracker: https://github.com/shahid0/AdmobKit-flutter/issues
@@ -13,7 +13,7 @@ topics:
 
 environment:
   sdk: ^3.11.5
-  flutter: '>=3.3.0'
+  flutter: '>=3.41.0'
 
 dependencies:
   app_tracking_transparency: ^2.0.7
@@ -23,6 +23,7 @@ dependencies:
   google_mobile_ads: ^9.1.0
 
 dev_dependencies:
+  pigeon: 27.3.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

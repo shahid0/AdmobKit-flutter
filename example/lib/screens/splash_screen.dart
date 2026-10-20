@@ -29,32 +29,19 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.initState();
     SplashScreen.isSplashActive = true;
 
-    _heroController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _heroFadeAnim = CurvedAnimation(
-      parent: _heroController,
-      curve: Curves.easeOut,
-    );
-    _heroScaleAnim = Tween<double>(begin: 0.96, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _heroController,
-        curve: Curves.easeOut,
-      ),
-    );
+    _heroController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _heroFadeAnim = CurvedAnimation(parent: _heroController, curve: Curves.easeOut);
+    _heroScaleAnim = Tween<double>(
+      begin: 0.96,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _heroController, curve: Curves.easeOut));
     _heroController.forward();
 
-    _beaconController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _beaconAnim = Tween<double>(begin: 0.35, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _beaconController,
-        curve: Curves.easeInOut,
-      ),
-    );
+    _beaconController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _beaconAnim = Tween<double>(
+      begin: 0.35,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _beaconController, curve: Curves.easeInOut));
     _beaconController.repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -64,14 +51,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     });
   }
 
-  void _startSplashSequence() {
+  Future<void> _startSplashSequence() async {
     TaskStore.instance.appendLog(
-      '🚀 [Splash] Awaiting settlement for ${SampleAds.splashInterstitial.id}...',
+      '🚀 [Splash] Awaiting deterministic settlement for ${SampleAds.splashInterstitial.id}...',
     );
-    AdmobKit.show(
-      SampleAds.splashInterstitial,
-      onDismissed: _proceedToNextScreen,
-    );
+    await AdmobKit.waitFor(SampleAds.splashInterstitial);
+    if (!mounted) return;
+    AdmobKit.show(SampleAds.splashInterstitial, onDismissed: _proceedToNextScreen);
   }
 
   void _proceedToNextScreen() {
@@ -113,10 +99,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           decoration: BoxDecoration(
             color: TaskColors.accentPrimary,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
             boxShadow: [
               BoxShadow(
                 color: TaskColors.accentPrimary.withValues(alpha: 0.25),
@@ -125,11 +108,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
             ],
           ),
-          child: const Icon(
-            Icons.token_rounded,
-            color: Colors.white,
-            size: 40,
-          ),
+          child: const Icon(Icons.token_rounded, color: Colors.white, size: 40),
         ),
         const SizedBox(height: 20),
         const Text(
@@ -165,10 +144,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     return FadeTransition(
       opacity: _heroFadeAnim,
-      child: ScaleTransition(
-        scale: _heroScaleAnim,
-        child: content,
-      ),
+      child: ScaleTransition(scale: _heroScaleAnim, child: content),
     );
   }
 
@@ -176,20 +152,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     final beaconDot = Container(
       width: 8,
       height: 8,
-      decoration: const BoxDecoration(
-        color: TaskColors.emeraldText,
-        shape: BoxShape.circle,
-      ),
+      decoration: const BoxDecoration(color: TaskColors.emeraldText, shape: BoxShape.circle),
     );
 
     if (reduceMotion) {
       return beaconDot;
     }
 
-    return FadeTransition(
-      opacity: _beaconAnim,
-      child: beaconDot,
-    );
+    return FadeTransition(opacity: _beaconAnim, child: beaconDot);
   }
 
   Widget _buildStatusTelemetry({required bool reduceMotion}) {
@@ -222,7 +192,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
               SizedBox(height: 2),
               Text(
-                'v2.4.0 • 0ms Mutex Ready',
+                'v2.4.0 • Ad lifecycle',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -247,10 +217,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         border: Border.all(color: TaskColors.borderSubtle),
         boxShadow: TaskColors.cardShadow,
       ),
-      child: const AdNativeView(
-        placement: SampleAds.splashBigNative,
-        template: NativeAdTemplate.big,
-      ),
+      child: const AdNativeView(placement: SampleAds.splashBigNative),
     );
   }
 
@@ -263,7 +230,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               const SizedBox(height: 12),
