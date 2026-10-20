@@ -4,6 +4,7 @@ import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/domain/ad_network.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/adaptive_banner_ad.dart';
+import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';
 import 'package:admob_kit_flutter/src/infrastructure/mutex/presentation_mutex.dart';
 import 'package:admob_kit_flutter/src/infrastructure/engine/ad_engine.dart';
@@ -36,7 +37,100 @@ class _Driver extends GoogleMobileAdsDriver {
 }
 
 void main() {
-  group('Adaptive SDK sizing', () {
+  const fixedSizes = <String, (BannerSizing, AdSize)>{
+    'standard': (BannerSizing.standard(), AdSize.banner),
+    'medium rectangle': (
+      BannerSizing.mediumRectangle(),
+      AdSize.mediumRectangle,
+    ),
+    'MREC alias': (BannerSizing.mrec(), AdSize.mediumRectangle),
+    'large banner': (BannerSizing.largeBanner(), AdSize.largeBanner),
+    'leaderboard': (BannerSizing.leaderboard(), AdSize.leaderboard),
+    'custom': (BannerSizing.fixed(width: 468, height: 60), AdSize.fullBanner),
+  };
+
+  group('Banner sizing value', () {
+    for (final entry in fixedSizes.entries) {
+      test(entry.key, () {
+        final (sizing, expected) = entry.value;
+        expect(sizing.fixedWidth, expected.width);
+        expect(sizing.fixedHeight, expected.height);
+        expect(sizing.isFixed, isTrue);
+        expect(sizing.isAdaptive, isFalse);
+        expect(sizing.isInline, isFalse);
+        expect(sizing.maxHeight, isNull);
+        expect(sizing.reserveSpace, isTrue);
+        final custom = BannerSizing.fixed(
+          width: expected.width,
+          height: expected.height,
+        );
+        expect(sizing, custom);
+        expect(sizing.hashCode, custom.hashCode);
+      });
+    }
+
+    test('adaptive policies and reservation defaults', () {
+      const anchored = BannerSizing.anchoredAdaptive();
+      const inline = BannerSizing.inlineAdaptive(maxHeight: 160);
+      expect(anchored.isAdaptive, isTrue);
+      expect(anchored.isInline, isFalse);
+      expect(anchored.reserveSpace, isFalse);
+      expect(inline.isAdaptive, isTrue);
+      expect(inline.isInline, isTrue);
+      expect(inline.reserveSpace, isTrue);
+      expect(inline.fixedWidth, isNull);
+      expect(inline.fixedHeight, isNull);
+    });
+
+    test('equality includes dimensions and reservation policy', () {
+      expect(
+        const BannerSizing.standard(),
+        isNot(const BannerSizing.fixed(width: 321, height: 50)),
+      );
+      expect(
+        const BannerSizing.standard(),
+        isNot(const BannerSizing.largeBanner()),
+      );
+      expect(
+        const BannerSizing.standard(),
+        isNot(const BannerSizing.standard(reserveSpace: false)),
+      );
+      expect(
+        const BannerSizing.inlineAdaptive(maxHeight: 160),
+        isNot(
+          const BannerSizing.inlineAdaptive(
+            maxHeight: 160,
+            reserveSpace: false,
+          ),
+        ),
+      );
+      expect(
+        const BannerSizing.inlineAdaptive(maxHeight: 160),
+        isNot(const BannerSizing.inlineAdaptive(maxHeight: 250)),
+      );
+      expect(
+        const BannerSizing.mrec(reserveSpace: false),
+        const BannerSizing.mediumRectangle(reserveSpace: false),
+      );
+    });
+
+    test('invalid dimensions are rejected', () {
+      expect(
+        () => BannerSizing.fixed(width: 0, height: 50),
+        throwsAssertionError,
+      );
+      expect(
+        () => BannerSizing.fixed(width: 320, height: -1),
+        throwsAssertionError,
+      );
+      expect(
+        () => BannerSizing.inlineAdaptive(maxHeight: 31),
+        throwsAssertionError,
+      );
+    });
+  });
+
+  group('Banner SDK sizing', () {
     late List<MethodCall> calls;
     late List<AdaptiveBannerAd> banners;
     late FutureOr<Object?> Function(MethodCall) response;
@@ -81,6 +175,64 @@ void main() {
       expect(await result, same(ad));
       expect(ad.renderSize.value!.height, 60);
     });
+
+    for (final entry in fixedSizes.entries) {
+      testWidgets(
+        '${entry.key} requests exact dimensions without adaptive calculation',
+        (tester) async {
+          final (sizing, expected) = entry.value;
+          final placement = BannerPlacement(
+            androidId: 'test',
+            iosId: 'test',
+            sizing: sizing,
+          );
+          response = (_) => expected;
+          final result = GoogleMobileAdsDriver().loadAd(
+            placement,
+            bannerLayout: const BannerLayout(
+              width: 800,
+              orientation: BannerOrientation.portrait,
+            ),
+          );
+          await tester.pump();
+          expect(calls.map((call) => call.method), ['loadBannerAd']);
+          final ad = banners.single;
+          expect(ad.size, expected);
+          ad.listener.onAdLoaded!(ad);
+          await tester.pump();
+          expect(await result, same(ad));
+          expect(ad.renderSize.value, expected);
+        },
+      );
+    }
+
+    for (final actual in <AdSize?>[
+      null,
+      const AdSize(width: 300, height: 50),
+      const AdSize(width: 320, height: 100),
+    ]) {
+      testWidgets('fixed size rejects mismatched platform size $actual', (
+        tester,
+      ) async {
+        const placement = BannerPlacement(
+          androidId: 'test',
+          iosId: 'test',
+          sizing: BannerSizing.standard(),
+        );
+        response = (_) => actual;
+        final result = GoogleMobileAdsDriver().loadAd(
+          placement,
+          bannerLayout: _narrow,
+        );
+        final failure = expectLater(result, throwsA(isA<LoadAdError>()));
+        await tester.pump();
+        final ad = banners.single;
+        ad.listener.onAdLoaded!(ad);
+        await tester.pump();
+        await failure;
+        expect(ad.isDisposed, isTrue);
+      });
+    }
 
     testWidgets('null SDK size fails without a guessed fixed banner request', (tester) async {
       response = (_) => null;
@@ -281,6 +433,203 @@ void main() {
       results[_narrow]!.complete(Object());
       await tester.pump();
       expect(await wide, same(ad));
+    });
+  });
+
+  group('Banner host sizing', () {
+    late _Driver driver;
+    const placeholderKey = ValueKey('banner-placeholder');
+
+    Widget host(
+      BannerSizing sizing, {
+      bool? reserveSpace,
+      bool unbounded = false,
+      double? width,
+    }) {
+      final view = AdBannerView(
+        placement: BannerPlacement(
+          id: 'host',
+          androidId: 'test',
+          iosId: 'test',
+          sizing: sizing,
+          loadOnce: true,
+        ),
+        width: width,
+        reserveSpace: reserveSpace,
+        placeholder: const ColoredBox(key: placeholderKey, color: Colors.grey),
+      );
+      return MaterialApp(
+        home: Center(
+          child: unbounded
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: view,
+                )
+              : SizedBox(width: 600, child: view),
+        ),
+      );
+    }
+
+    Future<AdaptiveBannerAd> completeAd(AdSize size) async {
+      final ad = AdaptiveBannerAd(
+        adUnitId: 'test',
+        size: size,
+        request: const AdRequest(),
+        listener: const BannerAdListener(),
+      );
+      await ad.load();
+      ad.loadedAt = DateTime.now();
+      ad.renderSize.value = size;
+      driver.requests.single.result.complete(ad);
+      return ad;
+    }
+
+    Future<void> initialize() async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        instanceManager.channel,
+        (_) async => null,
+      );
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
+      driver = _Driver();
+      await AdmobKitTestHarness.initialize(
+        driver: driver,
+        networkInfo: _Network(),
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(
+          requestConsent: false,
+          logLevel: AdLogLevel.none,
+        ),
+      );
+    }
+
+    tearDown(() {
+      AdmobKit.dispose();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(instanceManager.channel, null);
+      messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
+    });
+
+    for (final fixed in [false, true]) {
+      for (final policy in [false, true]) {
+        for (final override in <bool?>[null, false, true]) {
+          testWidgets(
+            '${fixed ? 'fixed' : 'inline'} reserveSpace policy=$policy override=$override',
+            (tester) async {
+              await initialize();
+              final sizing = fixed
+                  ? BannerSizing.mrec(reserveSpace: policy)
+                  : BannerSizing.inlineAdaptive(
+                      maxHeight: 160,
+                      reserveSpace: policy,
+                    );
+              final reserves = override ?? policy;
+              final reservedHeight = fixed ? 250.0 : 160.0;
+              final actualSize = fixed
+                  ? AdSize.mediumRectangle
+                  : const AdSize(width: 600, height: 90);
+              await tester.pumpWidget(host(sizing, reserveSpace: override));
+              expect(
+                tester.getSize(find.byType(AdBannerView)).height,
+                reserves ? reservedHeight : 0,
+              );
+              expect(
+                find.byKey(placeholderKey),
+                reserves ? findsOneWidget : findsNothing,
+              );
+              expect(
+                driver.requests,
+                hasLength(1),
+                reason: 'Collapsed hosts still load',
+              );
+              await completeAd(actualSize);
+              await tester.pump();
+              await tester.pump();
+              expect(
+                tester.getSize(find.byType(AdBannerView)).height,
+                reserves ? reservedHeight : actualSize.height.toDouble(),
+              );
+              expect(
+                tester.getSize(find.byType(AdWidget)),
+                Size(actualSize.width.toDouble(), actualSize.height.toDouble()),
+              );
+              expect(find.byKey(placeholderKey), findsNothing);
+              expect(
+                tester.getCenter(find.byType(AdWidget)).dx,
+                tester.getCenter(find.byType(AdBannerView)).dx,
+              );
+              await tester.pumpWidget(const SizedBox());
+            },
+          );
+        }
+      }
+    }
+
+    testWidgets(
+      'collapsed inline follows refreshed dimensions and missing size',
+      (tester) async {
+        await initialize();
+        const sizing = BannerSizing.inlineAdaptive(
+          maxHeight: 160,
+          reserveSpace: false,
+        );
+        await tester.pumpWidget(host(sizing));
+        final ad = await completeAd(const AdSize(width: 600, height: 90));
+        await tester.pump();
+        await tester.pump();
+        ad.renderSize.value = const AdSize(width: 600, height: 120);
+        await tester.pump();
+        expect(tester.getSize(find.byType(AdBannerView)).height, 120);
+        ad.renderSize.value = null;
+        await tester.pump();
+        expect(tester.getSize(find.byType(AdBannerView)).height, 0);
+        expect(find.byType(AdWidget), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets(
+      'fixed width defaults to configured width in an unbounded parent',
+      (tester) async {
+        await initialize();
+        await tester.pumpWidget(
+          host(const BannerSizing.mrec(), unbounded: true),
+        );
+        expect(tester.takeException(), isNull);
+        expect(driver.requests.single.layout!.width, 300);
+        expect(tester.getSize(find.byType(AdBannerView)), const Size(300, 250));
+        await completeAd(AdSize.mediumRectangle);
+        await tester.pump();
+        await tester.pump();
+        expect(tester.getSize(find.byType(AdWidget)), const Size(300, 250));
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('adaptive width can be explicit in an unbounded parent', (
+      tester,
+    ) async {
+      await initialize();
+      await tester.pumpWidget(
+        host(
+          const BannerSizing.anchoredAdaptive(),
+          unbounded: true,
+          width: 320,
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(driver.requests.single.layout!.width, 320);
+      expect(tester.getSize(find.byType(AdBannerView)).height, 0);
+      await completeAd(const AdSize(width: 320, height: 60));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byType(AdBannerView)), const Size(320, 60));
+      await tester.pumpWidget(const SizedBox());
     });
   });
 

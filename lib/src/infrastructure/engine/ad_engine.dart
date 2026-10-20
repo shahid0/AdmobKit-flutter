@@ -223,9 +223,7 @@ class AdEngine {
     if (placement is BannerPlacement) {
       if (layout == null) throw ArgumentError('Banner requests require a BannerLayout.');
       layout.validate();
-      if (placement.sizing.maxHeight != null && placement.sizing.maxHeight! < 32) {
-        throw ArgumentError('Inline banner maxHeight must be at least 32 logical pixels.');
-      }
+      placement.sizing.validate();
     } else if (layout != null) {
       throw ArgumentError('BannerLayout is only valid for banner placements.');
     }

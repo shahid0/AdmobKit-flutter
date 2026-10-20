@@ -96,7 +96,7 @@ enum AdInitializationState {
 /// Device orientation used when resolving an adaptive banner layout.
 enum BannerOrientation { portrait, landscape }
 
-/// Available logical width and device orientation for an adaptive banner.
+/// Available logical width and device orientation for a banner host.
 final class BannerLayout {
   final int width;
   final BannerOrientation orientation;
@@ -127,26 +127,111 @@ final class BannerLayout {
   String toString() => '${width}dp/${orientation.name}';
 }
 
-/// SDK sizing policy for banners. Inline banners reserve [maxHeight] while loading.
+/// SDK sizing policy for adaptive or fixed banners, in logical pixels.
+///
+/// Inline adaptive and fixed banners reserve their configured height by default.
+/// Set [reserveSpace] to false to collapse the host until an ad size is available.
+@immutable
 final class BannerSizing {
+  /// Maximum SDK creative height for inline adaptive banners; otherwise null.
   final int? maxHeight;
 
-  const BannerSizing.anchoredAdaptive() : maxHeight = null;
+  /// Requested fixed dimensions; null for adaptive banners.
+  final int? fixedWidth;
+  final int? fixedHeight;
 
-  // The argument is non-nullable; null is reserved for anchored sizing.
+  /// Whether the host reserves the configured height before and after loading.
+  final bool reserveSpace;
+
+  /// Resolves width and height through the SDK without reserving loading space.
+  const BannerSizing.anchoredAdaptive()
+    : maxHeight = null,
+      fixedWidth = null,
+      fixedHeight = null,
+      reserveSpace = false;
+
+  /// Resolves an adaptive creative up to [maxHeight] (at least 32 pixels).
+  // The argument is non-nullable; null is reserved for other sizing modes.
   // ignore: prefer_initializing_formals
-  const BannerSizing.inlineAdaptive({required int maxHeight})
-    : assert(maxHeight >= 32),
-      maxHeight = maxHeight;
+  const BannerSizing.inlineAdaptive({
+    required int maxHeight,
+    this.reserveSpace = true,
+  }) : assert(maxHeight >= 32),
+       maxHeight = maxHeight,
+       fixedWidth = null,
+       fixedHeight = null;
 
+  /// Requests exact positive [width] and [height] without adaptive calculation.
+  const BannerSizing.fixed({
+    required int width,
+    required int height,
+    this.reserveSpace = true,
+  }) : assert(width > 0),
+       assert(height > 0),
+       fixedWidth = width,
+       fixedHeight = height,
+       maxHeight = null;
+
+  /// Standard 320×50 banner.
+  const BannerSizing.standard({bool reserveSpace = true})
+    : this.fixed(width: 320, height: 50, reserveSpace: reserveSpace);
+
+  /// Medium rectangle, 300×250.
+  const BannerSizing.mediumRectangle({bool reserveSpace = true})
+    : this.fixed(width: 300, height: 250, reserveSpace: reserveSpace);
+
+  /// Alias for [BannerSizing.mediumRectangle].
+  const BannerSizing.mrec({bool reserveSpace = true})
+    : this.mediumRectangle(reserveSpace: reserveSpace);
+
+  /// Large 320×100 banner.
+  const BannerSizing.largeBanner({bool reserveSpace = true})
+    : this.fixed(width: 320, height: 100, reserveSpace: reserveSpace);
+
+  /// Leaderboard, 728×90. The host must be wide enough to display it.
+  const BannerSizing.leaderboard({bool reserveSpace = true})
+    : this.fixed(width: 728, height: 90, reserveSpace: reserveSpace);
+
+  bool get isFixed => fixedWidth != null;
+  bool get isAdaptive => !isFixed;
   bool get isInline => maxHeight != null;
+
+  /// Validates dimensions without relying on debug-only assertions.
+  void validate() {
+    if (maxHeight != null && maxHeight! < 32) {
+      throw ArgumentError.value(
+        maxHeight,
+        'maxHeight',
+        'Must be at least 32 logical pixels',
+      );
+    }
+    if (fixedWidth != null && fixedWidth! <= 0) {
+      throw ArgumentError.value(
+        fixedWidth,
+        'width',
+        'Must be positive logical pixels',
+      );
+    }
+    if (fixedHeight != null && fixedHeight! <= 0) {
+      throw ArgumentError.value(
+        fixedHeight,
+        'height',
+        'Must be positive logical pixels',
+      );
+    }
+  }
 
   @override
   bool operator ==(Object other) =>
-      other is BannerSizing && maxHeight == other.maxHeight;
+      other is BannerSizing &&
+      maxHeight == other.maxHeight &&
+      fixedWidth == other.fixedWidth &&
+      fixedHeight == other.fixedHeight &&
+      reserveSpace == other.reserveSpace;
 
   @override
-  int get hashCode => maxHeight.hashCode;
+  int get hashCode =>
+      Object.hash(maxHeight, fixedWidth, fixedHeight, reserveSpace);
 }
 
 /// Request compatibility key; policy and analytics remain placement-scoped.

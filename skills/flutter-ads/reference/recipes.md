@@ -89,7 +89,42 @@ const feedBanner = BannerPlacement(
 );
 
 Widget inlineBanner() => const AdBannerView(placement: feedBanner);
+
+Widget compactInlineBanner() => const AdBannerView(
+  placement: feedBanner,
+  reserveSpace: false,
+);
 ```
+
+To collapse an inline banner until it loads, set `reserveSpace: false` on the
+sizing policy or override it per host as shown above.
+
+For a fixed banner, choose a standard size or specify positive dimensions:
+
+```dart
+const standardBanner = BannerPlacement(
+  id: 'standard_banner',
+  androidId: AdMobTestIds.bannerAndroid,
+  iosId: AdMobTestIds.bannerIos,
+  sizing: BannerSizing.standard(), // 320×50; reserves 50 pixels while loading.
+);
+const rectangleBanner = BannerPlacement(
+  id: 'rectangle_banner',
+  androidId: AdMobTestIds.bannerAndroid,
+  iosId: AdMobTestIds.bannerIos,
+  sizing: BannerSizing.mrec(reserveSpace: false), // 300×250; zero height until loaded.
+);
+
+Widget standardBannerItem() => const AdBannerView(placement: standardBanner);
+Widget rectangleBannerItem() => const AdBannerView(placement: rectangleBanner);
+```
+
+`mrec()` is an alias of `mediumRectangle()`. Other fixed options are
+`largeBanner()` (320×100), `leaderboard()` (728×90), and
+`fixed(width: 468, height: 60)`. Fixed banners stay at their requested size,
+centered within a wider host. Choose a size that fits the available width.
+In an unbounded horizontal parent, fixed banners default to their configured
+width; adaptive banners still need explicit `width`.
 
 Only call `waitFor` on a banner when your app must prepare the exact layout before rendering.
 Supply the available width and screen orientation:

@@ -149,11 +149,17 @@ void main() {
       ),
     );
 
-    for (final bounds in [(319.0, 340.0), (320.0, 0.0)]) {
-      testWidgets('invalid bounds $bounds fail before leasing or loading', (tester) async {
+    testWidgets('positive width below the minimum fails before leasing or loading', (tester) async {
+      await initialize();
+      await tester.pumpWidget(host(placement(NativeAdTemplate.feedMediaFirst), width: 319, height: 340));
+      expect(tester.takeException(), isA<FlutterError>());
+      expect(driver.requests, isEmpty);
+    });
+    for (final bounds in [(0.0, 340.0), (320.0, 0.0)]) {
+      testWidgets('zero bounds $bounds collapse before leasing or loading', (tester) async {
         await initialize();
         await tester.pumpWidget(host(placement(NativeAdTemplate.feedMediaFirst), width: bounds.$1, height: bounds.$2));
-        expect(tester.takeException(), isA<FlutterError>());
+        expect(tester.takeException(), isNull);
         expect(driver.requests, isEmpty);
       });
     }

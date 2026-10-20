@@ -175,18 +175,31 @@ class GoogleMobileAdsDriver {
     void Function()? validateRequest,
   ) async {
     layout.validate();
-    final maxHeight = placement.sizing.maxHeight;
-    if (maxHeight != null && maxHeight < 32) {
-      throw ArgumentError.value(maxHeight, 'maxHeight');
+    final sizing = placement.sizing;
+    sizing.validate();
+    final maxHeight = sizing.maxHeight;
+    final AdSize? size;
+    if (sizing.isFixed) {
+      size = AdSize(width: sizing.fixedWidth!, height: sizing.fixedHeight!);
+    } else if (sizing.isInline) {
+      size = AdSize.getInlineAdaptiveBannerAdSize(layout.width, maxHeight!);
+    } else {
+      size = await AdSize.getLargeAnchoredAdaptiveBannerAdSizeWithOrientation(
+        layout.orientation == BannerOrientation.portrait
+            ? Orientation.portrait
+            : Orientation.landscape,
+        layout.width,
+      );
     }
-    final AdSize? size = maxHeight != null
-        ? AdSize.getInlineAdaptiveBannerAdSize(layout.width, maxHeight)
-        : await AdSize.getLargeAnchoredAdaptiveBannerAdSizeWithOrientation(
-            layout.orientation == BannerOrientation.portrait ? Orientation.portrait : Orientation.landscape,
-            layout.width,
-          );
-    if (size == null || size.width <= 0 || (maxHeight == null && size.height <= 0)) {
-      throw LoadAdError(1, 'admob_kit', 'SDK could not resolve adaptive banner size for $layout.', null);
+    if (size == null ||
+        size.width <= 0 ||
+        (!sizing.isInline && size.height <= 0)) {
+      throw LoadAdError(
+        1,
+        'admob_kit',
+        'SDK could not resolve banner size for $layout.',
+        null,
+      );
     }
     validateRequest?.call();
     final loaded = Completer<AdaptiveBannerAd>();
@@ -206,14 +219,24 @@ class GoogleMobileAdsDriver {
         onAdLoaded: (_) async {
           final current = ++revision;
           try {
-            final actual = maxHeight == null ? size : await banner.getPlatformAdSize();
+            final actual = sizing.isInline || sizing.isFixed
+                ? await banner.getPlatformAdSize()
+                : size;
             if (banner.isDisposed || current != revision) return;
             if (actual == null ||
                 actual.width <= 0 ||
                 actual.width > layout.width ||
                 actual.height <= 0 ||
-                (maxHeight != null && actual.height > maxHeight)) {
-              throw LoadAdError(1, 'admob_kit', 'SDK returned an invalid adaptive banner render size.', null);
+                (maxHeight != null && actual.height > maxHeight) ||
+                (sizing.isFixed &&
+                    (actual.width != sizing.fixedWidth ||
+                        actual.height != sizing.fixedHeight))) {
+              throw LoadAdError(
+                1,
+                'admob_kit',
+                'SDK returned an invalid banner render size.',
+                null,
+              );
             }
             banner.loadedAt = DateTime.now();
             banner.renderSize.value = actual;
@@ -221,7 +244,11 @@ class GoogleMobileAdsDriver {
           } catch (error, stack) {
             if (current != revision || banner.isDisposed) return;
             if (loaded.isCompleted) {
-              _logger?.error('[Banner] Refresh size unavailable for "${placement.id}".', error, stack);
+              _logger?.error(
+                '[Banner] Refresh size unavailable for "${placement.id}".',
+                error,
+                stack,
+              );
               banner.renderSize.value = null;
             } else {
               fail(error, stack);
@@ -232,20 +259,31 @@ class GoogleMobileAdsDriver {
           // A refresh failure must not complete the initial future twice or
           // destroy the already displayed creative. The SDK schedules refresh.
           if (loaded.isCompleted) {
-            _logger?.warning('[Banner] Refresh failed for "${placement.id}": $error');
+            _logger?.warning(
+              '[Banner] Refresh failed for "${placement.id}": $error',
+            );
           } else {
             fail(error);
           }
         },
         onAdClicked: (_) => _analytics?.onAdClicked(placement),
-        onPaidEvent: (_, micros, precision, currency) => _analytics?.onPaidEvent(
-          placement,
-          AdRevenueValue(micros: micros.toInt(), currencyCode: currency, precision: _mapPrecision(precision)),
-        ),
+        onPaidEvent: (_, micros, precision, currency) =>
+            _analytics?.onPaidEvent(
+              placement,
+              AdRevenueValue(
+                micros: micros.toInt(),
+                currencyCode: currency,
+                precision: _mapPrecision(precision),
+              ),
+            ),
       ),
     );
     // Observe platform transport errors as well as native load callbacks.
-    unawaited(banner.load().catchError((Object error, StackTrace stack) => fail(error, stack)));
+    unawaited(
+      banner.load().catchError(
+        (Object error, StackTrace stack) => fail(error, stack),
+      ),
+    );
     return loaded.future;
   }
 

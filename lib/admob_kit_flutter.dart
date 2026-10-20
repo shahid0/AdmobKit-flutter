@@ -1,5 +1,6 @@
-/// Google AdMob ads for Flutter with consent-aware loading, adaptive banners,
-/// native templates, fullscreen presentation and live native styling.
+/// Google AdMob ads for Flutter with consent-aware loading, adaptive and fixed banners,
+/// optional banner space reservation, native templates, fullscreen presentation
+/// and live native styling.
 library;
 
 export 'src/domain/ad_placements.dart';

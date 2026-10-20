@@ -92,27 +92,31 @@ class AdGalleryScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: TaskColors.borderSubtle),
               ),
-              child: ListTile(
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(color: TaskColors.accentSubtle, borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.view_agenda_outlined, color: TaskColors.accentPrimary, size: 18),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                child: ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(color: TaskColors.accentSubtle, borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.view_agenda_outlined, color: TaskColors.accentPrimary, size: 18),
+                  ),
+                  title: Text(
+                    inline ? 'Inline adaptive banner' : 'Anchored adaptive banner',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TaskColors.textInkPrimary),
+                  ),
+                  subtitle: Text(
+                    inline
+                        ? 'Inline maxHeight: 250 · Parent-derived width'
+                        : 'Anchored SDK height · Parent-derived width',
+                    style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
+                  onTap: () => Navigator.of(
+                    context,
+                  ).push<void>(MaterialPageRoute(builder: (_) => AdaptiveBannerScreen(inline: inline))),
                 ),
-                title: Text(
-                  inline ? 'Inline adaptive banner' : 'Anchored adaptive banner',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TaskColors.textInkPrimary),
-                ),
-                subtitle: Text(
-                  inline
-                      ? 'Inline maxHeight: 250 · Parent-derived width'
-                      : 'Anchored SDK height · Parent-derived width',
-                  style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
-                ),
-                trailing: const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
-                onTap: () => Navigator.of(
-                  context,
-                ).push<void>(MaterialPageRoute(builder: (_) => AdaptiveBannerScreen(inline: inline))),
               ),
             );
           }
@@ -127,68 +131,72 @@ class AdGalleryScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: TaskColors.borderSubtle),
             ),
-            child: ListTile(
-              leading: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: template.isFullscreen
-                      ? TaskColors.amberSurface
-                      : template.name.startsWith('feed')
-                      ? TaskColors.emeraldSurface
-                      : template.name.startsWith('card')
-                      ? TaskColors.accentSubtle
-                      : TaskColors.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(8),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              child: ListTile(
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: template.isFullscreen
+                        ? TaskColors.amberSurface
+                        : template.name.startsWith('feed')
+                        ? TaskColors.emeraldSurface
+                        : template.name.startsWith('card')
+                        ? TaskColors.accentSubtle
+                        : TaskColors.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _iconForTemplate(template),
+                    color: template.isFullscreen
+                        ? TaskColors.amberText
+                        : template.name.startsWith('feed')
+                        ? TaskColors.emeraldText
+                        : template.name.startsWith('card')
+                        ? TaskColors.accentPrimary
+                        : TaskColors.slateText,
+                    size: 18,
+                  ),
                 ),
-                child: Icon(
-                  _iconForTemplate(template),
-                  color: template.isFullscreen
-                      ? TaskColors.amberText
-                      : template.name.startsWith('feed')
-                      ? TaskColors.emeraldText
-                      : template.name.startsWith('card')
-                      ? TaskColors.accentPrimary
-                      : TaskColors.slateText,
-                  size: 18,
+                title: Text(
+                  template.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: TaskColors.textInkPrimary,
+                    fontFamily: 'monospace',
+                  ),
                 ),
-              ),
-              title: Text(
-                template.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: TaskColors.textInkPrimary,
-                  fontFamily: 'monospace',
+                subtitle: Text(
+                  _descriptionForTemplate(template),
+                  style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
                 ),
-              ),
-              subtitle: Text(
-                _descriptionForTemplate(template),
-                style: const TextStyle(fontSize: 12, color: TaskColors.textSlateMedium),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: TaskColors.surfaceSubtle, borderRadius: BorderRadius.circular(4)),
-                    child: Text(
-                      template.isFullscreen ? 'FULL' : 'AUTO',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: TaskColors.textMutedCaption,
-                        fontFamily: 'monospace',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: TaskColors.surfaceSubtle, borderRadius: BorderRadius.circular(4)),
+                      child: Text(
+                        template.isFullscreen ? 'FULL' : 'AUTO',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: TaskColors.textMutedCaption,
+                          fontFamily: 'monospace',
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
-                ],
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, color: TaskColors.textMutedCaption),
+                  ],
+                ),
+                onTap: () => Navigator.of(
+                  context,
+                ).push<void>(MaterialPageRoute(builder: (_) => NativeTemplateScreen(template: template))),
               ),
-              onTap: () => Navigator.of(
-                context,
-              ).push<void>(MaterialPageRoute(builder: (_) => NativeTemplateScreen(template: template))),
             ),
           );
         },

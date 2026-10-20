@@ -52,11 +52,14 @@ class AdNativeView extends StatelessWidget {
     if (AdmobKit.isUserPremium) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Cold-start and collapse frames can temporarily have no render area.
+        if (constraints.maxWidth <= 0 || (constraints.hasBoundedHeight && constraints.maxHeight <= 0)) {
+          return const SizedBox.shrink();
+        }
         final template = placement.template;
         if (!constraints.hasBoundedWidth ||
             constraints.maxWidth < template.minWidth ||
-            (template.isFullscreen && (!constraints.hasBoundedHeight || constraints.maxHeight < template.height)) ||
-            constraints.maxHeight <= 0) {
+            (template.isFullscreen && (!constraints.hasBoundedHeight || constraints.maxHeight < template.height))) {
           throw FlutterError(
             'AdNativeView ${template.name} requires a bounded width of at least '
             '${template.minWidth}${template.isFullscreen ? " and bounded height of at least ${template.height}" : " with room for its measured content"}.',

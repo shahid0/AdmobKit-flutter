@@ -51,8 +51,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     });
   }
 
-  void _startSplashSequence() {
-    TaskStore.instance.appendLog('🚀 [Splash] Awaiting settlement for ${SampleAds.splashInterstitial.id}...');
+  Future<void> _startSplashSequence() async {
+    TaskStore.instance.appendLog(
+      '🚀 [Splash] Awaiting deterministic settlement for ${SampleAds.splashInterstitial.id}...',
+    );
+    await AdmobKit.waitFor(SampleAds.splashInterstitial);
+    if (!mounted) return;
     AdmobKit.show(SampleAds.splashInterstitial, onDismissed: _proceedToNextScreen);
   }
 

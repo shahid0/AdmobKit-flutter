@@ -99,19 +99,21 @@ Deterministically awaits an ad placement until it becomes ready, fails, or times
 
 ### `AdBannerView`
 
-`AdBannerView({required BannerPlacement placement, double? width, Widget? placeholder, bool active = true})`
+`AdBannerView({required BannerPlacement placement, double? width, bool? reserveSpace, Widget? placeholder, bool active = true})`
 
-Embeds an adaptive Google AdMob banner into your Flutter widget tree.
+Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
 
 - **Parameters**:
   - `placement`: The `BannerPlacement` configuration.
-  - `width`: Available logical width. Supply `width` only when parent constraints are unbounded.
-  - `placeholder`: Optional widget displayed while the banner is loading.
+  - `width`: Available host width. Defaults to the parent's bounded width. In an unbounded parent, fixed banners use `sizing.fixedWidth`; adaptive banners require explicit `width`.
+  - `reserveSpace`: Optional override of `placement.sizing.reserveSpace`. `true` reserves `maxHeight` or `fixedHeight`; `false` collapses until the ad has render dimensions, then uses its actual height.
+  - `placeholder`: Optional widget displayed while loading when space is reserved.
   - `active`: Controls whether the widget can request and retain ads. Pass `false` on offscreen tabs.
 - **Behavior**:
   - Calculates adaptive banner height automatically from available width and orientation.
-  - Inline adaptive banners reserve `placement.sizing.maxHeight` while loading to prevent layout shifts.
-  - Throws `FlutterError` if mounted within unbounded width without an explicit `width` parameter.
+  - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
+  - Fixed banners request exact dimensions and are centered when the host is wider. The host must be wide enough for the chosen fixed size.
+  - Throws `FlutterError` for adaptive banners within unbounded width without explicit `width`.
 
 ### `AdNativeView`
 
@@ -153,7 +155,7 @@ Guards modal screen dismissals and Android hardware back navigation with a fulls
 | `RewardedPlacement` | Rewarded Video | `medium` | None |
 | `RewardedInterstitialPlacement` | Rewarded Interstitial | `medium` | None |
 | `AppOpenPlacement` | App Open | `high` (or `splash`) | `isSplash` |
-| `BannerPlacement` | Adaptive Banner | `medium` (or `splash`) | `sizing`, `isSplash` |
+| `BannerPlacement` | Adaptive or Fixed Banner | `medium` (or `splash`) | `sizing`, `isSplash` |
 | `NativePlacement` | Native Template | `medium` (or `splash`) | `template`, `style`, `isSplash` |
 
 ### Common Placement Parameters
@@ -168,8 +170,14 @@ All placement constructors accept these parameters:
 
 ### Banner Sizing Modes
 
-- `const BannerSizing.anchoredAdaptive()`: Anchors to screen edge with SDK-calculated height.
-- `const BannerSizing.inlineAdaptive({required int maxHeight})`: Reserves fixed height in scrolling feeds. Minimum height is 32 logical pixels.
+- `const BannerSizing.anchoredAdaptive()`: SDK-calculated height; `reserveSpace` is `false`.
+- `const BannerSizing.inlineAdaptive({required int maxHeight, bool reserveSpace = true})`: Adaptive width and creative height up to `maxHeight` (minimum 32 logical pixels).
+- `const BannerSizing.fixed({required int width, required int height, bool reserveSpace = true})`: Exact positive dimensions in logical pixels, without adaptive calculations.
+- Fixed convenience constructors (each accepts `bool reserveSpace = true`): `standard()` (320×50), `mediumRectangle()` or `mrec()` (300×250), `largeBanner()` (320×100), and `leaderboard()` (728×90).
+
+`maxHeight` is non-null only for inline adaptive sizing. `fixedWidth` and `fixedHeight` are non-null only for fixed sizing. `isFixed`, `isAdaptive`, and `isInline` identify the mode; `isInline` identifies inline adaptive sizing specifically. Equality includes dimensions and `reserveSpace`.
+
+With `reserveSpace: false` on the sizing policy or widget, loading takes zero height and no placeholder is rendered. Once loaded, the host uses the actual creative height. With reservation enabled, the host keeps the configured height before and after loading.
 
 ## Dynamic Native Styling
 
