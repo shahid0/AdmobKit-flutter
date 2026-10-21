@@ -176,7 +176,7 @@ class GoogleMobileAdsDriver {
   ) async {
     layout.validate();
     final sizing = placement.sizing;
-    sizing.validate();
+    placement.validate();
     final maxHeight = sizing.maxHeight;
     final AdSize? size;
     if (sizing.isFixed) {
@@ -214,12 +214,19 @@ class GoogleMobileAdsDriver {
     banner = AdaptiveBannerAd(
       adUnitId: unitId,
       size: size,
-      request: const AdRequest(),
+      request: placement.isCollapsible
+          ? AdRequest(
+              extras: {
+                'collapsible': placement.collapsible!.value,
+                'collapsible_request_id': DateTime.now().millisecondsSinceEpoch.toString(),
+              },
+            )
+          : const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) async {
           final current = ++revision;
           try {
-            final actual = sizing.isInline || sizing.isFixed
+            final actual = placement.isCollapsible || sizing.isInline || sizing.isFixed
                 ? await banner.getPlatformAdSize()
                 : size;
             if (banner.isDisposed || current != revision) return;

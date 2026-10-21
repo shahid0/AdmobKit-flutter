@@ -96,6 +96,15 @@ enum AdInitializationState {
 /// Device orientation used when resolving an adaptive banner layout.
 enum BannerOrientation { portrait, landscape }
 
+/// Edge where an expanded collapsible banner aligns with its collapsed banner.
+enum CollapsibleAnchor {
+  top('top'),
+  bottom('bottom');
+
+  final String value;
+  const CollapsibleAnchor(this.value);
+}
+
 /// Available logical width and device orientation for a banner host.
 final class BannerLayout {
   final int width;
@@ -144,7 +153,9 @@ final class BannerSizing {
   final bool reserveSpace;
 
   /// Resolves width and height through the SDK without reserving loading space.
-  const BannerSizing.anchoredAdaptive()
+  const factory BannerSizing.anchoredAdaptive() = _AnchoredAdaptiveBannerSizing;
+
+  const BannerSizing._anchoredAdaptive()
     : maxHeight = null,
       fixedWidth = null,
       fixedHeight = null,
@@ -185,8 +196,12 @@ final class BannerSizing {
     : this.mediumRectangle(reserveSpace: reserveSpace);
 
   /// Large 320×100 banner.
-  const BannerSizing.largeBanner({bool reserveSpace = true})
+  const BannerSizing.large({bool reserveSpace = true})
     : this.fixed(width: 320, height: 100, reserveSpace: reserveSpace);
+
+  /// Alias for [BannerSizing.large].
+  const BannerSizing.largeBanner({bool reserveSpace = true})
+    : this.large(reserveSpace: reserveSpace);
 
   /// Leaderboard, 728×90. The host must be wide enough to display it.
   const BannerSizing.leaderboard({bool reserveSpace = true})
@@ -232,10 +247,31 @@ final class BannerSizing {
   @override
   int get hashCode =>
       Object.hash(maxHeight, fixedWidth, fixedHeight, reserveSpace);
+
+  @override
+  String toString() {
+    if (isFixed) {
+      return 'BannerSizing.fixed(width: $fixedWidth, height: $fixedHeight, reserveSpace: $reserveSpace)';
+    }
+    if (isInline) {
+      return 'BannerSizing.inlineAdaptive(maxHeight: $maxHeight, reserveSpace: $reserveSpace)';
+    }
+    return 'BannerSizing.anchoredAdaptive()';
+  }
+}
+
+// A type check is const-safe; reading sizing getters in a const placement's
+// assertion is not. Keep the anchored mode identifiable without exposing a type.
+final class _AnchoredAdaptiveBannerSizing extends BannerSizing {
+  const _AnchoredAdaptiveBannerSizing() : super._anchoredAdaptive();
 }
 
 /// Request compatibility key; policy and analytics remain placement-scoped.
-typedef AdRequestKey = ({String placementId, BannerLayout? bannerLayout});
+typedef AdRequestKey = ({
+  String placementId,
+  BannerLayout? bannerLayout,
+  CollapsibleAnchor? collapsible,
+});
 
 /// Built-in native compositions, shared by Android and iOS.
 enum NativeAdTemplate {
@@ -538,20 +574,67 @@ class AppOpenPlacement extends FullscreenPlacement {
 class BannerPlacement extends InlinePlacement {
   final BannerSizing sizing;
 
+  /// Requests a collapsible overlay for an anchored adaptive banner.
+  final CollapsibleAnchor? collapsible;
+
+  bool get isCollapsible => collapsible != null;
+
   const BannerPlacement({
     this.sizing = const BannerSizing.anchoredAdaptive(),
+    this.collapsible,
     String? id,
     required super.androidId,
     required super.iosId,
     AdPriority? priority,
     super.isSplash = false,
     super.loadOnce = false,
-  }) : super(
+  }) : assert(
+         collapsible == null || sizing is _AnchoredAdaptiveBannerSizing,
+         'Collapsible banners require anchored adaptive sizing.',
+       ),
+       super(
          id: id ?? androidId,
          format: AdFormat.banner,
          priority:
              priority ?? (isSplash ? AdPriority.splash : AdPriority.medium),
        );
+
+  const BannerPlacement.collapsible({
+    CollapsibleAnchor anchor = CollapsibleAnchor.bottom,
+    String? id,
+    required String androidId,
+    required String iosId,
+    AdPriority? priority,
+    bool loadOnce = false,
+  }) : this(
+         id: id,
+         androidId: androidId,
+         iosId: iosId,
+         sizing: const BannerSizing.anchoredAdaptive(),
+         collapsible: anchor,
+         priority: priority,
+         loadOnce: loadOnce,
+       );
+
+  /// Validates banner configuration without relying on debug-only assertions.
+  void validate() {
+    sizing.validate();
+    if (isCollapsible && (sizing.isFixed || sizing.isInline)) {
+      throw ArgumentError(
+        'Collapsible banners require anchored adaptive sizing.',
+      );
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is BannerPlacement &&
+      super == other &&
+      sizing == other.sizing &&
+      collapsible == other.collapsible;
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, sizing, collapsible);
 }
 
 /// Type-safe placement for one built-in native template, mounted with AdNativeView.

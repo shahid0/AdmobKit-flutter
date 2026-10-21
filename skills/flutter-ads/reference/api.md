@@ -55,7 +55,7 @@ Registers ad placements and starts eligible background preloading.
   - Accepts calls while initialization is still in progress.
   - Throws `StateError` if called before `initialize()` or after `dispose()`.
   - Throws `ArgumentError` if you re-register an existing identifier with different configuration properties.
-  - Banners require layout dimensions from their host widget before loading starts.
+  - Banners are strictly loaded on-demand by `AdBannerView` when mounted and are excluded from startup background preloading (banners require runtime layout dimensions, and preloading them early triggers AdMob auto-refresh viewability penalties).
 
 ## Presentation and Waits
 
@@ -155,7 +155,7 @@ Guards modal screen dismissals and Android hardware back navigation with a fulls
 | `RewardedPlacement` | Rewarded Video | `medium` | None |
 | `RewardedInterstitialPlacement` | Rewarded Interstitial | `medium` | None |
 | `AppOpenPlacement` | App Open | `high` (or `splash`) | `isSplash` |
-| `BannerPlacement` | Adaptive or Fixed Banner | `medium` (or `splash`) | `sizing`, `isSplash` |
+| `BannerPlacement` | Adaptive or Fixed Banner | `medium` (or `splash`) | `sizing`, `collapsible`, `isSplash` |
 | `NativePlacement` | Native Template | `medium` (or `splash`) | `template`, `style`, `isSplash` |
 
 ### Common Placement Parameters
@@ -173,11 +173,28 @@ All placement constructors accept these parameters:
 - `const BannerSizing.anchoredAdaptive()`: SDK-calculated height; `reserveSpace` is `false`.
 - `const BannerSizing.inlineAdaptive({required int maxHeight, bool reserveSpace = true})`: Adaptive width and creative height up to `maxHeight` (minimum 32 logical pixels).
 - `const BannerSizing.fixed({required int width, required int height, bool reserveSpace = true})`: Exact positive dimensions in logical pixels, without adaptive calculations.
-- Fixed convenience constructors (each accepts `bool reserveSpace = true`): `standard()` (320×50), `mediumRectangle()` or `mrec()` (300×250), `largeBanner()` (320×100), and `leaderboard()` (728×90).
+- Fixed convenience constructors (each accepts `bool reserveSpace = true`): `standard()` (320×50), `mediumRectangle()` or `mrec()` (300×250), `large()` or `largeBanner()` (320×100), and `leaderboard()` (728×90, for tablets).
 
 `maxHeight` is non-null only for inline adaptive sizing. `fixedWidth` and `fixedHeight` are non-null only for fixed sizing. `isFixed`, `isAdaptive`, and `isInline` identify the mode; `isInline` identifies inline adaptive sizing specifically. Equality includes dimensions and `reserveSpace`.
 
 With `reserveSpace: false` on the sizing policy or widget, loading takes zero height and no placeholder is rendered. Once loaded, the host uses the actual creative height. With reservation enabled, the host keeps the configured height before and after loading.
+
+### Collapsible Banners
+
+`const BannerPlacement.collapsible({CollapsibleAnchor anchor = CollapsibleAnchor.bottom, String? id, required String androidId, required String iosId, AdPriority? priority, bool loadOnce = false})`
+
+Requests an anchored adaptive banner with a native collapsible overlay. Use
+`CollapsibleAnchor.top` at the top of the screen or `CollapsibleAnchor.bottom`
+at the bottom. The default `BannerPlacement` constructor also accepts
+`collapsible: CollapsibleAnchor.bottom`; fixed and inline adaptive sizing reject
+this option. `isCollapsible` identifies the request policy, rather than whether
+the SDK filled the request with a collapsible creative.
+
+The driver reads the platform size after loading and accepts expanded heights.
+The host animates reported render-height changes over 200 ms. The Google SDK
+manages the expanded overlay and its collapse button; its Flutter listener does
+not expose a collapse-button size event. Native overlay behavior therefore
+requires device verification. See [Google's collapsible banner guide](https://developers.google.com/admob/flutter/banner/collapsible).
 
 ## Dynamic Native Styling
 

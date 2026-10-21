@@ -141,7 +141,7 @@ class _BannerHostState extends State<_BannerHost> {
   @override
   void didUpdateWidget(_BannerHost oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.placement.id != widget.placement.id || oldWidget.layout != widget.layout) _resetLease();
+    if (oldWidget.placement != widget.placement || oldWidget.layout != widget.layout) _resetLease();
     _checkAndActivate();
   }
 
@@ -208,7 +208,9 @@ class _BannerHostState extends State<_BannerHost> {
     final sizing = widget.placement.sizing;
     final reservedHeight = widget.reserveSpace ? (sizing.maxHeight ?? sizing.fixedHeight)?.toDouble() : null;
     final height = reservedHeight ?? size?.height.toDouble() ?? 0;
-    return SizedBox(
+    return AnimatedContainer(
+      duration: widget.placement.isCollapsible ? const Duration(milliseconds: 200) : Duration.zero,
+      curve: Curves.fastOutSlowIn,
       width: widget.layout.width.toDouble(),
       height: height,
       child: _active && ad != null && size != null

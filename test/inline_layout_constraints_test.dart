@@ -68,9 +68,7 @@ void main() {
 
       await tester.pumpWidget(_host(view, BoxConstraints.tight(const Size(400, 50))));
       expect(tester.takeException(), isNull);
-      final expanded = tester.widget<SizedBox>(
-        find.descendant(of: find.byType(AdBannerView), matching: find.byType(SizedBox)),
-      );
+      final expanded = tester.getSize(find.byType(AdBannerView));
       expect(expanded.width, 400);
       expect(expanded.height, 50);
     });

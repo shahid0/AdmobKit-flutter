@@ -44,6 +44,7 @@ void main() {
       AdSize.mediumRectangle,
     ),
     'MREC alias': (BannerSizing.mrec(), AdSize.mediumRectangle),
+    'large': (BannerSizing.large(), AdSize.largeBanner),
     'large banner': (BannerSizing.largeBanner(), AdSize.largeBanner),
     'leaderboard': (BannerSizing.leaderboard(), AdSize.leaderboard),
     'custom': (BannerSizing.fixed(width: 468, height: 60), AdSize.fullBanner),
@@ -60,6 +61,7 @@ void main() {
         expect(sizing.isInline, isFalse);
         expect(sizing.maxHeight, isNull);
         expect(sizing.reserveSpace, isTrue);
+        expect(sizing.validate, returnsNormally);
         final custom = BannerSizing.fixed(
           width: expected.width,
           height: expected.height,
@@ -75,11 +77,15 @@ void main() {
       expect(anchored.isAdaptive, isTrue);
       expect(anchored.isInline, isFalse);
       expect(anchored.reserveSpace, isFalse);
+      expect(anchored.validate, returnsNormally);
       expect(inline.isAdaptive, isTrue);
       expect(inline.isInline, isTrue);
       expect(inline.reserveSpace, isTrue);
       expect(inline.fixedWidth, isNull);
       expect(inline.fixedHeight, isNull);
+      expect(inline.validate, returnsNormally);
+      expect(const BannerSizing.inlineAdaptive(maxHeight: 32).validate, returnsNormally);
+      expect(const BannerSizing.fixed(width: 1, height: 1).validate, returnsNormally);
     });
 
     test('equality includes dimensions and reservation policy', () {
@@ -112,6 +118,32 @@ void main() {
         const BannerSizing.mrec(reserveSpace: false),
         const BannerSizing.mediumRectangle(reserveSpace: false),
       );
+      expect(const BannerSizing.large(reserveSpace: false), const BannerSizing.largeBanner(reserveSpace: false));
+      expect(BannerSizing.anchoredAdaptive(), const BannerSizing.anchoredAdaptive());
+    });
+
+    test('every mobile preset supports opting out of reservation', () {
+      for (final sizing in const [
+        BannerSizing.standard(reserveSpace: false),
+        BannerSizing.mrec(reserveSpace: false),
+        BannerSizing.mediumRectangle(reserveSpace: false),
+        BannerSizing.large(reserveSpace: false),
+        BannerSizing.largeBanner(reserveSpace: false),
+        BannerSizing.leaderboard(reserveSpace: false),
+        BannerSizing.fixed(width: 120, height: 60, reserveSpace: false),
+      ]) {
+        expect(sizing.reserveSpace, isFalse);
+        expect(sizing.validate, returnsNormally);
+      }
+    });
+
+    test('descriptions identify mode, dimensions and reservation policy', () {
+      expect(const BannerSizing.anchoredAdaptive().toString(), 'BannerSizing.anchoredAdaptive()');
+      expect(
+        const BannerSizing.inlineAdaptive(maxHeight: 160, reserveSpace: false).toString(),
+        'BannerSizing.inlineAdaptive(maxHeight: 160, reserveSpace: false)',
+      );
+      expect(const BannerSizing.large().toString(), 'BannerSizing.fixed(width: 320, height: 100, reserveSpace: true)');
     });
 
     test('invalid dimensions are rejected', () {
@@ -171,10 +203,61 @@ void main() {
       final ad = banners.single;
       expect(ad.size.width, 600);
       expect(ad.size.height, 60);
+      expect(ad.request.extras, isNull);
       ad.listener.onAdLoaded!(ad);
       expect(await result, same(ad));
       expect(ad.renderSize.value!.height, 60);
     });
+
+    for (final anchor in CollapsibleAnchor.values) {
+      testWidgets('collapsible ${anchor.name} requests extras and accepts expanded dimensions', (tester) async {
+        final placement = BannerPlacement.collapsible(androidId: 'test', iosId: 'test', anchor: anchor);
+        response = (call) =>
+            call.method == 'AdSize#getLargeAnchoredAdaptiveBannerAdSize' ? 60 : const AdSize(width: 320, height: 350);
+        final before = DateTime.now().millisecondsSinceEpoch;
+        final result = GoogleMobileAdsDriver().loadAd(placement, bannerLayout: _narrow);
+        await tester.pump();
+        final ad = banners.single;
+        expect(ad.request.extras!['collapsible'], anchor.value);
+        expect(
+          int.parse(ad.request.extras!['collapsible_request_id']!),
+          inInclusiveRange(before, DateTime.now().millisecondsSinceEpoch),
+        );
+        expect(ad.size.height, 60);
+        ad.listener.onAdLoaded!(ad);
+        await tester.pump();
+        expect(await result, same(ad));
+        expect(ad.renderSize.value, const AdSize(width: 320, height: 350));
+        expect(calls.map((call) => call.method), contains('getAdSize'));
+
+        // A later SDK size update may report the collapsed creative dimensions.
+        response = (_) => const AdSize(width: 320, height: 60);
+        ad.listener.onAdLoaded!(ad);
+        await tester.pump();
+        expect(ad.renderSize.value, const AdSize(width: 320, height: 60));
+        expect(ad.isDisposed, isFalse);
+      });
+    }
+
+    for (final actual in <AdSize?>[
+      null,
+      const AdSize(width: 0, height: 300),
+      const AdSize(width: 321, height: 300),
+      const AdSize(width: 320, height: 0),
+    ]) {
+      testWidgets('collapsible rejects invalid platform dimensions $actual', (tester) async {
+        const placement = BannerPlacement.collapsible(androidId: 'test', iosId: 'test');
+        response = (call) => call.method == 'AdSize#getLargeAnchoredAdaptiveBannerAdSize' ? 60 : actual;
+        final result = GoogleMobileAdsDriver().loadAd(placement, bannerLayout: _narrow);
+        final failure = expectLater(result, throwsA(isA<LoadAdError>()));
+        await tester.pump();
+        final ad = banners.single;
+        ad.listener.onAdLoaded!(ad);
+        await tester.pump();
+        await failure;
+        expect(ad.isDisposed, isTrue);
+      });
+    }
 
     for (final entry in fixedSizes.entries) {
       testWidgets(
@@ -341,6 +424,86 @@ void main() {
   });
 
   group('Layout-aware engine', () {
+    testWidgets('cancelling a directly queued collapsible request clears its anchored state', (tester) async {
+      const placement = BannerPlacement.collapsible(androidId: 'test', iosId: 'test');
+      final result = Completer<dynamic>();
+      final queue = AdEngine(
+        executor: (_, {bannerLayout, validateRequest}) => result.future,
+        networkInfo: _Network(),
+      );
+      addTearDown(queue.dispose);
+      final pending = queue.enqueue(placement, bannerLayout: _narrow).catchError((_) => null);
+      await tester.pump();
+      queue.cancel(placement.id, bannerLayout: _narrow);
+      expect(await pending, isNull);
+      expect(queue.getState(placement, bannerLayout: _narrow), AdPlacementState.unloaded);
+      result.complete(Object());
+      await tester.pump();
+    });
+
+    test('request keys distinguish collapsible anchors from standard banners', () {
+      AdRequestKey keyFor(CollapsibleAnchor? anchor) => AdLoadTask(
+        placement: BannerPlacement(id: 'banner', androidId: 'test', iosId: 'test', collapsible: anchor),
+        bannerLayout: _narrow,
+        priority: AdPriority.medium,
+      ).requestKey;
+      final standard = keyFor(null);
+      final top = keyFor(CollapsibleAnchor.top);
+      final bottom = keyFor(CollapsibleAnchor.bottom);
+      expect(standard.collapsible, isNull);
+      expect(top.collapsible, CollapsibleAnchor.top);
+      expect(bottom.collapsible, CollapsibleAnchor.bottom);
+      expect(top.placementId, standard.placementId);
+      expect(top.bannerLayout, standard.bannerLayout);
+      expect({standard, top, bottom, keyFor(CollapsibleAnchor.bottom)}, hasLength(3));
+    });
+
+    testWidgets('collapsible preload state and cached lease use the same request key', (tester) async {
+      const placement = BannerPlacement.collapsible(id: 'banner', androidId: 'test', iosId: 'test', loadOnce: true);
+      final driver = _Driver();
+      final pool = AdEngine(
+        consumedLoadOnceIds: {},
+        driver: driver,
+        mutex: PresentationMutex(),
+        networkInfo: _Network(),
+      );
+      addTearDown(pool.dispose);
+      final states = <AdPlacementState>[];
+      final statesById = <AdPlacementState>[];
+      final subscription = pool.watchState(placement, bannerLayout: _narrow).listen(states.add);
+      final byIdSubscription = pool.watchStateById(placement.id, bannerLayout: _narrow).listen(statesById.add);
+      addTearDown(subscription.cancel);
+      addTearDown(byIdSubscription.cancel);
+      final pending = pool.preload(placement, bannerLayout: _narrow);
+      await tester.pump();
+      expect(pool.getStateById(placement.id, bannerLayout: _narrow), AdPlacementState.loading);
+      final ad = Object();
+      driver.requests.single.result.complete(ad);
+      await pending;
+      await tester.pump();
+      expect(pool.isReady(placement, bannerLayout: _narrow), isTrue);
+      expect(pool.getStateById(placement.id, bannerLayout: _narrow), AdPlacementState.ready);
+      expect(await pool.leaseInlineAd(placement, bannerLayout: _narrow), same(ad));
+      await tester.pump();
+      expect(pool.getState(placement, bannerLayout: _narrow), AdPlacementState.unloaded);
+      expect(states, [AdPlacementState.loading, AdPlacementState.ready, AdPlacementState.unloaded]);
+      expect(statesById, states);
+      expect(driver.requests, hasLength(1));
+    });
+
+    test('same-ID incompatible collapse anchor is rejected', () {
+      final pool = AdEngine(
+        consumedLoadOnceIds: {},
+        driver: _Driver(),
+        mutex: PresentationMutex(),
+        networkInfo: _Network(),
+      );
+      addTearDown(pool.dispose);
+      pool.validatePlacement(_banner);
+      const conflicting = BannerPlacement.collapsible(id: 'banner', androidId: 'test', iosId: 'test', loadOnce: true);
+      expect(() => pool.validatePlacement(conflicting), throwsArgumentError);
+    });
+
     testWidgets('different widths never satisfy each other and new demand reloads loadOnce', (tester) async {
       final driver = _Driver();
       final pool = AdEngine(
@@ -443,6 +606,7 @@ void main() {
     Widget host(
       BannerSizing sizing, {
       bool? reserveSpace,
+      CollapsibleAnchor? collapsible,
       bool unbounded = false,
       double? width,
     }) {
@@ -452,6 +616,7 @@ void main() {
           androidId: 'test',
           iosId: 'test',
           sizing: sizing,
+          collapsible: collapsible,
           loadOnce: true,
         ),
         width: width,
@@ -569,6 +734,29 @@ void main() {
         }
       }
     }
+
+    testWidgets('collapsible height animates to updated native dimensions without reloading', (tester) async {
+      await initialize();
+      await tester.pumpWidget(host(const BannerSizing.anchoredAdaptive(), collapsible: CollapsibleAnchor.bottom));
+      final ad = await completeAd(const AdSize(width: 600, height: 300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.getSize(find.byType(AdBannerView)).height, 300);
+      final adWidget = tester.widget<AdWidget>(find.byType(AdWidget));
+
+      ad.renderSize.value = const AdSize(width: 600, height: 60);
+      await tester.pump();
+      expect(tester.getSize(find.byType(AdBannerView)).height, 300);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getSize(find.byType(AdBannerView)).height, allOf(greaterThan(60), lessThan(300)));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getSize(find.byType(AdBannerView)).height, 60);
+      expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(adWidget.ad));
+      expect(driver.requests, hasLength(1));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      expect(ad.isDisposed, isTrue);
+    });
 
     testWidgets(
       'collapsed inline follows refreshed dimensions and missing size',
