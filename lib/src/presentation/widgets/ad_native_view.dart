@@ -20,9 +20,10 @@ import '../admob_kit_facade.dart';
 ///
 /// Deferred loading: the first request waits until [TickerMode] (route coverage
 /// via Overlay), [Visibility] (e.g. hidden `IndexedStack` tabs) and [active] all
-/// allow it. Once delivered, the ad stays mounted for the host's lifetime, so
-/// covering routes and tab switches never reload it. Unshown ads older than the
-/// configured TTL are replaced when the host becomes active again.
+/// allow it. The host keeps a delivered ad for its lifetime, so covering routes
+/// and tab switches never reload it. While inactive, its platform view is
+/// detached so the SDK cannot count an impression the user does not see.
+/// Unshown ads older than the configured TTL are replaced on reactivation.
 class AdNativeView extends StatelessWidget {
   /// The type-safe native placement descriptor.
   final NativePlacement placement;
@@ -410,8 +411,9 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
         ? widget.maxHeight
         : (layoutHeight ?? _effectiveTemplate.height).clamp(widget.minHeight, widget.maxHeight);
 
-    // Hosts that have not requested yet stay quiet instead of showing a spinner.
-    if (_nativeAd == null && !_isSubtreeActive) {
+    // Hidden hosts keep their ad and size but detach the platform view: a view the
+    // user cannot see must not be measured as visible by the SDK.
+    if (!_isSubtreeActive) {
       return SizedBox(width: widget.width, height: height, child: widget.config.placeholder);
     }
 

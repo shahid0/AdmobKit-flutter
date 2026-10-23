@@ -98,7 +98,7 @@ The package skips that call, and runs `onDismissed`, when the user is coming bac
 - A host sizes itself to the creative the SDK actually rendered, so anchored banners do not leave blank bands.
 - Use `reserveSpace` (default for inline and fixed) to stop content jumping while a banner loads.
 - A fixed banner wider than its host renders nothing and requests nothing.
-- AdMob refreshes a banner only while it is visible, and a mounted banner keeps its slot across routes and tabs. Do not add your own refresh timers.
+- AdMob refreshes a banner only while it is visible. A banner keeps its ad across routes and tabs and detaches its view while hidden, so it neither refreshes nor counts impressions off screen. Do not add your own refresh timers.
 
 ### Spares and `loadOnce`
 
@@ -124,11 +124,12 @@ void registerFeed() => AdmobKit.registerPlacements(
 ## 8. Hidden Tabs, Covered Routes, and `active`
 
 Ad widgets defer their **first** request until the subtree is visible: `TickerMode` (covered routes), `Visibility` (hidden `IndexedStack` tabs), and `active` must all allow it.
-Once a widget holds an ad, it keeps it for its lifetime, even while a route covers it or its tab is hidden.
-Inside `PageView`, `ListView`, and `TabBarView`, a widget holding an ad also keeps itself alive when scrolled away, so scrolling back shows the same ad without a new request.
+Once a widget holds an ad, it keeps that ad for its lifetime, even while a route covers it or its tab is hidden.
+While hidden, the widget detaches the ad's platform view and keeps its size; on return it shows the same ad without a new request.
+Inside `PageView`, `ListView`, and `TabBarView`, a widget holding an ad also keeps itself alive when scrolled away.
 
-**Why:** tearing down a delivered ad loses the impression in progress, makes the view flicker on return, and makes the widget request again.
-An offstage subtree is not painted, so keeping the ad mounted costs nothing visible.
+**Why keep the ad:** disposing a delivered ad and requesting again wastes a request and an impression already earned.
+**Why detach the view:** on Android, Flutter can render platform views through a texture layer that stays attached when a route covers it. The SDK would then treat a hidden banner as visible, refresh it, and count impressions nobody saw.
 
 Pass `active` only for pages Flutter cannot detect, such as `PageView` pages:
 
@@ -145,7 +146,7 @@ This stops pages the user never swipes to from requesting ads.
 
 Loaded ads that were never shown expire after `adTtl` (50 minutes by default), inside Google's freshness window for loaded ads.
 The package replaces them automatically.
-An ad that was shown keeps its slot. Banners refresh through AdMob and natives stay until their widget leaves the tree.
+An ad that was shown keeps its slot. Banners refresh through AdMob while visible, and natives stay until their widget leaves the tree.
 
 ## 10. Measure the Right Numbers
 
