@@ -26,7 +26,6 @@ Every loaded ad that is never shown lowers the app's show rate. Apply these by d
 
 - Register only placements for screens this user can reach; registration preloads them.
 - Keep default priorities and use `isSplash` for cold start. Never set `priority: AdPriority.immediate`; it takes the single loading slot before the screen the user is waiting on.
-- App-open on resume: call `show` on resume; the package skips it when the user returns from an ad. Do not add `isShowingAd` guards.
 - Splash: `waitFor` with a timeout, then `show`, and continue in `onDismissed`. Transitions: `show` without awaiting. Never show two fullscreen ads back to back.
 - Banners: fixed sizing when the banner must be ready before its screen opens (it preloads); anchored adaptive for sticky bars and inline adaptive in scrolling content (they load on layout). Share one recurring placement across screens; use `loadOnce` for a single-screen banner.
 - Natives: one placement per template; set `placementCapacities` to the number of slots visible together; `loadOnce` for onboarding.

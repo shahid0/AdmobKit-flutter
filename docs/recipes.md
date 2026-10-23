@@ -273,8 +273,7 @@ void showResumeAd(AppOpenPlacement placement, {required bool appPolicyAllowsResu
 }
 ```
 
-The package skips this ad when the user returns from an ad, so do not track ad clicks or `isShowingAd` yourself.
-Exclude cold start (the splash flow covers it), and returns from your own external flows such as purchases or share sheets.
+Exclude cold-start duplicates, permission dialogs, and active paywalls in your policy logic.
 Use `onDisplayed` to start a cooldown timer.
 
 ## Premium Access

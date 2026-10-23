@@ -81,12 +81,6 @@ Your app owns frequency: decide in your own code how often a transition may show
 **Do not** show two fullscreen ads back to back, for example a splash ad and then another when a paywall closes.
 **Why:** consecutive interstitials hurt retention and can break AdMob placement policies. The package presents whatever you ask for; frequency is a product decision.
 
-### App-Open Ads on Resume
-
-Call `show` with your `AppOpenPlacement` when the app returns from the background.
-The package skips that call, and runs `onDismissed`, when the user is coming back from an ad: a tapped banner or native ad, or a fullscreen ad that was on screen when the app left.
-**Why:** an app-open ad right after the user returns from an ad they tapped is a poor experience and works against AdMob's app-open guidance. Only the package sees ad clicks, so it handles this for you. Do not add your own `isShowingAd` checks around it.
-
 ## 6. Banners: Choose the Sizing by Where the Banner Lives
 
 | Sizing | Use it for | Loads | Why |
