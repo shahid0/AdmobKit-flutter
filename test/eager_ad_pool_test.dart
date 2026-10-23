@@ -367,6 +367,25 @@ void main() {
       pool.dispose();
     });
 
+    test('fullscreen capacity 2 buffers two distinct ads without extra requests', () async {
+      final pool = AdEngine(
+        consumedLoadOnceIds: {},
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        placementCapacities: {'inter': 2},
+      );
+      const inter = InterstitialPlacement(id: 'inter', androidId: '1', iosId: '1');
+
+      pool.primeAll([inter]);
+      await pumpEventQueue();
+      expect(driver.loadCalls, 2);
+
+      pool.show(inter);
+      expect(pool.isReady(inter), isTrue, reason: 'The second slot holds its own ad.');
+      pool.dispose();
+    });
+
     test('primeAll preloads fixed banners and leaves adaptive banners to their views', () async {
       final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
       const fixed = BannerPlacement(id: 'mrec', androidId: '1', iosId: '1', sizing: BannerSizing.mrec());

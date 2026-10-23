@@ -124,7 +124,7 @@ class AdEngine {
   bool _isPaused = false;
   bool _closed = false;
   bool _isDispatchScheduled = false;
-  int _inlineSlotSequence = 0;
+  int _slotSequence = 0;
   StreamSubscription<AdNetworkType>? _networkSub;
 
   AdEngine({
@@ -455,28 +455,8 @@ class AdEngine {
       return Future<dynamic>.error(AdTaskCancelledException(placement.id));
     }
     final priority = overridePriority ?? placement.priority;
-    final effectiveKey = jsonEncode([placement.id, placement is InlinePlacement ? ++_inlineSlotSequence : null]);
-
-    if (placement is! InlinePlacement) {
-      for (final task in _inFlightTasks) {
-        if (task.key == effectiveKey && !task.isCancelled) {
-          _logger?.debug('[Engine] Task "$effectiveKey" is already in-flight.');
-          return task.completer.future;
-        }
-      }
-
-      final retry = _retries[effectiveKey];
-      if (retry != null) return retry.task.completer.future;
-
-      for (final queue in _buckets.values) {
-        for (final existing in queue) {
-          if (existing.key == effectiveKey) {
-            _logger?.debug('[Engine] Task "$effectiveKey" is already queued in ${existing.priority.name}.');
-            return existing.completer.future;
-          }
-        }
-      }
-    }
+    // Every task fills its own buffer slot; _load caps requests at the placement's capacity.
+    final effectiveKey = jsonEncode([placement.id, ++_slotSequence]);
 
     final task = AdLoadTask(key: effectiveKey, placement: placement, bannerLayout: bannerLayout, priority: priority);
     _buckets[priority]!.addLast(task);

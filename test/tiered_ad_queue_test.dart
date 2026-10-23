@@ -308,7 +308,7 @@ void main() {
       queue.dispose();
     });
 
-    test('Inline placements generate distinct slot keys while fullscreen deduplicates', () async {
+    test('Each enqueue fills its own slot for inline and fullscreen placements', () async {
       int execCount = 0;
       final queue = AdEngine(
         executor: (placement, {bannerLayout, validateRequest}) async {
@@ -327,13 +327,12 @@ void main() {
       expect(identical(f1, f2), false, reason: 'Inline placements must NOT deduplicate to same Future');
 
       const fullscreenPlacement = InterstitialPlacement(id: 'game_over', androidId: '2', iosId: '2');
-      // Enqueueing fullscreen placement twice concurrently must deduplicate to the same task
       final fs1 = queue.enqueue(fullscreenPlacement);
       final fs2 = queue.enqueue(fullscreenPlacement);
-      expect(identical(fs1, fs2), true, reason: 'Fullscreen placements must deduplicate to the same Future');
+      expect(identical(fs1, fs2), false, reason: 'A second fullscreen slot must not share the first ad');
 
       await Future.wait([f1, f2, fs1, fs2]);
-      expect(execCount, 3, reason: 'Must execute 2 tasks for inline plus 1 deduplicated for fullscreen');
+      expect(execCount, 4);
       queue.dispose();
     });
 
