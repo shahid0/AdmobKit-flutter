@@ -317,22 +317,28 @@ class GoogleMobileAdsDriver {
       );
     }
 
-    FullScreenContentCallback<T> createCallback<T extends Ad>() {
-      var completed = false;
-      void finishTerminal(T ad) {
-        if (completed) return;
-        completed = true;
-        try {
-          unawaited(ad.dispose().catchError((Object error, StackTrace stack) {
-            _logger?.warning('[Show] Failed to dispose ad: $error');
-          }));
-        } catch (error) {
-          _logger?.warning('[Show] Error while disposing ad: $error');
-        } finally {
-          onDismissed();
-        }
+    var completed = false;
+    void finishTerminal(Ad ad) {
+      if (completed) return;
+      completed = true;
+      try {
+        unawaited(ad.dispose().catchError((Object error, StackTrace stack) {
+          _logger?.warning('[Show] Failed to dispose ad: $error');
+        }));
+      } catch (error) {
+        _logger?.warning('[Show] Error while disposing ad: $error');
+      } finally {
+        onDismissed();
       }
+    }
 
+    // Android reports some show failures only through the returned future.
+    void showFailed(Object error) {
+      _logger?.warning('[Show] Ad failed to display: $error');
+      finishTerminal(adInstance as Ad);
+    }
+
+    FullScreenContentCallback<T> createCallback<T extends Ad>() {
       return FullScreenContentCallback<T>(
         onAdShowedFullScreenContent: (ad) {
           _logger?.info('[Show] Ad displayed on screen: ${placement.id}');
@@ -358,29 +364,37 @@ class GoogleMobileAdsDriver {
     if (adInstance is InterstitialAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<InterstitialAd>();
-      adInstance.show();
+      unawaited(adInstance.show().catchError(showFailed));
     } else if (adInstance is RewardedAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<RewardedAd>();
-      adInstance.show(
-        onUserEarnedReward: (ad, reward) {
-          _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
-          onRewardGranted?.call(reward.amount, reward.type);
-        },
+      unawaited(
+        adInstance
+            .show(
+              onUserEarnedReward: (ad, reward) {
+                _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
+                onRewardGranted?.call(reward.amount, reward.type);
+              },
+            )
+            .catchError(showFailed),
       );
     } else if (adInstance is RewardedInterstitialAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<RewardedInterstitialAd>();
-      adInstance.show(
-        onUserEarnedReward: (ad, reward) {
-          _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
-          onRewardGranted?.call(reward.amount, reward.type);
-        },
+      unawaited(
+        adInstance
+            .show(
+              onUserEarnedReward: (ad, reward) {
+                _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
+                onRewardGranted?.call(reward.amount, reward.type);
+              },
+            )
+            .catchError(showFailed),
       );
     } else if (adInstance is AppOpenAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<AppOpenAd>();
-      adInstance.show();
+      unawaited(adInstance.show().catchError(showFailed));
     } else {
       _logger?.error('[Show] Unknown fullscreen ad instance type: ${adInstance.runtimeType}');
       if (adInstance is Ad) {

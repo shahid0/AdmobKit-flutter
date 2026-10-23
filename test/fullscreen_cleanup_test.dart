@@ -101,6 +101,42 @@ void main() {
       });
     }
 
+    testWidgets('InterstitialAd: a rejected platform show settles dismissal and disposes the ad', (tester) async {
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      int? id;
+      messenger.setMockMethodCallHandler(instanceManager.channel, (call) async {
+        calls.add(call.method);
+        if (call.method == 'loadInterstitialAd') {
+          id = (call.arguments as Map)['adId'] as int;
+        } else if (call.method == 'showAdWithoutView') {
+          throw PlatformException(code: 'AdShowError', message: 'Ad failed to show.');
+        } else if (call.method == 'disposeAd') {
+          disposedIds.add((call.arguments as Map)['adId'] as int);
+        }
+        return null;
+      });
+
+      await InterstitialAd.load(
+        adUnitId: 'test_interstitial',
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(onAdLoaded: (_) {}, onAdFailedToLoad: (_) {}),
+      );
+      final ad = instanceManager.adFor(id!) as InterstitialAd;
+      ad.adLoadCallback.onAdLoaded(ad);
+
+      var dismissed = 0;
+      GoogleMobileAdsDriver().showFullscreenAd(
+        placement: const InterstitialPlacement(id: 'interstitial_test', androidId: 'test', iosId: 'test'),
+        adInstance: ad,
+        onDisplayed: () {},
+        onDismissed: () => dismissed++,
+      );
+      await tester.pump();
+
+      expect(dismissed, 1);
+      expect(disposedIds, [id]);
+    });
+
     // 2. RewardedAd: dismissal, show failure, and reward callback
     for (final failed in [false, true]) {
       testWidgets('RewardedAd: fullscreen ${failed ? "show failure" : "dismissal"} disposes SDK ad exactly once and unregisters from registry', (tester) async {
