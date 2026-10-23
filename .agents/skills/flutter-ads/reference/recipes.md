@@ -70,11 +70,12 @@ Mount inline widgets directly in your widget tree.
 Do not await inline ads before mounting.
 
 > [!NOTE]
-> **Banners are strictly on-demand:**
-> Unlike fullscreen and native placements, banners are not preloaded at startup by `registerPlacements()`.
-> 1. Adaptive banner dimensions depend on container width and device orientation, which are only known once `AdBannerView` mounts.
-> 2. Preloading banners far in advance starts AdMob's native background auto-refresh timers, logging unviewed phantom impressions and reducing your eCPM.
-> 3. For preloaded in-feed cards with zero-latency display, use `NativePlacement` with `AdNativeView` rather than fixed MREC banners.
+> **Banners load when they mount.**
+> `registerPlacements()` preloads fullscreen and native placements, but not banners.
+> 1. An adaptive banner's size comes from the container width and orientation, which are known only after `AdBannerView` lays out.
+> 2. A banner loaded before its screen is reachable can go unused, which wastes a request and lowers your show rate.
+> 3. AdMob auto-refreshes a banner only while it is visible, so a mounted banner on a hidden page does not keep cycling.
+> 4. If an ad must be ready before the screen opens, use a `NativePlacement` with `AdNativeView`. Do not try to preload banners.
 
 ```dart
 Widget nativeFeedItem() => const AdNativeView(placement: AppAds.native);

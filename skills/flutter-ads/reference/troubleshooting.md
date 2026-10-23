@@ -144,13 +144,11 @@ buildTypes {
 
 On iOS, make certain `Info.plist` contains `GADApplicationIdentifier` and all required `SKAdNetworkItems`.
 
-### 9. Why Banners Are Not Preloaded at Startup
+### 9. Banners Load Only After Mounting
 
-`AdmobKit.registerPlacements()` primes fullscreen and native placements, but intentionally skips banner placements.
-
-- **Why**: Google AdMob adaptive banners cannot load without exact runtime container width and orientation, which are only known once Flutter mounts the widget.
-- **Auto-Refresh & Policy**: Preloading banners far in advance starts native background auto-refresh timers. Unviewed background refreshes penalize your app's viewability score and lower eCPMs.
-- **Solution**: Let `AdBannerView` load on-demand when mounted. If you need preloaded in-feed cards, use `NativePlacement` with `AdNativeView` instead of MREC banners.
+- **Symptom**: Diagnostics show no banner request after `registerPlacements()`, and the banner appears a moment after its screen opens.
+- **Cause**: This is expected. `registerPlacements()` preloads fullscreen and native placements only. An adaptive banner's size depends on the measured container width and orientation, so `AdBannerView` requests it when it lays out.
+- **Solution**: Mount `AdBannerView` where the banner shows and let it load. Use `reserveSpace` to avoid a layout jump while it loads. If content must be ready before the screen opens, use `NativePlacement` with `AdNativeView`. There is no public banner preload.
 
 ## Submitting a Bug Report
 

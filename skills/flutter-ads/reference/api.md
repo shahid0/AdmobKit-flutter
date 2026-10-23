@@ -55,7 +55,7 @@ Registers ad placements and starts eligible background preloading.
   - Accepts calls while initialization is still in progress.
   - Throws `StateError` if called before `initialize()` or after `dispose()`.
   - Throws `ArgumentError` if you re-register an existing identifier with different configuration properties.
-  - Banners are strictly loaded on-demand by `AdBannerView` when mounted and are excluded from startup background preloading (banners require runtime layout dimensions, and preloading them early triggers AdMob auto-refresh viewability penalties).
+  - Skips banner placements. Each `AdBannerView` loads its banner when it mounts, because the request depends on the measured width and orientation.
 
 ## Presentation and Waits
 

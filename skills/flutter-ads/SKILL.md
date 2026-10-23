@@ -24,6 +24,7 @@ The package owns consent resolution, ad loading, retries, freshness, exclusive i
 - Normal transition: `show`, with the normal action in `onDismissed`.
 - Startup or a feature needing an ad decision: `waitFor`, then the appropriate presentation.
 - Banner or native content: mount `AdBannerView` or `AdNativeView`; do not wait for an inline instance first.
+- Banners are never preloaded. `registerPlacements` skips them, and each `AdBannerView` loads when it lays out. Do not add banner warm-up code; use a native placement when content must be ready before a screen opens.
 - Reward: grant only from `onRewardGranted`. Skipped ads also call `onDismissed`.
 - Fullscreen native: use a fullscreen native template with `AdNativeView`, not `show`.
 - Privacy settings: use `isPrivacyOptionsRequired` and `showPrivacyOptionsForm`.
