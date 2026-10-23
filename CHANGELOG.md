@@ -18,6 +18,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A `loadOnce` or splash ad whose widget left the screen before the ad arrived no longer loads later, for example when the network returns after the user has passed the splash or onboarding screen.
 - A lease superseded by a resize or placement change no longer takes the ad only to dispose it. The ad stays buffered for the next host.
 - A banner or native slot left empty by no-fill or exhausted retries requests again when the app returns to the foreground, instead of staying blank for the session.
 - `waitFor` requests again after a placement's retries ran out, instead of returning `false` for the rest of the session.

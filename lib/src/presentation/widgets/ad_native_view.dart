@@ -364,6 +364,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     AdmobKit.initializationStateListenable.removeListener(_onInitializationChanged);
     _generation++;
     _layoutGeneration++;
+    if (_leasePending) activeAdSession?.abandonLease(widget.config.placement);
     _nativeAd?.dispose();
     super.dispose();
   }

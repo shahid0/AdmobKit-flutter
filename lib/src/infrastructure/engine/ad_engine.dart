@@ -1186,6 +1186,23 @@ class AdEngine {
     return waiter.completer.future;
   }
 
+  /// A host left before its one-time ad arrived. Drop the pending load so the ad
+  /// never fills a screen the user has already passed, e.g. after reconnecting.
+  void abandonLease(InlinePlacement placement, {BannerLayout? bannerLayout}) {
+    if (!placement.loadOnce && !placement.isSplash) return;
+    final key = _requestKey(placement, bannerLayout);
+    final waiters = _leaseWaiters[key];
+    if (waiters != null && waiters.any((waiter) => waiter.isActive)) return;
+    _leaseWaiters.remove(key);
+    for (final waiter in waiters ?? <_LeaseWaiter>[]) {
+      if (!waiter.completer.isCompleted) waiter.completer.complete(null);
+    }
+    if (pendingTaskCount(placement.id, bannerLayout: bannerLayout) == 0) return;
+    _logger?.info('[Engine] Host for one-time "${placement.id}" left before its ad arrived. Dropping the load.');
+    cancel(placement.id, bannerLayout: bannerLayout);
+    _markConsumed(placement, bannerLayout: bannerLayout);
+  }
+
   void _scheduleReplenish(AdPlacement placement, {BannerLayout? bannerLayout}) {
     scheduleMicrotask(() {
       if (bannerLayout != null && _preferredBannerLayouts[placement.id] != bannerLayout) return;

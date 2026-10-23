@@ -241,7 +241,9 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     AdmobKit.initializationStateListenable.removeListener(_onInitializationChanged);
+    final waiting = _pending;
     _resetLease();
+    if (waiting) activeAdSession?.abandonLease(widget.placement, bannerLayout: widget.layout);
     super.dispose();
   }
 

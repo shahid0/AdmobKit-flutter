@@ -380,6 +380,38 @@ void main() {
       pool.dispose();
     });
 
+    test('a one-time placement whose host left before delivery drops its load', () async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const splashNative = NativePlacement(id: 'splash_native', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+      var mounted = true;
+
+      final lease = pool.leaseInlineAd(splashNative, isMounted: () => mounted);
+      await pumpEventQueue();
+      expect(pool.pendingTaskCount(splashNative.id), 1);
+
+      mounted = false;
+      pool.abandonLease(splashNative);
+      expect(await lease, isNull);
+      expect(pool.pendingTaskCount(splashNative.id), 0);
+      expect(pool.isConsumed(splashNative), isTrue);
+    });
+
+    test('a recurring placement keeps loading when its host leaves', () async {
+      final driver = _DelayedDriver(delay: const Duration(milliseconds: 50));
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const feed = NativePlacement(id: 'feed', androidId: '1', iosId: '1');
+      var mounted = true;
+
+      pool.leaseInlineAd(feed, isMounted: () => mounted);
+      await pumpEventQueue();
+      mounted = false;
+      pool.abandonLease(feed);
+      expect(pool.pendingTaskCount(feed.id), 1);
+    });
+
     test('waitFor requests again after a placement failed terminally', () async {
       final driver = _FlakyDriver();
       final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
