@@ -110,6 +110,8 @@ class _BannerHost extends StatefulWidget {
 
 class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientMixin {
   AdaptiveBannerAd? _ad;
+  // The layout [_ad] was requested for; differs from the widget's while a resize reloads.
+  BannerLayout? _adLayout;
   bool _pending = false;
   bool _attempted = false;
   int _generation = 0;
@@ -130,6 +132,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
     _ad?.renderSize.removeListener(_sizeChanged);
     _ad?.dispose();
     _ad = null;
+    _adLayout = null;
     _pending = false;
     _attempted = false;
     updateKeepAlive();
@@ -161,7 +164,14 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
   @override
   void didUpdateWidget(_BannerHost oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.placement != widget.placement || oldWidget.layout != widget.layout) _resetLease();
+    if (oldWidget.placement != widget.placement) {
+      _resetLease();
+    } else if (oldWidget.layout != widget.layout) {
+      // Keep the current banner on screen until the new size arrives.
+      _generation++;
+      _pending = false;
+      _attempted = false;
+    }
     _checkAndActivate();
   }
 
@@ -177,7 +187,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
     if (ad != null && !ad.hasImpression && ad.loadedAt != null && ttl != null && DateTime.now().difference(ad.loadedAt!) > ttl) {
       _resetLease();
     }
-    if (_ad == null && !_attempted && !AdmobKit.isUserPremium) _load();
+    if ((_ad == null || _adLayout != widget.layout) && !_attempted && !AdmobKit.isUserPremium) _load();
   }
 
   Future<void> _load() async {
@@ -201,10 +211,15 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
       }
       _pending = false;
       setState(() {
-        _ad = ad as AdaptiveBannerAd?;
-        updateKeepAlive();
-        _ad?.renderSize.addListener(_sizeChanged);
-        if (_ad == null && !_active) _attempted = false;
+        if (ad is AdaptiveBannerAd) {
+          _ad?.renderSize.removeListener(_sizeChanged);
+          _ad?.dispose();
+          _ad = ad..renderSize.addListener(_sizeChanged);
+          _adLayout = widget.layout;
+          updateKeepAlive();
+        } else if (_ad == null && !_active) {
+          _attempted = false;
+        }
       });
     } catch (error, stack) {
       if (!mounted || generation != _generation) return;
@@ -228,7 +243,9 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
     super.build(context);
     if (AdmobKit.isUserPremium) return const SizedBox.shrink();
     final ad = _ad;
-    final size = ad?.renderSize.value;
+    final rendered = ad?.renderSize.value;
+    // A banner kept through a resize is hidden if it no longer fits.
+    final size = rendered != null && rendered.width <= widget.width ? rendered : null;
     final sizing = widget.placement.sizing;
     final reservedHeight = widget.reserveSpace ? (sizing.maxHeight ?? sizing.fixedHeight)?.toDouble() : null;
     final height = reservedHeight ?? size?.height.toDouble() ?? 0;

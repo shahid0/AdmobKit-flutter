@@ -117,6 +117,7 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
   - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
   - Fixed banners request exact dimensions and are centered when the host is wider. A host narrower than the fixed width renders nothing and requests nothing.
   - Fixed banners take the ad preloaded by `registerPlacements()` when one is ready, whatever the host width. Width and orientation changes do not reload them.
+  - Adaptive banners request a new size when the width or orientation changes, and keep the current banner on screen until it arrives. A current banner wider than the new host is hidden.
   - Throws `FlutterError` for adaptive banners within unbounded width without explicit `width`.
 
 ### `AdNativeView`

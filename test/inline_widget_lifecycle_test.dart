@@ -219,7 +219,7 @@ void main() {
       }
 
       if (!native) {
-        testWidgets('resize and orientation replace request identity, rejecting stale completion', (tester) async {
+        testWidgets('resize and orientation request a new size, keeping the current banner until it arrives', (tester) async {
           await initialize();
           await tester.pumpWidget(host(width: 320));
           await tester.pumpWidget(host(width: 600));
@@ -229,15 +229,21 @@ void main() {
           driver.requests[0].result.complete(stale);
           await tester.pump();
           expect(disposed, contains(staleId));
-          driver.requests[1].result.complete(await loadedAd());
+          final portrait = await loadedAd();
+          final portraitId = instanceManager.adIdFor(portrait);
+          driver.requests[1].result.complete(portrait);
           await tester.pump();
           await tester.pump();
           expect(find.byType(AdWidget), findsOneWidget);
           await tester.pumpWidget(host(width: 600, landscape: true));
-          expect(find.byType(AdWidget), findsNothing);
           expect(driver.requests.last.layout!.orientation, BannerOrientation.landscape);
-          driver.requests.last.result.complete(await loadedAd());
+          expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(portrait), reason: 'Kept until the new size arrives');
+          final landscape = await loadedAd();
+          driver.requests.last.result.complete(landscape);
           await tester.pump();
+          await tester.pump();
+          expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(landscape));
+          expect(disposed, contains(portraitId));
           await tester.pumpWidget(const SizedBox());
         });
 
