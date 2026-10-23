@@ -87,13 +87,12 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.nativeIos,
   );
 
-  // Fixed banners are preloaded by registerPlacements.
+  // Fixed banners preload at registration and keep one spare ready after each display.
   static const standardBanner = BannerPlacement(
     id: 'gallery_standard_banner',
     androidId: AdMobTestIds.bannerAndroid,
     iosId: AdMobTestIds.bannerIos,
     sizing: BannerSizing.standard(),
-    loadOnce: true,
   );
 
   static const mrecBanner = BannerPlacement(
@@ -101,7 +100,6 @@ abstract final class SampleAds {
     androidId: AdMobTestIds.bannerAndroid,
     iosId: AdMobTestIds.bannerIos,
     sizing: BannerSizing.mrec(),
-    loadOnce: true,
   );
 
   static const allPlacements = [

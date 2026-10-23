@@ -104,7 +104,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('inactive host does not acquire or mount ad when background retry succeeds', (tester) async {
+  testWidgets('a retry started while active delivers to the host after it deactivates', (tester) async {
     final driver = Driver();
     await AdmobKitTestHarness.initialize(
       driver: driver,
@@ -144,11 +144,10 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Inactive host must NOT have mounted AdWidget, and ad remains ready in pool
-    expect(find.byType(AdWidget), findsNothing);
-    expect(AdmobKit.isReady(p), isTrue);
+    // The host keeps the ad it asked for instead of dropping it and asking again.
+    expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
+    expect(driver.requests, hasLength(3), reason: 'The third request refills the recurring buffer.');
 
-    // When reactivated, it acquires the buffered ad
     await tester.pumpWidget(host(true));
     await tester.pump();
     await tester.pump();

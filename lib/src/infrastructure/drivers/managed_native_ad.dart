@@ -6,6 +6,9 @@ final class ManagedNativeAd extends NativeAd {
   final Future<void> Function()? releaseAppearance;
   final Future<double> Function(NativeLayoutRequest)? measureLayout;
   DateTime? loadedAt;
+
+  /// Set once the SDK records an impression; shown ads no longer expire.
+  bool hasImpression = false;
   Future<void>? _disposal;
 
   ManagedNativeAd({

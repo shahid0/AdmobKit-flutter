@@ -142,6 +142,7 @@ class GoogleMobileAdsDriver {
           );
           completer.completeError(error);
         },
+        onAdImpression: (_) => nativeAd.hasImpression = true,
         onAdClicked: (_) => _analytics?.onAdClicked(placement),
         onPaidEvent: (_, valueMicros, precision, currencyCode) {
           _analytics?.onPaidEvent(
@@ -270,6 +271,7 @@ class GoogleMobileAdsDriver {
             fail(error);
           }
         },
+        onAdImpression: (_) => banner.hasImpression = true,
         onAdClicked: (_) => _analytics?.onAdClicked(placement),
         onPaidEvent: (_, micros, precision, currency) =>
             _analytics?.onPaidEvent(

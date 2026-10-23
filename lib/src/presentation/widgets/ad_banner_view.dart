@@ -12,7 +12,9 @@ import '../admob_kit_facade.dart';
 /// Inline and fixed banners reserve their configured height by default. Set
 /// [reserveSpace] to false to collapse while loading and use the actual loaded
 /// height. Anchored banners always use the SDK-selected height when available.
-/// Loading and rendering honor Visibility, TickerMode, and [active].
+/// The first request waits for Visibility, TickerMode, and [active]. Once
+/// delivered, the banner stays mounted for the host's lifetime; the SDK only
+/// refreshes it while it is on screen.
 /// Fixed banners use an ad preloaded by [AdmobKit.registerPlacements] when one is
 /// ready, and render nothing in a host narrower than their fixed width.
 class AdBannerView extends StatelessWidget {
@@ -164,9 +166,11 @@ class _BannerHostState extends State<_BannerHost> {
       if (_ad == null && !_pending) _attempted = false;
       return;
     }
-    final loadedAt = _ad?.loadedAt;
+    final ad = _ad;
     final ttl = activeAdSession?.config.adTtl;
-    if (loadedAt != null && ttl != null && DateTime.now().difference(loadedAt) > ttl) _resetLease();
+    if (ad != null && !ad.hasImpression && ad.loadedAt != null && ttl != null && DateTime.now().difference(ad.loadedAt!) > ttl) {
+      _resetLease();
+    }
     if (_ad == null && !_attempted && !AdmobKit.isUserPremium) _load();
   }
 
@@ -179,7 +183,7 @@ class _BannerHostState extends State<_BannerHost> {
       final ad = await session?.leaseInlineAd(
         widget.placement,
         bannerLayout: widget.layout,
-        isMounted: () => mounted && _active,
+        isMounted: () => mounted,
       );
       if (!mounted || generation != _generation) {
         await AdCacheEntry.disposeAdInstance(ad);
@@ -225,7 +229,7 @@ class _BannerHostState extends State<_BannerHost> {
       curve: Curves.fastOutSlowIn,
       width: widget.width,
       height: height,
-      child: _active && ad != null && size != null
+      child: ad != null && size != null
           ? Center(
               child: SizedBox(
                 width: size.width.toDouble(),

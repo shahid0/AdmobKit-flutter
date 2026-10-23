@@ -5,6 +5,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 final class AdaptiveBannerAd extends BannerAd {
   final ValueNotifier<AdSize?> renderSize = ValueNotifier(null);
   DateTime? loadedAt;
+
+  /// Set once the SDK records an impression; shown ads no longer expire.
+  bool hasImpression = false;
   bool isDisposed = false;
 
   AdaptiveBannerAd({required super.adUnitId, required super.size, required super.request, required super.listener});

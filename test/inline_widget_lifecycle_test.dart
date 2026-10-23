@@ -141,7 +141,7 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
 
-      testWidgets('activity gate hides loaded platform view and reuses lease on return', (tester) async {
+      testWidgets('activity gate only defers the first request; a delivered ad stays mounted', (tester) async {
         await initialize();
         await tester.pumpWidget(host(active: false));
         expect(driver.requests, isEmpty);
@@ -154,7 +154,7 @@ void main() {
         await tester.pump();
         expect(find.byType(AdWidget), findsOneWidget);
         await tester.pumpWidget(host(active: false));
-        expect(find.byType(AdWidget), findsNothing);
+        expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
         expect(disposed, isEmpty);
         await tester.pumpWidget(host());
         expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
@@ -192,7 +192,7 @@ void main() {
       });
 
       if (native) {
-        testWidgets('expired retained native is replaced on reactivation without renewing cache age', (tester) async {
+        testWidgets('only an expired native that was never shown is replaced', (tester) async {
           await initialize();
           await tester.pumpWidget(host());
           final ad = await loadedAd() as ManagedNativeAd;
@@ -201,10 +201,12 @@ void main() {
           await tester.pump();
           await tester.pump();
           ad.loadedAt = DateTime.now().subtract(const Duration(hours: 1));
-          // A theme/parent rebuild must not replace an ad currently being seen.
+          ad.hasImpression = true;
+          await tester.pumpWidget(host(active: false));
           await tester.pumpWidget(host());
           expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
           expect(driver.requests, hasLength(1));
+          ad.hasImpression = false;
           await tester.pumpWidget(host(active: false));
           expect(driver.requests, hasLength(1));
           await tester.pumpWidget(host());

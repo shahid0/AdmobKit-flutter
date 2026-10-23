@@ -17,6 +17,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `active`, `TickerMode`, and `Visibility` now gate only a host's first request. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
+- Only ads that were never shown are replaced after the TTL. A displayed ad keeps its impression and refreshes through AdMob.
+- Inline native hosts no longer re-measure, and briefly unmount, when only the available height changes.
 - The load queue serves `immediate` before `splash`, as documented. `waitFor` on a splash placement no longer demotes it, and a background native preload no longer jumps ahead of an awaited fullscreen ad.
 - Anchored adaptive banners size their host to the rendered creative instead of the requested slot, removing blank space above and below shorter creatives.
 
