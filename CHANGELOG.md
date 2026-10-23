@@ -1,102 +1,62 @@
 # Changelog
 
-All notable changes to the `admob_kit_flutter` package will be documented in this file.
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## Unreleased
-
-### Breaking changes
-
-- Removed `active` from `AdBannerView` and `AdNativeView`. Tabs, `PageView` pages, lazy lists, and covered routes are handled automatically.
-- Removed public pool, mutex, logger, inline lease, freshness, and test controls from `AdmobKit`.
-- Removed public `preload`. Registration prepares reachable placements; `waitFor` gives an explicit ad decision.
-- Removed the legacy `flutter_ads.dart` entry point and test-only SDK/retry configuration from `AdmobKitConfig`.
-- Removed internal network and logger interfaces from public exports. Their public enums remain available.
-- Registration before initialization now throws `StateError` instead of discarding placements.
-- Invalid concurrency, freshness TTL, and request timeouts now fail before initialization instead of preventing useful loading.
-- Fixed banners no longer take a `BannerLayout`. Passing one to `waitFor`, `isReady`, `getState`, or `watchState` throws `ArgumentError`.
-
-### Fixed
-
-- A `loadOnce` or splash ad whose widget left the screen before the ad arrived no longer loads later, for example when the network returns after the user has passed the splash or onboarding screen.
-- A lease superseded by a resize or placement change no longer takes the ad only to dispose it. The ad stays buffered for the next host.
-- A banner or native slot left empty by no-fill or exhausted retries requests again when the app returns to the foreground, instead of staying blank for the session.
-- `waitFor` requests again after a placement's retries ran out, instead of returning `false` for the rest of the session.
-- A fullscreen placement with capacity 2 or more buffers distinct ads. It previously cached one ad several times, so a later `show` presented an ad that was already shown and disposed.
-- A fullscreen ad that Android refuses to show now settles `onDismissed` and releases the presentation lock, instead of blocking every later fullscreen ad for the session.
-- `AdPaywallGuard` starts its exit once. Repeated taps or back presses while the exit ad opens no longer dismiss the paywall twice and pop the screen beneath it.
-- Adaptive banners keep the current banner on screen while a new size loads after rotation or a width change, instead of collapsing and shifting the layout.
-- `waitFor` returns `false` at once while offline, and a failed splash wait ends the splash moment so the following `show` does not wait again. An offline cold start no longer holds the splash screen for two full timeouts.
-- Ad widgets holding an ad keep their `PageView`, `ListView`, or `TabBarView` item alive, so scrolling back shows the same ad instead of requesting a new one.
-- `TickerMode` and `Visibility` now decide only when a host requests and which visible host receives a returning ad. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
-- Only ads that were never shown are replaced after the TTL. A displayed ad keeps its impression and refreshes through AdMob.
-- Inline native hosts no longer re-measure, and briefly unmount, when only the available height changes.
-- The load queue serves `immediate` before `splash`, as documented. `waitFor` on a splash placement no longer demotes it, and a background native preload no longer jumps ahead of an awaited fullscreen ad.
-- Anchored adaptive banners size their host to the rendered creative instead of the requested slot, removing blank space above and below shorter creatives.
-
-### Added
-
-- Banner and native hosts show a shimmering "Loading ad" placeholder by default while loading in reserved space. It follows the app's color scheme, holds still under reduced motion, and is announced to screen readers.
-- `AdmobKit.waitForAll` awaits several placements as one funnel step, loading them in list order.
-- `registerPlacements` preloads fixed banners. `AdBannerView` shows the preloaded ad at any host width and does not reload on width or orientation changes.
-- Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.
-- Added a minimal app using only the public API, plus consumer access and documentation code checks.
-- Added public guides for use cases, API behavior, native layouts, platform setup, and diagnosis.
-- Added generated skill references and a check that prevents them from differing from the public guides.
-
-### Known limit
-
-- The native protected-copy truncation issue remains unresolved. The guides identify it as a production release blocker.
-
-### Fixed
-
-- Privacy updates retain `loadOnce` consumption for the session. They do not restart consumed background work; new inline demand can still request an ad.
+All notable changes to `admob_kit_flutter` are documented here.
+This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 0.1.0
 
-Major feature milestone: replaces legacy XML/XIB layout bindings with 19 built-in native ad templates, introduces the `NativeAdStyle` engine with live theming and CTA corner radius via Pigeon, adds adaptive banner sizing, and stabilizes presentation lifecycle locks with `AdSession`.
+The first release since 0.0.2. Native ads move to 19 built-in templates with live styling, banners gain adaptive, fixed, and collapsible sizing, and loading is rebuilt around consent, priorities, deterministic waits, and one-visible-widget delivery. Internal APIs leave the public surface.
+Upgrading from 0.0.2: read [Migrating from 0.0.2](doc/migration.md). The reasoning behind each behavior is in [Design decisions](doc/design-decisions.md).
 
-### Breaking Changes
+### Breaking changes
 
-- **Removed XML/XIB native factories**: Removed Android XML (`big_native_ad.xml`, etc.) and iOS XIB layout bindings. All native ads now render through 19 built-in, platform-native templates.
-- **Replaced `NativeAdColors` with `NativeAdStyle`**: Replaced colors-only styling with `NativeAdStyle` (adds `callToActionCornerRadius` alongside `background`, `headline`, `body`, `callToActionBackground`, `callToActionText`).
-- **Updated `NativePlacement` signature**: Replaced `colors:` with `style:`. Layout template is now configured via `template:` (`NativeAdTemplate.cardContentTop` by default).
-- **Named Native Compositions**: 19 layouts: three compact rows, two smart-media layouts, three cards, six feed layouts, and five fullscreen layouts. Removed misleading text-only/minimal-copy aliases; retained useful leading/trailing same-row actions, side-action media layouts, and trailing-icon variants. Default remains `cardContentTop`.
-- **Content-sized Inline Natives**: `template.height` is now a loading estimate. Inline hosts measure real SDK assets at their available width and Flutter text scale; do not constrain them to the estimate. Fullscreen hosts remain bounded.
-- **Adaptive Banner Sizing**: `BannerPlacement` now uses `BannerSizing` (`BannerSizing.anchoredAdaptive()` default or `BannerSizing.inlineAdaptive(maxHeight:)`). Removed fixed height property.
+- The only entry point is `package:admob_kit_flutter/admob_kit_flutter.dart`; `flutter_ads.dart` is removed.
+- Removed `AdmobKit.preload`, `leaseInlineAd`, `pool`, `logger`, and the testing hooks `driverForTesting`, `networkInfoForTesting`, and `setPoolForTesting`. Registration preloads; `waitFor` prepares one placement.
+- `AdLogger` and `AdNetworkInfo` are no longer exported.
+- `AdmobKitConfig.retryScheduler` and `initializeNativeGma` are removed.
+- Native ads render through built-in templates. Removed `NativePlacement.big()`, `.medium()`, `.small()`, `factoryId`, the `big`, `medium`, and `small` templates, `AdNativeView.templated`, and the `template`, `width`, and `height` parameters of `AdNativeView`. App-side XML and XIB native factories are no longer used.
+- `AdBannerView` drops `width = 320` and `height = 50` defaults. Sizing comes from `BannerPlacement.sizing`, and the default banner is anchored adaptive at the parent's width.
+- `registerPlacements` before `initialize()` throws `StateError`. `initialize()` throws `ArgumentError` for invalid concurrency, TTL, or timeouts, and repeated calls share the first session until `dispose()`.
+- `AdPriority.immediate` now outranks `splash`, and only the `<=` operator remains. `AdFormat` order changed.
+- Default request timeouts are longer: `AdTimeoutConfig.standard` allows 30 s on Wi-Fi and 50 s on cellular for fullscreen ads.
+- Removed `AdMobTestIds.androidAppId`, `iosAppId`, `nativeVideoAndroid`, and `nativeVideoIos`.
+- `AdRevenueValue` uses identity equality.
 
 ### Added
 
-- **19 Built-in Native Templates**: Row, Smart Media, Card, Feed Card, and Fullscreen compositions with native-measured sizing via Pigeon.
-- **5 Canonical Template Presets**: `NativeAdTemplate.compactRow`, `smartMedia`, `stackedCard`, `feedCard`, `fullscreen`.
-- **Live Dynamic Native Styling**: `AdmobKit.setNativeStyle(style, placement:)` instantly updates cached, pending, and rendered native ads without triggering reloads.
-- **Configurable CTA Corner Radius**: `callToActionCornerRadius` supports square (0), rounded (6/8), or pill buttons via native canvas clipping.
-- **Fullscreen Native Placement**: Five bounded native compositions, including same-row action and trailing-icon variants, with exclusive presentation mutex integration.
-- **Adaptive Banner Support**: Width and orientation-aware anchored and inline adaptive banners via `BannerLayout` and SDK native sizing.
-- **Initialization State Machine**: Added `AdInitializationState` and `AdmobKit.initializationStateListenable` for reactive UI monitoring without polling.
-- **Explicit Viewport Gating**: Added `active:` flag on `AdNativeView` and `AdBannerView` for manual activation control in retained `PageView` or tab containers.
-- **Interactive Showcase Gallery**: Full gallery screen in example app demonstrating all 19 native templates, adaptive banners, live palette switcher, and diagnostics console.
+- 19 native templates in five families (compact rows, split media, cards, feeds, fullscreen), five aliases, and measured content heights.
+- `NativeAdStyle` and `AdmobKit.setNativeStyle` for live colors and button radius, globally or per placement, without reloading ads.
+- Fullscreen native templates that own the presentation lock while visible.
+- `BannerSizing`: anchored adaptive, inline adaptive, fixed sizes (`standard`, `mrec`, `large`, `leaderboard`, `fixed`), and space reservation. `BannerPlacement.collapsible` for collapsible banners.
+- Fixed banners preload at registration.
+- `AdmobKit.waitForAll` prepares a funnel step by awaiting several placements in list order.
+- `AdmobKit.initializationState`, `initializationStateListenable`, `waitUntilCanRequestAds`, and `isPrivacyOptionsRequired`.
+- `AdTimeoutConfig.emergingMarkets`, `relaxed`, and `aggressive` profiles.
+- `DebugGeography` is exported for consent testing.
+- A shimmering "Loading ad" placeholder for reserved banner space and native ads, using the app's color scheme and respecting reduced motion.
+- Best practices, design decisions, recipes, API reference, migration, and troubleshooting guides, plus an AI agent skill kept in sync with them.
 
 ### Changed
 
-- **Compact Smart Media**: `splitMediaLeft` and `splitMediaRight` restore medium ads with media beside identity, metadata and CTA on Android/iOS. A 160-pixel loading estimate, compact 36-pixel identity icon, and natural text measurement keep ordinary creatives shorter than feed natives without discarding supplied video.
-
-- **Compact Native Identity**: 48-pixel icons (36 pixels in smart-media identities), 15-pixel headlines, 12-pixel body text, 11-pixel metadata and 13-pixel CTA text with 2-pixel copy gaps; single-line headline/body copy with native ellipsis, naturally wrapping CTA copy, inline "Ad · rating ★ · price" metadata, and rounded CTA defaults on Android/iOS. Supplied body copy remains visible on one line with native end ellipsis; only missing or empty bodies collapse. Missing optional assets collapse; provided icons and video remain visible. All templates use consistent 8-pixel outer insets. Side actions clear SDK AdChoices without bottom-aligning the entire identity row; action-first cards use bottom-right SDK AdChoices and symmetric full-width buttons. Same-row CTAs retain their position while CTA copy wraps; compact rows use an 80-pixel loading estimate, not a fixed height.
-- **Fullscreen Navigation**: No built-in top close button. Example screens use bottom Continue navigation outside SDK ad assets.
-- **Platform Alignment**: Aligned with Google Mobile Ads 25.4.0 (Android) and 13.7.0 (iOS). Example app targets iOS 15.0+; core plugin continues to support iOS 13.0+.
+- `waitFor` is deterministic. It waits for consent and SDK setup, settles when the ad is ready or cannot come, and returns `false` at once while offline. `timeout` is an optional time budget.
+- A failed splash wait ends the splash moment, so the following `show` does not wait again.
+- The queue serves `immediate`, `splash`, `high`, `medium`, then `low`, first-in first-out within a tier; `waitFor` and mounted widgets move their request to the front.
+- Visibility decides only when a widget requests and which visible widget receives a returning ad. Delivered ads stay with their widget across covered routes, tab switches, and scrolling, and lazy list or page items holding an ad stay alive.
+- Adaptive banners load when their widget lays out, size to the rendered creative, and keep the current banner on screen while a new size loads after rotation.
+- Only ads that were never shown are replaced after `adTtl`.
+- Ads for `loadOnce` or splash widgets that left the screen before delivery are dropped instead of loading later.
+- `AdPaywallGuard` starts its exit once, ignoring repeated taps and back presses.
 
 ### Fixed
 
-- **Native Body Visibility**: Removed width-based hiding of supplied body text. Android/iOS text views keep it visible on one line with native end ellipsis, including after resizing and text scaling. Missing or empty body assets still collapse.
+- A fullscreen placement with capacity 2 or more buffers distinct ads instead of one ad several times.
+- A fullscreen ad Android refuses to show releases the presentation lock and calls `onDismissed`.
+- `waitFor` requests again after a placement's retries ran out.
+- Banner and native slots left empty by no-fill try again when the app returns to the foreground.
 
-- **Catalog Accuracy**: Gallery labels and previews now match native asset order on both platforms. Geometry tests catch duplicate compositions, preserve side actions at narrow widths and scaled text, and preserve ordering when video is supplied.
+### Known limits
 
-- **Native Layout Races**: Stale resize measurements cannot mount an ad or acquire fullscreen ownership after unmounting, disposal, or a newer layout request. Fullscreen ownership begins only after layout is measured successfully.
-- **Native Asset Clipping**: CTA/metadata copy and scaled text grow naturally; insufficient fullscreen media space is rejected instead of clipping required assets. SDK AdChoices retains its own corner.
-- **Android High-Density Corner Scaling**: Fixed bug where card corners were density-scaled twice on high-DPI Android devices.
-- **Deterministic Splash Settlement**: Prevented presentation mutex race condition when awaiting splash ads during cold-start.
-- **Multi-Widget Memory Isolation**: Guaranteed distinct native ad instances when multiple widgets share a placement, eliminating `This AdWidget is already in the Widget tree` crashes.
-- **Stale Session Cleanup**: Auto-evicted expired cached ads on route deactivation.
+- At narrow widths or large text scales, native templates can truncate headline and body text below AdMob's minimum character counts. Test your screens before release; see [Native ads](doc/native-ads.md#policy-and-production-limits).
 
 ## 0.0.2
 

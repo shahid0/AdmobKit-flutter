@@ -38,11 +38,14 @@ import 'package:flutter_ads_example/minimal.dart' show AppAds, ExampleApp;
     var blocks = 0;
     for (final path in [
       'README.md',
-      'docs/api.md',
-      'docs/recipes.md',
-      'docs/native-ads.md',
-      'docs/setup.md',
-      'docs/troubleshooting.md',
+      'doc/api.md',
+      'doc/best-practices.md',
+      'doc/design-decisions.md',
+      'doc/migration.md',
+      'doc/recipes.md',
+      'doc/native-ads.md',
+      'doc/setup.md',
+      'doc/troubleshooting.md',
     ]) {
       final markdown = await File('${root.path}/$path').readAsString();
       for (final match in RegExp(r'```dart\s*\n([\s\S]*?)\n```').allMatches(markdown)) {

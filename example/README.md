@@ -1,33 +1,31 @@
-# Example apps
+# AdmobKit examples
 
-The example directory has two entry points.
+The example app has two entry points. Both use Google's test app and ad unit IDs.
 
 ## Minimal integration
 
-`lib/minimal.dart` shows initialization, registration, native content, an adaptive banner, and a normal transition.
-It uses only the supported public package import. Start here when adding AdmobKit to an app.
+`lib/minimal.dart` shows initialization, registration, a native ad, an adaptive banner, and a transition interstitial, using only the public API. Start here when adding AdmobKit to an app.
 
 ```sh
 flutter pub get
 flutter run -t lib/minimal.dart
 ```
 
-## Gallery and diagnostics
+## Full demo
 
-`lib/main.dart` opens TaskFlow Pro, including the native template gallery, style controls, and diagnostic screens.
-It uses Google's test app and ad unit IDs.
+`lib/main.dart` opens TaskFlow, a sample app with a splash ad, onboarding, tabs with native ads, rewarded ads, a paywall guard, app-open ads, the native template gallery, live styling, and a placement state monitor.
 
 ```sh
 flutter run
 ```
 
-The gallery is for inspection and testing. Its diagnostic controls are not required for normal app integration.
-Neither example guarantees production fill, zero layout shifts, or policy compliance.
+The gallery and monitor screens are for inspection; normal apps do not need them.
 
-Read the [public guides](../README.md#choose-a-guide) for supported use.
-The [native production limit](../docs/native-ads.md#production-limit) remains unresolved.
+## Read next
 
-## Requirements
+- [Recipes](../doc/recipes.md) for each flow shown in the demo.
+- [Best practices](../doc/best-practices.md) and [Design decisions](../doc/design-decisions.md) for how and why.
+- [Platform setup](../doc/setup.md) before using these patterns in your own app.
+- [Native ads](../doc/native-ads.md#policy-and-production-limits) for text truncation limits to test before release.
 
-Use Dart 3.11.5 and Flutter 3.41.0 or later, plus the Android or iOS development tools.
-Complete [platform setup](../docs/setup.md) when using these examples in another app.
+Requires Dart 3.11.5 and Flutter 3.41.0 or later, with the Android or iOS development tools.

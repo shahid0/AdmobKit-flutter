@@ -3,7 +3,7 @@
 /// and live native styling.
 library;
 
-export 'src/domain/ad_placements.dart';
+export 'src/domain/ad_placements.dart' hide AdRequestKey;
 export 'src/domain/ad_telemetry.dart'
     show
         AdLogLevel,

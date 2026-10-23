@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 // ignore: implementation_imports
 import 'package:admob_kit_flutter/src/domain/ad_network.dart';
+import 'package:admob_kit_flutter/src/domain/ad_placements.dart' show AdRequestKey;
 import 'package:admob_kit_flutter/src/infrastructure/drivers/adaptive_banner_ad.dart';
 import 'package:admob_kit_flutter/src/presentation/admob_kit_test_harness.dart';
 import 'package:admob_kit_flutter/src/infrastructure/drivers/google_mobile_ads_driver.dart';

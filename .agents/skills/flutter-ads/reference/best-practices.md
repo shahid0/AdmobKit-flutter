@@ -1,64 +1,38 @@
-# Best Practices and Design Decisions
+# Best Practices
 
-This guide explains how to get the most impressions from the fewest requests, and why the package behaves the way it does.
-Each rule states the decision and the reason, so you can apply it to layouts these recipes do not cover.
-Imports and `AppAds` come from the [complete example](https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md#complete-example).
+How to get the most impressions from the fewest requests with AdmobKit.
+Each rule links to the reasoning in [Design decisions](design-decisions.md).
+Imports and `AppAds` come from the [minimal app](https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md#minimal-app).
 
-## The Model in One Paragraph
+Every request should end in an impression. A loaded ad that is never shown still counts as a request: it lowers your show rate and uses the user's data. Most rules below follow from that.
 
-Your app decides **where** ads appear and **when** a transition may show one.
-The package decides **how** ads load: consent, queueing, retries, caching, freshness, and who owns the screen.
-Every request the package makes should end in an impression.
-A loaded ad that is never shown still counts as a request: it lowers your show rate and wastes the user's data.
-Most rules below follow from that.
+## 1. Register only reachable placements
 
-## 1. Register Only Reachable Placements
-
-**Do:** call `registerPlacements` as soon as unit IDs are known, listing only placements for screens this user can reach.
-
-**Why:** registration starts preloading every fullscreen, native, and fixed banner placement in the list.
-A placement for a screen the user never opens is a request without an impression.
-On a device test, a registered fullscreen native that no screen displayed cost one wasted request on every launch.
+Call `registerPlacements` as soon as your unit IDs are known, listing only placements for screens this user can reach. Registration preloads fullscreen, native, and fixed banner placements.
 
 ```dart
 void registerForUser({required bool firstLaunch, required NativePlacement onboarding}) {
-  AdmobKit.registerPlacements([
-    AppAds.transition,
-    AppAds.native,
-    AppAds.banner,
-    if (firstLaunch) onboarding,
-  ]);
+  AdmobKit.registerPlacements([AppAds.transition, AppAds.native, AppAds.banner, if (firstLaunch) onboarding]);
 }
 ```
 
-## 2. Pick Priorities by When the User Needs the Ad
+Reasoning: [decision 12](design-decisions.md#12-registration-preloads-register-only-reachable-screens).
 
-The queue serves tiers in this order: `immediate`, `splash`, `high`, `medium`, `low`.
-Within a tier, requests load in order, and promoted requests go to the front.
+## 2. Leave priorities at their defaults
 
 | Tier | Use it for | Set by |
 | :--- | :--- | :--- |
-| `immediate` | An ad the user is waiting for right now | The package, when you call `waitFor` or an ad widget mounts |
+| `immediate` | The ad the user is waiting for right now | The package, when you call `waitFor` or a widget mounts |
 | `splash` | Cold-start ads | `isSplash: true` |
-| `high` | The first screens after launch, normal transitions | Default for interstitial and app-open |
+| `high` | First screens after launch, normal transitions | Default for interstitial and app open |
 | `medium` | Feeds, rewards, secondary screens | Default for banners, natives, rewarded |
 | `low` | Rarely visited screens | You |
 
-**Do not** set `priority: AdPriority.immediate` on a placement.
-**Why:** with one download at a time, a background preload in `immediate` takes the only slot before your splash screen asks for its ad.
-On a device test this delayed the splash interstitial behind an onboarding native.
-`waitFor` and mounted widgets already promote what the user is waiting for.
+Never set `priority: AdPriority.immediate` yourself. Reasoning: [decision 13](design-decisions.md#13-priorities-follow-when-the-user-needs-the-ad).
 
-## 3. Keep Startup Concurrency Low Unless You Register Many Placements
+## 3. Wait without a timeout
 
-`initialConcurrency` and `subsequentConcurrency` default to `1`.
-**Why:** one download at a time gives the first ad the whole connection, so the ad the user waits for arrives soonest.
-The cost is that later placements become ready later: on Wi-Fi each load took about one second, and the first load after a cold start took several seconds.
-If you register many placements and most users are on fast networks, `initialConcurrency: 2` readies the batch sooner.
-
-## 4. Splash: Wait for the Ad, Then Continue
-
-Await the splash ad together with your own startup work, and always continue in `onDismissed`.
+`waitFor` settles on its own when the ad is ready or cannot come. Pass `timeout` only when you have a real time budget, such as a task the user is doing.
 
 ```dart
 Future<void> runSplash(BuildContext context, Future<void> appReady, VoidCallback onContinue) async {
@@ -66,16 +40,16 @@ Future<void> runSplash(BuildContext context, Future<void> appReady, VoidCallback
   if (!context.mounted) return;
   AdmobKit.show(AppAds.transition, onDismissed: onContinue);
 }
+
+Future<bool> prepareWhileUserWorks(Duration estimatedTaskTime) =>
+    AdmobKit.waitFor(AppAds.transition, timeout: estimatedTaskTime);
 ```
 
-**Why:** `waitFor` is deterministic. It waits for consent and SDK setup, moves the request to the front of the queue, and settles when the ad is ready or cannot come: consent denied, offline, or retries exhausted. You do not need a timeout to stay safe.
-Offline it returns `false` at once, and a failed splash wait ends the splash moment, so `show` never waits a second time.
+Reasoning: [decision 5](design-decisions.md#5-waitfor-is-deterministic-timeout-is-a-time-budget).
 
-Pass `timeout` only when you have a real time budget, for example a task that takes the user about ten seconds, after which the ad should already be ready.
+## 4. Prepare a funnel step with `waitForAll`
 
-## 5. Funnels: Wait for a Step's Ads Together
-
-When a step needs several ads ready before the user moves on, wait for them as a group. A typical case is a splash screen that prepares every onboarding ad:
+When the next step needs several ads ready, wait for them together. A splash screen preparing onboarding is the typical case.
 
 ```dart
 Future<void> prepareOnboarding(VoidCallback openOnboarding) async {
@@ -84,82 +58,80 @@ Future<void> prepareOnboarding(VoidCallback openOnboarding) async {
 }
 ```
 
-**Why:** the requests load in list order, ahead of background preloads, and the call settles once every ad is ready or unavailable. Ads that load stay buffered for the widgets and `show` calls on the next step, so the user never sees an empty slot.
-With one download at a time, the group takes roughly a second per ad on Wi-Fi. If you gate a funnel at startup, consider `initialConcurrency: 2`.
-`show` never waits for a download, so a missing ad cannot block navigation.
-Use `isSplash: true` and `loadOnce: true` for a cold-start-only placement so it does not keep refilling after launch.
+Ads load in list order, ahead of background preloads, one at a time by default. Each takes about a second on Wi-Fi, so consider `initialConcurrency: 2` if you gate a funnel at startup. Adaptive banners cannot be awaited; use a fixed size if a banner must be ready. Reasoning: [decision 6](design-decisions.md#6-waitforall-prepares-a-whole-funnel-step).
 
-## 6. Transitions: Show, Never Await
+## 5. Show at transitions and continue in `onDismissed`
 
-Call `show` at the moment of the transition and put the navigation in `onDismissed`.
-Your app owns frequency: decide in your own code how often a transition may show an ad.
+```dart
+void completeLevel(VoidCallback openNextLevel) {
+  AdmobKit.show(AppAds.transition, onDismissed: openNextLevel);
+}
+```
 
-**Do not** show two fullscreen ads back to back, for example a splash ad and then another when a paywall closes.
-**Why:** consecutive interstitials hurt retention and can break AdMob placement policies. The package presents whatever you ask for; frequency is a product decision.
+`show` never waits for a download, and `onDismissed` always runs. Decide frequency in your own code, and do not show two fullscreen ads back to back: it hurts retention and can break AdMob placement policies. Reasoning: [decisions 9 and 10](design-decisions.md#9-show-never-waits-for-a-download).
 
-## 7. Banners: Choose the Sizing by Where the Banner Lives
+## 6. Grant rewards only in `onRewardGranted`
 
-| Sizing | Use it for | Loads | Why |
-| :--- | :--- | :--- | :--- |
-| `anchoredAdaptive()` | Sticky top or bottom bars | When its view lays out | Size depends on the measured width and orientation |
-| `inlineAdaptive(maxHeight:)` | Banners inside scrolling content | When its view lays out | Same; `maxHeight` caps the creative |
-| `standard()`, `mrec()`, `fixed(...)` | Banners that must be ready before the screen opens | At registration | Size is known up front, so it can preload |
+```dart
+void offerReward(RewardedPlacement placement, VoidCallback grantReward) {
+  AdmobKit.show(placement, onRewardGranted: (amount, type) => grantReward());
+}
+```
 
-- A host sizes itself to the creative the SDK actually rendered, so anchored banners do not leave blank bands.
-- Use `reserveSpace` (default for inline and fixed) to stop content jumping while a banner loads.
-- A fixed banner wider than its host renders nothing and requests nothing.
-- AdMob refreshes a banner only while it is visible, and a mounted banner keeps its slot across routes and tabs. Do not add your own refresh timers.
+Reasoning: [decision 11](design-decisions.md#11-rewards-come-only-from-onrewardgranted).
 
-### Spares and `loadOnce`
+## 7. Choose banner sizing by where the banner lives
 
-After a recurring placement delivers an ad, the package loads one spare (the placement's capacity, default 1).
-The next view for that placement then shows instantly.
+| Sizing | Use it for | Loads |
+| :--- | :--- | :--- |
+| `BannerSizing.anchoredAdaptive()` (default) | Sticky top or bottom bars | When its widget lays out |
+| `BannerSizing.inlineAdaptive(maxHeight:)` | Banners inside scrolling content | When its widget lays out |
+| `standard()`, `mrec()`, `large()`, `leaderboard()`, `fixed(...)` | Banners that must be ready before the screen opens | At registration |
 
-- Use one shared recurring placement when the same banner appears on several screens. The spare makes each new screen instant.
-- Set `loadOnce: true` for a banner that appears on a single screen once. **Why:** a mounted banner refreshes itself, so a spare for a screen that never mounts a second host is a wasted request.
+- Share one recurring placement when the same banner appears on several screens; its spare makes each new screen instant.
+- Use `loadOnce: true` for a banner on a single one-time screen.
+- Inline and fixed banners reserve their height by default and show a "Loading ad" shimmer while loading.
 
-## 8. Native Ads: One Placement per Template, Capacity per Visible Slot
+Reasoning: [decisions 15, 16, and 24](design-decisions.md#16-fixed-banners-preload-adaptive-banners-load-on-layout).
 
-- Declare one placement per template. Hosts sharing a placement must share its template.
-- Set `placementCapacities` to the number of slots that can be on screen together. **Why:** each slot leases its own ad, and capacity decides how many stay ready.
+## 8. Use one native placement per template
+
+- Every widget sharing a placement must use its template.
+- Set `placementCapacities` to the number of slots of that placement visible at the same time.
 - Use `loadOnce: true` for one-time screens such as onboarding.
 
 ```dart
-void registerFeed() => AdmobKit.registerPlacements(
-  [AppAds.native],
-  placementCapacities: {AppAds.native.id: 2},
-);
+void registerFeed() => AdmobKit.registerPlacements([AppAds.native], placementCapacities: {AppAds.native.id: 2});
 ```
 
-## 9. Hidden Tabs, Covered Routes, and Lazy Lists
+## 9. Mount ads directly in tabs, pages, and lists
 
-There is nothing to configure. Flutter's own signals decide two things, and only these two:
+No parameters are needed. A widget requests its first ad when visible, a returning ad goes to a visible widget, and a delivered ad stays with its widget across routes, tab switches, and scrolling.
 
-1. **When a widget requests.** A widget requests its first ad only while it is visible: not under a covering route (`TickerMode`) and not in a hidden `IndexedStack` tab (`Visibility`). `PageView`, `TabBarView`, and lazy lists build a page or item only when it scrolls into view.
-2. **Which widget receives an ad.** When several widgets share a placement, a returning ad goes to one the user can see. A widget that was hidden while it waited is skipped, and the ad is buffered; that widget takes it from the buffer when it becomes visible again, without a new request.
+```dart
+Widget tabWithAd() => const AdNativeView(placement: AppAds.native);
+```
 
-Once a widget holds an ad, nothing hides or reloads it. It keeps the ad for its lifetime across covering routes and tab switches, and keeps its `PageView`, `ListView`, or `TabBarView` item alive when scrolled away, so scrolling back shows the same ad.
+Keep widget keys and placements stable: a new key or placement means a new widget and a new request. Reasoning: [decisions 17 and 18](design-decisions.md#17-each-ad-goes-to-exactly-one-visible-widget).
 
-**Why:** each ad goes to exactly one widget, and a delivered ad is never thrown away, so moving between tabs or scrolling up and down never costs a new request.
+## 10. Let the package handle offline, retries, and freshness
 
-## 10. Freshness
+Do not add connectivity checks, retry loops, or refresh timers. Offline, `waitFor` returns `false` at once and queued loads resume when the network returns. Retries back off on their own, and empty slots try again when the app returns to the foreground. Reasoning: [decisions 7, 19, and 20](design-decisions.md#7-offline-means-not-now-never-wait).
 
-Loaded ads that were never shown expire after `adTtl` (50 minutes by default), inside Google's freshness window for loaded ads.
-The package replaces them automatically.
-An ad that was shown keeps its slot. Banners refresh through AdMob and natives stay until their widget leaves the tree.
+## 11. Measure the right numbers
 
-## 11. Measure the Right Numbers
-
-- `AdDiagnosticsTracker` reports network time: `REQUESTED` to `LOADED` is how long AdMob took.
-- `AdAnalyticsTracker.onAdLoaded` reports time from request to ready, **including queue wait**. Use it to see how long users wait for an ad, not to measure network speed.
-- Show rate is impressions (`onPaidEvent` or `onAdDisplayed`) divided by loads. If it is low, look for registered placements whose screens users do not reach, and for spares that are never used.
+- `AdDiagnosticsTracker` reports network time: `requested` to `loaded` is how long AdMob took.
+- `AdAnalyticsTracker.onAdLoaded` reports time from request to ready, including queue wait. Use it to see how long users wait for an ad.
+- Show rate is impressions (`onPaidEvent` or `onAdDisplayed`) divided by loads. When it is low, look for registered placements whose screens users do not reach.
 
 ## Checklist
 
-1. Register only placements for screens this user can reach.
-2. Leave priorities at their defaults, use `isSplash` for cold start, and never set `immediate` yourself.
-3. Splash: `waitFor`, then `show` and continue in `onDismissed`. Use `waitForAll` to prepare a whole funnel step. Pass `timeout` only for a real time budget.
-4. Transitions: `show` without awaiting, with your own frequency rules, and never two in a row.
-5. Banners: fixed when they must be instant, adaptive otherwise. Shared recurring placements across screens, `loadOnce` for single screens.
-6. Natives: one placement per template and capacity equal to the number of visible slots.
-7. Keep widget keys and placements stable so a widget keeps its ad.
+1. Register only placements for reachable screens.
+2. Keep default priorities; use `isSplash` for cold start.
+3. `waitFor` and `waitForAll` without a timeout, unless you have a real time budget.
+4. `show` at transitions, continue in `onDismissed`, never two fullscreen ads in a row.
+5. Rewards only in `onRewardGranted`.
+6. Fixed banners when instant, adaptive otherwise; `loadOnce` for one-time screens.
+7. One native placement per template; capacity equals visible slots.
+8. Mount ad widgets directly; keep keys and placements stable.
+9. No connectivity checks, retry loops, refresh timers, or visibility tracking.
