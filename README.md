@@ -18,7 +18,7 @@ Your application only declares placements and triggers display at natural transi
 | **Consent Management** | Manual Google UMP boilerplate and state loops | **Automated UMP and Apple ATT** synchronization |
 | **Network Resilience** | Fails silently on network errors | **Exponential backoff with randomized jitter** |
 | **Slow Connections** | Requests drop on high-latency networks | **`emergingMarkets` timeout profile** (up to 75s) |
-| **Hidden Tabs and Pages** | Ads stay active in memory and cause leaks | **Automatic pause and detachment** via `active` flag |
+| **Hidden Tabs and Pages** | Hidden pages request ads users never see, and returning reloads them | **Deferred first request, retained ads** via visibility signals and `active` |
 | **Presentation Safety** | Overlapping fullscreen ads crash or hide content | **Hardware presentation mutex** prevents collisions |
 
 ## System Responsibilities
@@ -334,6 +334,7 @@ Read [Troubleshooting](docs/troubleshooting.md) for standard error codes (`0`, `
 
 | Guide | Description |
 | :--- | :--- |
+| [Best practices](docs/best-practices.md) | What to choose and why: registration, priorities, banners, natives, hidden pages, metrics |
 | [Use cases and recipes](docs/recipes.md) | Complete recipes for transitions, rewards, banners, feeds, tabs, and splash |
 | [Public API surface](docs/api.md) | Methods, parameters, return types, error contracts, and engine defaults |
 | [Native ads catalog](docs/native-ads.md) | Templates, styling parameters, layout bounds, and truncation limits |

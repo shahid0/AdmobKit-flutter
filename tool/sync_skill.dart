@@ -11,7 +11,7 @@ Future<void> main(List<String> args) async {
   final check = args.contains('--check');
   final files = <String, String>{
     '.agents/skills/flutter-ads/SKILL.md': 'skills/flutter-ads/SKILL.md',
-    for (final name in ['api', 'recipes', 'native-ads', 'setup', 'troubleshooting']) ...{
+    for (final name in ['best-practices', 'api', 'recipes', 'native-ads', 'setup', 'troubleshooting']) ...{
       'skills/flutter-ads/reference/$name.md': 'docs/$name.md',
       '.agents/skills/flutter-ads/reference/$name.md': 'docs/$name.md',
     },

@@ -108,7 +108,7 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
   - `width`: Available host width. Defaults to the parent's bounded width. In an unbounded parent, fixed banners use `sizing.fixedWidth`; adaptive banners require explicit `width`.
   - `reserveSpace`: Optional override of `placement.sizing.reserveSpace`. `true` reserves `maxHeight` or `fixedHeight`; `false` collapses until the ad has render dimensions, then uses its actual height.
   - `placeholder`: Optional widget displayed while loading when space is reserved.
-  - `active`: Controls whether the widget can request and retain ads. Pass `false` on offscreen tabs.
+  - `active`: Defers the first request while `false`. A delivered banner stays mounted when `active` turns `false`. Pass it for pages Flutter cannot detect, such as `PageView` pages.
 - **Behavior**:
   - Calculates adaptive banner height automatically from available width and orientation.
   - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
@@ -124,7 +124,7 @@ Embeds a native template ad into your Flutter widget tree.
 
 - **Parameters**:
   - `placement`: The `NativePlacement` configuration.
-  - `active`: Controls whether the widget requests and retains an ad instance.
+  - `active`: Defers the first request while `false`. A delivered ad stays mounted; fullscreen templates release presentation ownership while inactive.
   - `placeholder`: Custom widget rendered while loading.
   - `showPlaceholder`: Whether to display a placeholder while loading (defaults to `true`).
 - **Behavior**:
@@ -247,7 +247,7 @@ Future<void> configureEngine() async {
 | `initialConcurrency` | `int` | `1` | Maximum parallel downloads during app startup |
 | `subsequentConcurrency` | `int` | `1` | Maximum parallel downloads during background preloads |
 | `placementCapacities` | `Map<String, int>?` | `null` | Target buffer depth per placement identifier |
-| `adTtl` | `Duration` | `Duration(minutes: 50)` | Expiration time before an unused cached ad is evicted |
+| `adTtl` | `Duration` | `Duration(minutes: 50)` | Age after which a loaded ad that was never shown is replaced |
 | `timeouts` | `AdTimeoutConfig` | `AdTimeoutConfig.standard` | Adaptive network timeout profile |
 | `testDeviceIds` | `List<String>?` | `null` | AdMob test device hashed identifiers |
 | `analytics` | `AdAnalyticsTracker?` | `null` | Impression-level revenue and funnel tracker |
@@ -290,7 +290,7 @@ Future<void> configureEngine() async {
 Implement `AdAnalyticsTracker` to capture revenue and lifecycle events:
 
 - `onAdRequested(placement)`: Emitted once when a logical load cycle begins.
-- `onAdLoaded(placement, loadTime)`: Emitted once when an ad becomes ready in memory.
+- `onAdLoaded(placement, loadTime)`: Emitted once when an ad becomes ready in memory. `loadTime` runs from the request to ready and includes queue wait; diagnostics report network time alone.
 - `onAdFailedToLoad(placement, error, errorCode)`: Emitted once upon terminal load failure.
 - `onAdDisplayed(placement)`: Emitted when an ad renders on screen.
 - `onAdDismissed(placement)`: Emitted when an ad is closed.

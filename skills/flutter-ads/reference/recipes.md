@@ -1,6 +1,7 @@
 # Use Cases and Recipes
 
 This document provides recipes for production ad integration in Flutter apps.
+Read [Best practices](best-practices.md) for the decisions behind these recipes.
 Imports and `AppAds` come from the [complete example](https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md#complete-example).
 
 Call `AdmobKit.initialize()` once in your app entry point.
@@ -192,10 +193,12 @@ Future<void> finishStartup(
 
 Set `isSplash: true` on cold-launch placements.
 Set `loadOnce: true` when you do not need background replacement after the first display.
+Recurring placements keep one spare ready after each display; see [Spares and `loadOnce`](best-practices.md#spares-and-loadonce).
 
 ## Tabs and Retained Pages
 
-When using `PageView`, `TabBarView`, or retained page containers, pass the selection status to `active`.
+Covered routes and hidden `IndexedStack` tabs are detected automatically.
+For `PageView`, `TabBarView`, or other retained pages, pass the selection status to `active`.
 
 ```dart
 Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
@@ -204,7 +207,7 @@ Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
 );
 ```
 
-The host widget responds to Flutter visibility signals automatically.
+`active` defers only the first request. Once a page shows its ad, the ad stays mounted when the user swipes away and back, so it is not reloaded.
 For fullscreen native ads, always supply the actual page activity.
 The engine does not grant fullscreen presentation ownership to inactive offscreen pages.
 
