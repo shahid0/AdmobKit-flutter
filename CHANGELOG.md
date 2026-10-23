@@ -18,7 +18,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Backgrounding during a fullscreen native ad no longer lets an app-open ad stack on top of it when the user returns.
 - A lease superseded by a resize or placement change no longer takes the ad only to dispose it. The ad stays buffered for the next host.
 - A banner or native slot left empty by no-fill or exhausted retries requests again when the app returns to the foreground, instead of staying blank for the session.
 - `waitFor` requests again after a placement's retries ran out, instead of returning `false` for the rest of the session.
