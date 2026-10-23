@@ -80,13 +80,6 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const multiWidgetNative = NativePlacement(
-    template: NativeAdTemplate.splitMediaRight,
-    id: 'multi_widget_showcase',
-    androidId: AdMobTestIds.nativeAndroid,
-    iosId: AdMobTestIds.nativeIos,
-  );
-
   // Fixed banners preload at registration and keep one spare ready after each display.
   static const standardBanner = BannerPlacement(
     id: 'gallery_standard_banner',
@@ -114,7 +107,6 @@ abstract final class SampleAds {
     bigNative,
     mediumNative,
     smallNative,
-    multiWidgetNative,
     standardBanner,
     mrecBanner,
   ];
