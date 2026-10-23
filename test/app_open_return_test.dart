@@ -111,6 +111,26 @@ void main() {
     },
   );
 
+  testWidgets('returning while an ad owned the screen at inactive skips the app-open ad', (tester) async {
+    await boot();
+    final mutex = AdmobKitTestHarness.presentationMutex!;
+    final token = mutex.tryAcquire('fullscreen_native')!;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    // A fullscreen native releases ownership as soon as the app is inactive.
+    mutex.release(token);
+    for (final state in [
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    AdmobKit.show(appOpen);
+    expect(driver.shown, 0);
+  });
+
   testWidgets('a normal return shows the app-open ad', (tester) async {
     await boot();
     leaveAndReturn(tester);

@@ -112,6 +112,8 @@ class AdSession with WidgetsBindingObserver {
   // The app left for an ad: a tapped banner/native, or a fullscreen ad that
   // owns the screen. Its return must not trigger an app-open ad.
   bool _adClickPending = false;
+  // Fullscreen natives release ownership at inactive, before the app pauses.
+  bool _adOwnedScreenOnLeave = false;
   bool _returningFromAd = false;
   AdInitializationState state = AdInitializationState.uninitialized;
 
@@ -326,12 +328,15 @@ class AdSession with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _returningFromAd = _adClickPending || mutex.isLocked;
+    if (state == AppLifecycleState.inactive) {
+      _adOwnedScreenOnLeave = mutex.isLocked;
+    } else if (state == AppLifecycleState.paused) {
+      _returningFromAd = _adClickPending || _adOwnedScreenOnLeave || mutex.isLocked;
       _adClickPending = false;
     } else if (state == AppLifecycleState.resumed) {
       // A tap that opened an in-app overlay returns without pausing the app.
       _adClickPending = false;
+      _adOwnedScreenOnLeave = false;
     }
   }
 
