@@ -29,7 +29,7 @@ Every loaded ad that is never shown lowers the app's show rate. Apply these by d
 - Splash: `waitFor` with a timeout, then `show`, and continue in `onDismissed`. Transitions: `show` without awaiting. Never show two fullscreen ads back to back.
 - Banners: fixed sizing when the banner must be ready before its screen opens (it preloads); anchored adaptive for sticky bars and inline adaptive in scrolling content (they load on layout). Share one recurring placement across screens; use `loadOnce` for a single-screen banner.
 - Natives: one placement per template; set `placementCapacities` to the number of slots visible together; `loadOnce` for onboarding.
-- Do not add refresh timers, reload logic, or visibility tracking. Delivered ads stay mounted across routes and tabs; AdMob refreshes visible banners; unshown ads are replaced after the TTL.
+- Do not add refresh timers, reload logic, visibility tracking, or keep-alive wrappers. Delivered ads stay mounted across routes and tabs and keep lazy list or page items alive; AdMob refreshes visible banners; unshown ads are replaced after the TTL.
 
 ## Select the public operation
 

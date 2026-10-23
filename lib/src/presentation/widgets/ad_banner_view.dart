@@ -108,7 +108,7 @@ class _BannerHost extends StatefulWidget {
   State<_BannerHost> createState() => _BannerHostState();
 }
 
-class _BannerHostState extends State<_BannerHost> {
+class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientMixin {
   AdaptiveBannerAd? _ad;
   bool _pending = false;
   bool _attempted = false;
@@ -120,6 +120,11 @@ class _BannerHostState extends State<_BannerHost> {
     AdmobKit.initializationStateListenable.addListener(_onInitializationChanged);
   }
 
+  // Lazy lists and page views would otherwise dispose a scrolled-away host and
+  // request a new banner when it scrolls back.
+  @override
+  bool get wantKeepAlive => _ad != null;
+
   void _resetLease() {
     _generation++;
     _ad?.renderSize.removeListener(_sizeChanged);
@@ -127,6 +132,7 @@ class _BannerHostState extends State<_BannerHost> {
     _ad = null;
     _pending = false;
     _attempted = false;
+    updateKeepAlive();
   }
 
   void _sizeChanged() {
@@ -196,6 +202,7 @@ class _BannerHostState extends State<_BannerHost> {
       _pending = false;
       setState(() {
         _ad = ad as AdaptiveBannerAd?;
+        updateKeepAlive();
         _ad?.renderSize.addListener(_sizeChanged);
         if (_ad == null && !_active) _attempted = false;
       });
@@ -218,6 +225,7 @@ class _BannerHostState extends State<_BannerHost> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (AdmobKit.isUserPremium) return const SizedBox.shrink();
     final ad = _ad;
     final size = ad?.renderSize.value;

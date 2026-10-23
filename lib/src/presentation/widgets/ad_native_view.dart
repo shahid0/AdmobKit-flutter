@@ -88,7 +88,7 @@ class _AdNativeHost extends StatefulWidget {
   State<_AdNativeHost> createState() => _AdNativeViewState();
 }
 
-class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserver {
+class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   NativeAd? _nativeAd;
   bool _isLoading = true;
   bool _hasAttemptedLoad = false;
@@ -124,7 +124,13 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     _isLoading = true;
     _leasePending = false;
     _hasAttemptedLoad = false;
+    updateKeepAlive();
   }
+
+  // Lazy lists and page views would otherwise dispose a scrolled-away host and
+  // request a new ad when it scrolls back.
+  @override
+  bool get wantKeepAlive => _nativeAd != null;
 
   void _onInitializationChanged() {
     if (!mounted) return;
@@ -332,6 +338,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
           _leasePending = false;
           setState(() {
             _nativeAd = ad is NativeAd ? ad : null;
+            updateKeepAlive();
             _isLoading = false;
             _checkAndActivate();
             if (_nativeAd == null && !_isSubtreeActive) {
@@ -379,6 +386,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_templateConflict) {
       throw ArgumentError('Changing a native template requires a distinct placement ID.');
     }

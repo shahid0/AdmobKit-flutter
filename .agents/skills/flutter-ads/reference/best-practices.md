@@ -118,6 +118,7 @@ void registerFeed() => AdmobKit.registerPlacements(
 
 Ad widgets defer their **first** request until the subtree is visible: `TickerMode` (covered routes), `Visibility` (hidden `IndexedStack` tabs), and `active` must all allow it.
 Once a widget holds an ad, it keeps it for its lifetime, even while a route covers it or its tab is hidden.
+Inside `PageView`, `ListView`, and `TabBarView`, a widget holding an ad also keeps itself alive when scrolled away, so scrolling back shows the same ad without a new request.
 
 **Why:** tearing down a delivered ad loses the impression in progress, makes the view flicker on return, and makes the widget request again.
 An offstage subtree is not painted, so keeping the ad mounted costs nothing visible.
