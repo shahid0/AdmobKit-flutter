@@ -100,9 +100,6 @@ class GoogleMobileAdsDriver {
         return completer.future;
 
       case AdFormat.banner:
-        if (bannerLayout == null) {
-          throw ArgumentError('Banner requests require a BannerLayout.');
-        }
         return _loadBanner(placement as BannerPlacement, bannerLayout, adUnitId, validateRequest);
 
       case AdFormat.native:
@@ -170,11 +167,11 @@ class GoogleMobileAdsDriver {
 
   Future<AdaptiveBannerAd> _loadBanner(
     BannerPlacement placement,
-    BannerLayout layout,
+    BannerLayout? layout,
     String unitId,
     void Function()? validateRequest,
   ) async {
-    layout.validate();
+    layout?.validate();
     final sizing = placement.sizing;
     placement.validate();
     final maxHeight = sizing.maxHeight;
@@ -182,13 +179,14 @@ class GoogleMobileAdsDriver {
     if (sizing.isFixed) {
       size = AdSize(width: sizing.fixedWidth!, height: sizing.fixedHeight!);
     } else if (sizing.isInline) {
-      size = AdSize.getInlineAdaptiveBannerAdSize(layout.width, maxHeight!);
+      size = AdSize.getInlineAdaptiveBannerAdSize(layout!.width, maxHeight!);
     } else {
+      final host = layout!;
       size = await AdSize.getLargeAnchoredAdaptiveBannerAdSizeWithOrientation(
-        layout.orientation == BannerOrientation.portrait
+        host.orientation == BannerOrientation.portrait
             ? Orientation.portrait
             : Orientation.landscape,
-        layout.width,
+        host.width,
       );
     }
     if (size == null ||
@@ -197,7 +195,7 @@ class GoogleMobileAdsDriver {
       throw LoadAdError(
         1,
         'admob_kit',
-        'SDK could not resolve banner size for $layout.',
+        'SDK could not resolve banner size for ${layout ?? sizing}.',
         null,
       );
     }
@@ -232,7 +230,7 @@ class GoogleMobileAdsDriver {
             if (banner.isDisposed || current != revision) return;
             if (actual == null ||
                 actual.width <= 0 ||
-                actual.width > layout.width ||
+                (layout != null && actual.width > layout.width) ||
                 actual.height <= 0 ||
                 (maxHeight != null && actual.height > maxHeight) ||
                 (sizing.isFixed &&

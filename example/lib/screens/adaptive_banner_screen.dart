@@ -1,5 +1,6 @@
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 import 'package:flutter/material.dart';
+import '../config/sample_ads.dart';
 import '../theme/task_theme.dart';
 
 enum BannerDemoType {
@@ -31,30 +32,14 @@ class _AdaptiveBannerScreenState extends State<AdaptiveBannerScreen> {
     loadOnce: true,
   );
 
-  static const _standardPlacement = BannerPlacement(
-    id: 'gallery_standard_banner',
-    androidId: AdMobTestIds.bannerAndroid,
-    iosId: AdMobTestIds.bannerIos,
-    sizing: BannerSizing.standard(),
-    loadOnce: true,
-  );
-
-  static const _mrecPlacement = BannerPlacement(
-    id: 'gallery_mrec_banner',
-    androidId: AdMobTestIds.bannerAndroid,
-    iosId: AdMobTestIds.bannerIos,
-    sizing: BannerSizing.mrec(),
-    loadOnce: true,
-  );
-
   bool _inset = false;
   bool _reserveSpace = true;
   BannerDemoType _selectedType = BannerDemoType.inlineAdaptive;
 
   BannerPlacement get _currentPlacement => switch (_selectedType) {
     BannerDemoType.inlineAdaptive => _adaptivePlacement,
-    BannerDemoType.standard => _standardPlacement,
-    BannerDemoType.mrec => _mrecPlacement,
+    BannerDemoType.standard => SampleAds.standardBanner,
+    BannerDemoType.mrec => SampleAds.mrecBanner,
   };
 
   Widget _banner() => Padding(

@@ -70,12 +70,11 @@ Mount inline widgets directly in your widget tree.
 Do not await inline ads before mounting.
 
 > [!NOTE]
-> **Banners load when they mount.**
-> `registerPlacements()` preloads fullscreen and native placements, but not banners.
-> 1. An adaptive banner's size comes from the container width and orientation, which are known only after `AdBannerView` lays out.
-> 2. A banner loaded before its screen is reachable can go unused, which wastes a request and lowers your show rate.
-> 3. AdMob auto-refreshes a banner only while it is visible, so a mounted banner on a hidden page does not keep cycling.
-> 4. If an ad must be ready before the screen opens, use a `NativePlacement` with `AdNativeView`. Do not try to preload banners.
+> **Fixed banners preload; adaptive banners load when they mount.**
+> 1. `registerPlacements()` preloads fixed banners with fullscreen and native placements. The next `AdBannerView` for that placement shows the ready ad without a new request.
+> 2. An adaptive banner's size comes from the container width and orientation, which are known only after `AdBannerView` lays out, so it loads then.
+> 3. A preloaded banner that is never shown wastes a request and lowers your show rate. Register a fixed banner only when its screen is reachable.
+> 4. AdMob auto-refreshes a banner only while it is visible, so a mounted banner on a hidden page does not keep cycling.
 
 ```dart
 Widget nativeFeedItem() => const AdNativeView(placement: AppAds.native);
@@ -125,6 +124,9 @@ const rectangleBanner = BannerPlacement(
 
 Widget standardBannerItem() => const AdBannerView(placement: standardBanner);
 Widget rectangleBannerItem() => const AdBannerView(placement: rectangleBanner);
+
+// Fixed banners preload at registration, like fullscreen and native placements.
+void registerAds() => AdmobKit.registerPlacements([AppAds.transition, standardBanner]);
 ```
 
 `mrec()` is an alias of `mediumRectangle()`. Other fixed options are
@@ -132,9 +134,12 @@ Widget rectangleBannerItem() => const AdBannerView(placement: rectangleBanner);
 `fixed(width: 468, height: 60)`. Fixed banners stay at their requested size,
 centered within a wider host. Choose a size that fits the available width.
 In an unbounded horizontal parent, fixed banners default to their configured
-width; adaptive banners still need explicit `width`.
+width; adaptive banners still need explicit `width`. A host narrower than the
+fixed width shows nothing and requests nothing.
+Register a fixed banner when its screen is reachable, as in `registerAds()` above,
+and its ad is ready before the screen opens.
 
-Only call `waitFor` on a banner when your app must prepare the exact layout before rendering.
+Only call `waitFor` on an adaptive banner when your app must prepare the exact layout before rendering.
 Supply the available width and screen orientation:
 
 ```dart

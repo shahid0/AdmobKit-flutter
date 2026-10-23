@@ -13,9 +13,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Removed internal network and logger interfaces from public exports. Their public enums remain available.
 - Registration before initialization now throws `StateError` instead of discarding placements.
 - Invalid concurrency, freshness TTL, and request timeouts now fail before initialization instead of preventing useful loading.
+- Fixed banners no longer take a `BannerLayout`. Passing one to `waitFor`, `isReady`, `getState`, or `watchState` throws `ArgumentError`.
 
 ### Added
 
+- `registerPlacements` preloads fixed banners. `AdBannerView` shows the preloaded ad at any host width and does not reload on width or orientation changes.
 - Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.
 - Added a minimal app using only the public API, plus consumer access and documentation code checks.
 - Added public guides for use cases, API behavior, native layouts, platform setup, and diagnosis.

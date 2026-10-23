@@ -226,11 +226,11 @@ class AdEngine {
 
   void _validateRequest(AdPlacement placement, BannerLayout? layout) {
     validatePlacement(placement);
-    if (placement is BannerPlacement) {
-      if (layout == null) throw ArgumentError('Banner requests require a BannerLayout.');
+    if (placement is BannerPlacement && placement.sizing.isAdaptive) {
+      if (layout == null) throw ArgumentError('Adaptive banner requests require a BannerLayout.');
       layout.validate();
     } else if (layout != null) {
-      throw ArgumentError('BannerLayout is only valid for banner placements.');
+      throw ArgumentError('BannerLayout is only valid for adaptive banner placements.');
     }
   }
 
@@ -303,7 +303,10 @@ class AdEngine {
       return;
     }
 
-    final sorted = placements.where((placement) => placement is! BannerPlacement && !isConsumed(placement)).toList()
+    // Adaptive banners need a measured host, so they load when their view mounts.
+    final sorted = placements
+        .where((placement) => !(placement is BannerPlacement && placement.sizing.isAdaptive) && !isConsumed(placement))
+        .toList()
       ..sort((a, b) => a.priority.rank.compareTo(b.priority.rank));
     markInitialBatch(sorted.map((placement) => placement.id));
     _logger?.info('[Engine] 🚀 Priming startup queue with ${sorted.length} placement(s)...');

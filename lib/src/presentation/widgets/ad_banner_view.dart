@@ -13,6 +13,8 @@ import '../admob_kit_facade.dart';
 /// [reserveSpace] to false to collapse while loading and use the actual loaded
 /// height. Anchored banners always use the SDK-selected height when available.
 /// Loading and rendering honor Visibility, TickerMode, and [active].
+/// Fixed banners use an ad preloaded by [AdmobKit.registerPlacements] when one is
+/// ready, and render nothing in a host narrower than their fixed width.
 class AdBannerView extends StatelessWidget {
   final BannerPlacement placement;
 
@@ -60,14 +62,20 @@ class AdBannerView extends StatelessWidget {
             'AdBannerView requires a positive bounded width. Supply width in an unbounded parent.',
           );
         }
+        final sizing = placement.sizing;
+        // A fixed creative cannot shrink, so a narrower host never requests it.
+        if (sizing.isFixed && available < sizing.fixedWidth!) return const SizedBox.shrink();
         return _BannerHost(
           placement: placement,
-          layout: BannerLayout(
-            width: available.floor(),
-            orientation: orientation == Orientation.portrait ? BannerOrientation.portrait : BannerOrientation.landscape,
-          ),
+          width: available.floor().toDouble(),
+          layout: sizing.isFixed
+              ? null
+              : BannerLayout(
+                  width: available.floor(),
+                  orientation: orientation == Orientation.portrait ? BannerOrientation.portrait : BannerOrientation.landscape,
+                ),
           active: active,
-          reserveSpace: reserveSpace ?? placement.sizing.reserveSpace,
+          reserveSpace: reserveSpace ?? sizing.reserveSpace,
           placeholder: placeholder,
         );
       },
@@ -77,13 +85,17 @@ class AdBannerView extends StatelessWidget {
 
 class _BannerHost extends StatefulWidget {
   final BannerPlacement placement;
-  final BannerLayout layout;
+  final double width;
+
+  /// Request layout for adaptive banners; null for fixed banners.
+  final BannerLayout? layout;
   final bool active;
   final bool reserveSpace;
   final Widget? placeholder;
 
   const _BannerHost({
     required this.placement,
+    required this.width,
     required this.layout,
     required this.active,
     required this.reserveSpace,
@@ -211,7 +223,7 @@ class _BannerHostState extends State<_BannerHost> {
     return AnimatedContainer(
       duration: widget.placement.isCollapsible ? const Duration(milliseconds: 200) : Duration.zero,
       curve: Curves.fastOutSlowIn,
-      width: widget.layout.width.toDouble(),
+      width: widget.width,
       height: height,
       child: _active && ad != null && size != null
           ? Center(

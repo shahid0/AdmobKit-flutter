@@ -144,11 +144,17 @@ buildTypes {
 
 On iOS, make certain `Info.plist` contains `GADApplicationIdentifier` and all required `SKAdNetworkItems`.
 
-### 9. Banners Load Only After Mounting
+### 9. Adaptive Banners Load Only After Mounting
 
-- **Symptom**: Diagnostics show no banner request after `registerPlacements()`, and the banner appears a moment after its screen opens.
-- **Cause**: This is expected. `registerPlacements()` preloads fullscreen and native placements only. An adaptive banner's size depends on the measured container width and orientation, so `AdBannerView` requests it when it lays out.
-- **Solution**: Mount `AdBannerView` where the banner shows and let it load. Use `reserveSpace` to avoid a layout jump while it loads. If content must be ready before the screen opens, use `NativePlacement` with `AdNativeView`. There is no public banner preload.
+- **Symptom**: Diagnostics show no request for an adaptive banner after `registerPlacements()`, and the banner appears a moment after its screen opens.
+- **Cause**: This is expected. An adaptive banner's size depends on the measured container width and orientation, so `AdBannerView` requests it when it lays out. Fixed banners are preloaded at registration.
+- **Solution**: Use `reserveSpace` to avoid a layout jump while it loads. If the banner must be ready before the screen opens, switch it to a fixed size such as `BannerSizing.standard()` or use `NativePlacement` with `AdNativeView`.
+
+### 10. Fixed Banner Never Requests
+
+- **Symptom**: A fixed banner placement shows nothing and diagnostics show no request from its `AdBannerView`.
+- **Cause**: The host is narrower than the fixed width, for example `leaderboard()` (728 wide) on a phone.
+- **Solution**: Choose a fixed size that fits the host, or use adaptive sizing.
 
 ## Submitting a Bug Report
 

@@ -108,6 +108,23 @@ abstract final class SampleAds {
     sizing: BannerSizing.anchoredAdaptive(),
   );
 
+  // Fixed banners are preloaded by registerPlacements.
+  static const standardBanner = BannerPlacement(
+    id: 'gallery_standard_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.standard(),
+    loadOnce: true,
+  );
+
+  static const mrecBanner = BannerPlacement(
+    id: 'gallery_mrec_banner',
+    androidId: AdMobTestIds.bannerAndroid,
+    iosId: AdMobTestIds.bannerIos,
+    sizing: BannerSizing.mrec(),
+    loadOnce: true,
+  );
+
   static const allPlacements = [
     splashBigNative,
     splashBanner,
@@ -124,5 +141,7 @@ abstract final class SampleAds {
     fullscreenNative,
     inlineAdaptiveBanner,
     anchoredAdaptiveBanner,
+    standardBanner,
+    mrecBanner,
   ];
 }

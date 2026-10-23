@@ -789,7 +789,7 @@ void main() {
           host(const BannerSizing.mrec(), unbounded: true),
         );
         expect(tester.takeException(), isNull);
-        expect(driver.requests.single.layout!.width, 300);
+        expect(driver.requests.single.layout, isNull);
         expect(tester.getSize(find.byType(AdBannerView)), const Size(300, 250));
         await completeAd(AdSize.mediumRectangle);
         await tester.pump();

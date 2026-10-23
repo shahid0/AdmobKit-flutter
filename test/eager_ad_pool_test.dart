@@ -359,6 +359,45 @@ void main() {
       pool.dispose();
     });
 
+    test('primeAll preloads fixed banners and leaves adaptive banners to their views', () async {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'mrec', androidId: '1', iosId: '1', sizing: BannerSizing.mrec());
+      const adaptive = BannerPlacement(id: 'anchored', androidId: '2', iosId: '2');
+
+      pool.primeAll([fixed, adaptive]);
+      await pumpEventQueue();
+
+      expect(driver.loadCalls, 1);
+      expect(pool.isReady(fixed), isTrue);
+      pool.dispose();
+    });
+
+    test('Fixed banner lease takes the preloaded ad and replenishes', () async {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'standard', androidId: '1', iosId: '1', sizing: BannerSizing.standard());
+
+      await pool.preload(fixed);
+      expect(await pool.leaseInlineAd(fixed), isNotNull);
+      expect(driver.loadCalls, 1, reason: 'Lease must use the preloaded ad');
+      await pumpEventQueue();
+
+      expect(driver.loadCalls, 2);
+      expect(pool.isReady(fixed), isTrue);
+      pool.dispose();
+    });
+
+    test('Only adaptive banners take a BannerLayout', () {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'mrec', androidId: '1', iosId: '1', sizing: BannerSizing.mrec());
+      const adaptive = BannerPlacement(id: 'anchored', androidId: '2', iosId: '2');
+      const layout = BannerLayout(width: 360, orientation: BannerOrientation.portrait);
+
+      expect(() => pool.isReady(fixed, bannerLayout: layout), throwsArgumentError);
+      expect(() => pool.isReady(adaptive), throwsArgumentError);
+      expect(pool.isReady(adaptive, bannerLayout: layout), isFalse);
+      pool.dispose();
+    });
+
     test('Deterministic Splash Settlement: show() awaits in-flight splash placement', () async {
       final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
 

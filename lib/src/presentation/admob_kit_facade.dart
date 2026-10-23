@@ -49,6 +49,8 @@ abstract final class AdmobKit {
   ///
   /// Call this as soon as your ad configuration is ready (e.g. after Firebase Remote Config
   /// or backend API has loaded). Can be called multiple times to register new placements.
+  /// Fixed banners preload with fullscreen and native placements; adaptive banners
+  /// load when their [AdBannerView] measures its width.
   static void registerPlacements(Iterable<AdPlacement> placements, {Map<String, int>? placementCapacities}) {
     final session = activeAdSession;
     if (session == null) {
@@ -78,6 +80,7 @@ abstract final class AdmobKit {
   }
 
   /// Whether a fresh buffered ad is available for this placement/layout.
+  /// Pass [bannerLayout] only for adaptive banners.
   static bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) {
     return activeAdSession?.isReady(placement, bannerLayout: bannerLayout) ?? false;
   }

@@ -51,11 +51,11 @@ Registers ad placements and starts eligible background preloading.
   - `placements`: Collection of placement configurations to register.
   - `placementCapacities`: Optional map from placement identifiers to target buffer capacities (defaults to 1).
 - **Behavior**:
-  - Starts background preloading for registered fullscreen and native placements.
+  - Starts background preloading for registered fullscreen, native, and fixed banner placements.
   - Accepts calls while initialization is still in progress.
   - Throws `StateError` if called before `initialize()` or after `dispose()`.
   - Throws `ArgumentError` if you re-register an existing identifier with different configuration properties.
-  - Skips banner placements. Each `AdBannerView` loads its banner when it mounts, because the request depends on the measured width and orientation.
+  - Skips adaptive banner placements. Their size depends on the measured width and orientation, so each `AdBannerView` loads one when it lays out.
 
 ## Presentation and Waits
 
@@ -86,7 +86,7 @@ Deterministically awaits an ad placement until it becomes ready, fails, or times
 - **Parameters**:
   - `placement`: The ad placement to prepare.
   - `timeout`: Maximum wait duration applied to the ad request (defaults to configured network timeout).
-  - `bannerLayout`: Required layout dimensions when awaiting a banner placement.
+  - `bannerLayout`: Required for adaptive banners. Omit it for fixed banners and other formats; passing it throws `ArgumentError`.
 - **Returns**:
   - `true`: A fresh ad is ready in the memory cache.
   - `false`: Consent denial, network failure, timeout, premium user, or disposal.
@@ -112,7 +112,8 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
 - **Behavior**:
   - Calculates adaptive banner height automatically from available width and orientation.
   - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
-  - Fixed banners request exact dimensions and are centered when the host is wider. The host must be wide enough for the chosen fixed size.
+  - Fixed banners request exact dimensions and are centered when the host is wider. A host narrower than the fixed width renders nothing and requests nothing.
+  - Fixed banners take the ad preloaded by `registerPlacements()` when one is ready, whatever the host width. Width and orientation changes do not reload them.
   - Throws `FlutterError` for adaptive banners within unbounded width without explicit `width`.
 
 ### `AdNativeView`
