@@ -28,7 +28,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `waitFor` returns `false` at once while offline, and a failed splash wait ends the splash moment so the following `show` does not wait again. An offline cold start no longer holds the splash screen for two full timeouts.
 - `show` skips an app-open ad when the app returns from a tapped banner or native ad, or from a fullscreen ad, instead of stacking an ad on the user's return.
 - Ad widgets holding an ad keep their `PageView`, `ListView`, or `TabBarView` item alive, so scrolling back shows the same ad instead of requesting a new one.
-- `active`, `TickerMode`, and `Visibility` now gate only a host's first request. A delivered ad is kept while a route covers it or its tab hides, instead of being disposed and requested again. Its platform view still detaches while hidden, so the SDK cannot refresh it or count unseen impressions.
+- `active`, `TickerMode`, and `Visibility` now gate only a host's first request. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
 - Only ads that were never shown are replaced after the TTL. A displayed ad keeps its impression and refreshes through AdMob.
 - Inline native hosts no longer re-measure, and briefly unmount, when only the available height changes.
 - The load queue serves `immediate` before `splash`, as documented. `waitFor` on a splash placement no longer demotes it, and a background native preload no longer jumps ahead of an awaited fullscreen ad.

@@ -30,7 +30,7 @@ Every loaded ad that is never shown lowers the app's show rate. Apply these by d
 - Splash: `waitFor` with a timeout, then `show`, and continue in `onDismissed`. Transitions: `show` without awaiting. Never show two fullscreen ads back to back.
 - Banners: fixed sizing when the banner must be ready before its screen opens (it preloads); anchored adaptive for sticky bars and inline adaptive in scrolling content (they load on layout). Share one recurring placement across screens; use `loadOnce` for a single-screen banner.
 - Natives: one placement per template; set `placementCapacities` to the number of slots visible together; `loadOnce` for onboarding.
-- Do not add refresh timers, reload logic, visibility tracking, or keep-alive wrappers. Delivered ads are kept across routes and tabs (their views detach while hidden) and keep lazy list or page items alive; AdMob refreshes visible banners; unshown ads are replaced after the TTL.
+- Do not add refresh timers, reload logic, visibility tracking, or keep-alive wrappers. Delivered ads stay mounted across routes and tabs and keep lazy list or page items alive; AdMob refreshes visible banners; unshown ads are replaced after the TTL.
 
 ## Select the public operation
 
@@ -58,7 +58,7 @@ Read [Native ads](reference/native-ads.md) when selecting a template or changing
 Native hosts require bounded width >=320 logical pixels. Inline height follows measured content.
 Fullscreen hosts need bounded height and sufficient asset space; keep navigation outside ad assets.
 Covered routes and hidden `IndexedStack` tabs are detected automatically.
-Pass `active` only for retained pages whose selection is app-owned, such as `PageView`. It defers the first request; a delivered ad is kept and shown again on return.
+Pass `active` only for retained pages whose selection is app-owned, such as `PageView`. It defers the first request; a delivered ad stays mounted.
 Keep widget keys and placements stable, or the host reloads its ad.
 Do not infer viewport visibility from mounting or manage ad instances and presentation locks in app code.
 

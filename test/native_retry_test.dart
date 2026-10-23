@@ -144,8 +144,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // The host keeps the ad it asked for without mounting it while hidden.
-    expect(find.byType(AdWidget), findsNothing);
+    // The host keeps the ad it asked for instead of dropping it and asking again.
+    expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
     expect(driver.requests, hasLength(3), reason: 'The third request refills the recurring buffer.');
 
     await tester.pumpWidget(host(true));

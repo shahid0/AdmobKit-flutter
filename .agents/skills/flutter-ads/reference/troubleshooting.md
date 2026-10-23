@@ -105,7 +105,7 @@ To diagnose, check `AdmobKit.initializationState` and `AdmobKit.getState(placeme
 Widgets like `PageView`, `TabBarView`, and `IndexedStack` keep inactive pages alive in memory.
 
 - Ad widgets do not request until their page is visible. Covered routes and hidden `IndexedStack` tabs are detected automatically. Pass `active` for `PageView` and `TabBarView` pages.
-- A delivered ad is kept while its page is hidden, with its view detached so it cannot refresh or count unseen impressions. It keeps its `PageView` or list item alive when scrolled away. Returning shows the same ad without a new request.
+- A delivered ad stays mounted while its page is hidden, and keeps its `PageView` or list item alive when scrolled away. Returning shows the same ad without a new request.
 - Hidden banners do not refresh; AdMob refreshes banners only while they are visible.
 - If an ad reloads every time you return to a page, the widget is being rebuilt with a new key or a different placement. Keep both stable.
 

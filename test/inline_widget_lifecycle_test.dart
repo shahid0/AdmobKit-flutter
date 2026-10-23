@@ -141,7 +141,7 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
 
-      testWidgets('a hidden host detaches the view but keeps its ad for the return', (tester) async {
+      testWidgets('activity gate only defers the first request; a delivered ad stays mounted', (tester) async {
         await initialize();
         await tester.pumpWidget(host(active: false));
         expect(driver.requests, isEmpty);
@@ -154,7 +154,7 @@ void main() {
         await tester.pump();
         expect(find.byType(AdWidget), findsOneWidget);
         await tester.pumpWidget(host(active: false));
-        expect(find.byType(AdWidget), findsNothing, reason: 'A hidden view must not be measured as visible.');
+        expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
         expect(disposed, isEmpty);
         await tester.pumpWidget(host());
         expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));

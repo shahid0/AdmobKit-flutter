@@ -207,7 +207,7 @@ Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
 );
 ```
 
-`active` defers only the first request. Once a page has its ad, swiping away and back shows the same ad without reloading it.
+`active` defers only the first request. Once a page shows its ad, the ad stays mounted when the user swipes away and back, so it is not reloaded.
 For fullscreen native ads, always supply the actual page activity.
 The engine does not grant fullscreen presentation ownership to inactive offscreen pages.
 

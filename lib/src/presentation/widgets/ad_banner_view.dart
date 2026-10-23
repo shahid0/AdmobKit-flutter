@@ -12,9 +12,9 @@ import '../admob_kit_facade.dart';
 /// Inline and fixed banners reserve their configured height by default. Set
 /// [reserveSpace] to false to collapse while loading and use the actual loaded
 /// height. Anchored banners always use the SDK-selected height when available.
-/// The first request waits for Visibility, TickerMode, and [active]. The host
-/// keeps a delivered banner for its lifetime; while inactive, the platform view
-/// is detached so the SDK cannot refresh it or count unseen impressions.
+/// The first request waits for Visibility, TickerMode, and [active]. Once
+/// delivered, the banner stays mounted for the host's lifetime; the SDK only
+/// refreshes it while it is on screen.
 /// Fixed banners use an ad preloaded by [AdmobKit.registerPlacements] when one is
 /// ready, and render nothing in a host narrower than their fixed width.
 class AdBannerView extends StatelessWidget {
@@ -266,8 +266,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
       curve: Curves.fastOutSlowIn,
       width: widget.width,
       height: height,
-      // Hidden hosts detach the platform view so the SDK never measures it as visible.
-      child: _active && ad != null && size != null
+      child: ad != null && size != null
           ? Center(
               child: SizedBox(
                 width: size.width.toDouble(),

@@ -57,7 +57,7 @@ Follow these constraints when mounting `AdNativeView`:
 
 4. **Pass active state in retained pages**:
    When hosting native ads in `PageView` or `TabBarView`, pass `active: pageIndex == selectedIndex`.
-   It defers the first request only; a hidden page keeps its ad and shows it again on return.
+   It defers the first request only; a delivered ad stays mounted when the page is hidden.
    Only active, measured fullscreen ads claim presentation ownership.
 
 ## Colors and Dynamic Styling
