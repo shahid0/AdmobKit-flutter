@@ -328,7 +328,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     // buffered or replenished. Settles instantly on terminal load failure.
     (activeAdSession?.leaseInlineAd(
           widget.config.placement,
-          isMounted: () => mounted && _attached,
+          isMounted: () => mounted && _attached && generation == _generation,
         ) ??
         Future<dynamic>.value(null))
         .then((ad) {

@@ -210,7 +210,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
       final ad = await session?.leaseInlineAd(
         widget.placement,
         bannerLayout: widget.layout,
-        isMounted: () => mounted,
+        isMounted: () => mounted && generation == _generation,
       );
       if (!mounted || generation != _generation) {
         await AdCacheEntry.disposeAdInstance(ad);

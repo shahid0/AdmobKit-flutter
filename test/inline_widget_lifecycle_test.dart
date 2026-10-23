@@ -121,7 +121,7 @@ void main() {
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
 
-      testWidgets('late placement result is disposed without replacing current ad', (tester) async {
+      testWidgets('late placement result is buffered without replacing current ad', (tester) async {
         await initialize();
         await tester.pumpWidget(host());
         await tester.pumpWidget(host(id: 'second'));
@@ -136,7 +136,7 @@ void main() {
         final staleId = instanceManager.adIdFor(stale);
         driver.requests[0].result.complete(stale);
         await tester.pump();
-        expect(disposed, contains(staleId));
+        expect(disposed, isNot(contains(staleId)), reason: 'A superseded lease leaves the ad buffered for reuse.');
         expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(current));
         await tester.pumpWidget(const SizedBox());
       });
@@ -244,7 +244,7 @@ void main() {
           final staleId = instanceManager.adIdFor(stale);
           driver.requests[0].result.complete(stale);
           await tester.pump();
-          expect(disposed, contains(staleId));
+          expect(disposed, isNot(contains(staleId)), reason: 'A superseded lease leaves the ad buffered for reuse.');
           final portrait = await loadedAd();
           final portraitId = instanceManager.adIdFor(portrait);
           driver.requests[1].result.complete(portrait);
