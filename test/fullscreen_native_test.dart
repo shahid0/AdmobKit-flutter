@@ -304,6 +304,69 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('a page swiped away in a PageView releases ownership and regains it on return', (tester) async {
+    await initialize(tester);
+    final pages = PageController();
+    addTearDown(pages.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 320,
+            height: 500,
+            child: PageView(controller: pages, children: [adHost(), const Text('Next page')]),
+          ),
+        ),
+      ),
+    );
+    final ad = await completeLoad(tester);
+    await tester.pump();
+    expect(AdmobKit.isShowingAd, isTrue);
+
+    pages.jumpToPage(1);
+    await tester.pump();
+    await tester.pump();
+    expect(AdmobKit.isShowingAd, isFalse, reason: 'A kept-alive page off screen must not hold the screen.');
+
+    pages.jumpToPage(0);
+    await tester.pump();
+    await tester.pump();
+    expect(AdmobKit.isShowingAd, isTrue);
+    expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
+    expect(driver.requests, hasLength(1));
+    await finish(tester);
+  });
+
+  testWidgets('more than half of a fullscreen page must be on screen to own it', (tester) async {
+    await initialize(tester);
+    final pages = PageController();
+    addTearDown(pages.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 320,
+            height: 500,
+            child: PageView(controller: pages, children: [adHost(), const Text('Next page')]),
+          ),
+        ),
+      ),
+    );
+    await completeLoad(tester);
+    await tester.pump();
+
+    pages.jumpTo(200);
+    await tester.pump();
+    await tester.pump();
+    expect(AdmobKit.isShowingAd, isFalse, reason: '120 of 320 pixels remain on screen.');
+
+    pages.jumpTo(100);
+    await tester.pump();
+    await tester.pump();
+    expect(AdmobKit.isShowingAd, isTrue, reason: '220 of 320 pixels are on screen.');
+    await finish(tester);
+  });
+
   testWidgets('covered routes release ownership and reuse the ad after popping', (tester) async {
     await initialize(tester);
     final navigator = GlobalKey<NavigatorState>();

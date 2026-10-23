@@ -122,7 +122,7 @@ Deterministically prepares a funnel step, for example every onboarding ad while 
 - Needs a bounded width of at least 320 logical pixels. Inline templates size themselves to their content; fullscreen templates fill a bounded height of at least 320.
 - `placeholder`: shown while loading. Defaults to a shimmering "Loading ad" placeholder; `showPlaceholder: false` hides it.
 - Requests its first ad when visible, keeps the delivered ad for its lifetime, and keeps its list or page item alive when scrolled away.
-- A fullscreen template owns the presentation lock only while it is visible and measured.
+- A fullscreen template owns the presentation lock only while it is measured and more than half of it is on screen. Swiping its page away releases the lock; swiping back regains it with the same ad.
 - Throws `FlutterError` for invalid bounds, or when measured content needs more height than the host provides.
 
 ### `AdPaywallGuard`

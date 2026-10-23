@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Fixed: a fullscreen native ad in a `PageView` kept the presentation lock after its page was swiped away, so every later `show` was skipped. Fullscreen natives now own the screen only while more than half of them is on screen, and regain it with the same ad when swiped back.
+
 ## 0.1.1
 
 - Documentation: the pub.dev page now includes the full usage guide, and every guide link works on pub.dev.

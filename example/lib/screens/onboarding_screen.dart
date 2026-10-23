@@ -12,6 +12,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  static const _pageCount = 4;
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -28,7 +29,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _onContinueOrStart() {
-    if (_currentPage < 2) {
+    if (_currentPage < _pageCount - 1) {
       final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
       if (disableAnimations) {
         _pageController.jumpToPage(_currentPage + 1);
@@ -52,7 +53,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (index) => setState(() => _currentPage = index),
-                children: [_buildStep1(), _buildStep2(), _buildStep3()],
+                children: [_buildStep1(), _buildStep2(), _buildFullscreenAdStep(), _buildStep3()],
               ),
             ),
             const SizedBox(height: 16),
@@ -229,6 +230,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  Widget _buildFullscreenAdStep() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      child: AdNativeView(placement: SampleAds.onboardingFullscreenNative),
+    );
+  }
+
   Widget _buildStep3() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -328,7 +336,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
+      children: List.generate(_pageCount, (index) {
         final isSelected = _currentPage == index;
 
         return Container(
@@ -372,7 +380,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           height: 52,
           decoration: BoxDecoration(color: TaskColors.accentPrimary, borderRadius: BorderRadius.circular(12)),
           alignment: Alignment.center,
-          child: _currentPage == 2
+          child: _currentPage == _pageCount - 1
               ? const Text(
                   'Get Started',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2),

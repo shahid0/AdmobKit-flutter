@@ -18,6 +18,15 @@ abstract final class SampleAds {
     loadOnce: true,
   );
 
+  static const onboardingFullscreenNative = NativePlacement(
+    template: NativeAdTemplate.fullscreenMediaFirst,
+    id: 'onboarding_fullscreen_native',
+    androidId: AdMobTestIds.nativeAndroid,
+    iosId: AdMobTestIds.nativeIos,
+    priority: AdPriority.high,
+    loadOnce: true,
+  );
+
   static const splashInterstitial = InterstitialPlacement(
     id: 'splash_interstitial',
     androidId: AdMobTestIds.interstitialAndroid,
@@ -100,6 +109,7 @@ abstract final class SampleAds {
     splashBanner,
     splashInterstitial,
     onboardingBigNative,
+    onboardingFullscreenNative,
     mainInterstitial,
     rewardedBonus,
     rewardedInterstitial,

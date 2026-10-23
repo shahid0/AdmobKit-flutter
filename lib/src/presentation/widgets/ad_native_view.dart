@@ -92,6 +92,12 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   bool _templateConflict = false;
   int _generation = 0;
   bool _attached = true;
+  // Fullscreen ads own the screen only while more than half of them is inside
+  // every enclosing viewport. Visibility signals alone stay true for pages a
+  // PageView keeps alive after they are swiped away.
+  List<ScrollableState> _scrollables = const [];
+  bool _onScreen = false;
+  bool _onScreenCheckScheduled = false;
   double? _layoutHeight;
   Object? _layoutError;
   int _layoutGeneration = 0;
@@ -147,6 +153,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _watchScrollables();
     _checkAndActivate();
   }
 
@@ -163,7 +170,58 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     if (oldWidget.config.placement.id != widget.config.placement.id) {
       _resetLease();
     }
+    if (_effectiveTemplate.isFullscreen) _scheduleOnScreenCheck();
     _checkAndActivate();
+  }
+
+  void _watchScrollables() {
+    final scrollables = <ScrollableState>[];
+    if (_effectiveTemplate.isFullscreen) {
+      for (var scrollable = Scrollable.maybeOf(context);
+          scrollable != null;
+          scrollable = Scrollable.maybeOf(scrollable.context)) {
+        scrollables.add(scrollable);
+      }
+    }
+    for (final scrollable in _scrollables) {
+      scrollable.position.removeListener(_scheduleOnScreenCheck);
+    }
+    _scrollables = scrollables;
+    for (final scrollable in _scrollables) {
+      scrollable.position.addListener(_scheduleOnScreenCheck);
+    }
+    if (_effectiveTemplate.isFullscreen) _scheduleOnScreenCheck();
+  }
+
+  // Measures after the frame that applied the scroll or layout change.
+  void _scheduleOnScreenCheck() {
+    if (_onScreenCheckScheduled) return;
+    _onScreenCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onScreenCheckScheduled = false;
+      if (!mounted) return;
+      final onScreen = _measureOnScreen();
+      if (onScreen == _onScreen) return;
+      setState(() {
+        _onScreen = onScreen;
+        _syncPresentation();
+      });
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  bool _measureOnScreen() {
+    final host = context.findRenderObject();
+    if (host is! RenderBox || !host.attached || !host.hasSize || host.size.isEmpty) return false;
+    final bounds = MatrixUtils.transformRect(host.getTransformTo(null), Offset.zero & host.size);
+    var visible = bounds;
+    for (final scrollable in _scrollables) {
+      final viewport = scrollable.context.findRenderObject();
+      if (viewport is! RenderBox || !viewport.hasSize) return false;
+      visible = visible.intersect(MatrixUtils.transformRect(viewport.getTransformTo(null), Offset.zero & viewport.size));
+      if (visible.width <= 0 || visible.height <= 0) return false;
+    }
+    return visible.width * visible.height > bounds.width * bounds.height / 2;
   }
 
   void _checkAndActivate() {
@@ -276,6 +334,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   void _syncPresentation() {
     if (_token != null && !(_mutex?.owns(_token!) ?? false)) _token = null;
     if (!_isSubtreeActive ||
+        (_effectiveTemplate.isFullscreen && !_onScreen) ||
         _nativeAd == null ||
         _layoutHeight == null ||
         AdmobKit.isUserPremium ||
@@ -359,6 +418,9 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
   @override
   void dispose() {
+    for (final scrollable in _scrollables) {
+      scrollable.position.removeListener(_scheduleOnScreenCheck);
+    }
     _releasePresentation();
     _presentationChanges?.cancel();
     WidgetsBinding.instance.removeObserver(this);

@@ -56,7 +56,7 @@ Follow these constraints when mounting `AdNativeView`:
 
 4. **Mount ads directly in tabs, pages, and lists**:
    No extra parameters are needed. A returning ad goes to a visible widget, and a delivered ad stays with its widget.
-   A fullscreen template owns the presentation lock only while it is visible and measured.
+   A fullscreen template owns the presentation lock only while it is measured and more than half of it is on screen, so swiping its page away releases the lock.
 
 5. **Share a placement only across widgets with the same template**:
    Changing a placement's template requires a new placement id. Set `placementCapacities` to the number of widgets of that placement visible together.

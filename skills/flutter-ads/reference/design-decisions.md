@@ -78,6 +78,8 @@ A presentation lock allows one fullscreen ad (interstitial, rewarded, app open, 
 
 **Why:** stacked fullscreen ads trap users and break AdMob policies. Ownership is a correctness rule, so the package enforces it.
 
+A fullscreen native ad owns the screen only while more than half of it is inside every enclosing viewport. `TickerMode` and `Visibility` stay true for a `PageView` page that was swiped away and kept alive, so on their own they let an off-screen page hold the lock and block every later `show`. Measuring against the scroll position needs no app code; the more-than-half rule hands ownership cleanly from one page to the next mid-swipe.
+
 ### 11. Rewards come only from `onRewardGranted`
 
 **Why:** `onDismissed` runs when the user skips the ad or no ad is available. Granting a reward there gives rewards for nothing.
