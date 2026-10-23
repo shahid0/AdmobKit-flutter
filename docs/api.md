@@ -72,6 +72,7 @@ Presents a cached fullscreen ad immediately without waiting for a network downlo
   - `onDisplayed`: Optional callback executed when the SDK renders the ad on screen.
 - **Behavior**:
   - If an ad is ready in the warm cache, presents the ad immediately.
+  - For an `AppOpenPlacement`, skips presentation and calls `onDismissed` when the app is returning from an ad: a tapped banner or native ad, or a fullscreen ad shown when the app left.
   - If no ad is ready, or if ads are blocked, executes `onDismissed` at once (0ms wait time).
   - Never call `show()` for native placements; native ads must mount using `AdNativeView`.
   - Grant user rewards exclusively inside `onRewardGranted`.

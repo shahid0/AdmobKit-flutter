@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../domain/ad_network.dart';
 import '../domain/ad_placements.dart';
@@ -87,7 +88,7 @@ Future<void> initializeAdSession({
 }
 
 /// Owns one initialization lifetime. Old async completions cannot revive it.
-class AdSession {
+class AdSession with WidgetsBindingObserver {
   final AdmobKitConfig config;
   final bool initializeNativeGma;
   final NativeAppearance? appearance;
@@ -108,6 +109,10 @@ class AdSession {
   Future<void>? _initialization;
   Future<bool>? _privacyUpdate;
   bool _sdkReady = false;
+  // The app left for an ad: a tapped banner/native, or a fullscreen ad that
+  // owns the screen. Its return must not trigger an app-open ad.
+  bool _adClickPending = false;
+  bool _returningFromAd = false;
   AdInitializationState state = AdInitializationState.uninitialized;
 
   AdSession({
@@ -121,6 +126,8 @@ class AdSession {
     required this.registerNativeFactories,
     required this.onStateChanged,
   }) {
+    driver.onAdClicked = () => _adClickPending = true;
+    WidgetsBinding.instance.addObserver(this);
     _capacities.addAll(config.placementCapacities ?? {});
     for (final placement in config.placements ?? <AdPlacement>[]) {
       engine.validatePlacement(placement);
@@ -317,13 +324,33 @@ class AdSession {
     return null;
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
+    if (lifecycle == AppLifecycleState.paused) {
+      _returningFromAd = _adClickPending || mutex.isLocked;
+      _adClickPending = false;
+    } else if (lifecycle == AppLifecycleState.resumed) {
+      // A tap that opened an in-app overlay returns without pausing the app.
+      _adClickPending = false;
+    }
+  }
+
   /// Presents through the current engine, preserving its splash settlement policy.
+  /// Skips an app-open ad when the app is returning from an ad.
   void show(
     FullscreenPlacement placement, {
     void Function()? onDismissed,
     void Function(num amount, String type)? onRewardGranted,
     void Function()? onDisplayed,
-  }) => engine.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+  }) {
+    if (placement is AppOpenPlacement && _returningFromAd) {
+      _returningFromAd = false;
+      logger.info('[Show] Returning from an ad. Skipping app-open ad "${placement.id}".');
+      onDismissed?.call();
+      return;
+    }
+    engine.show(placement, onDismissed: onDismissed, onRewardGranted: onRewardGranted, onDisplayed: onDisplayed);
+  }
 
   /// Reads the current settled UMP requirement, including concurrent updates.
   Future<bool> isPrivacyOptionsRequired() async {
@@ -390,6 +417,7 @@ class AdSession {
   void dispose() {
     if (isDisposed) return;
     _disposed.complete();
+    WidgetsBinding.instance.removeObserver(this);
     state = AdInitializationState.disposed;
     consent.dispose();
     engine.dispose();

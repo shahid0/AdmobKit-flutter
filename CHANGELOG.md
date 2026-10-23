@@ -17,6 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `show` skips an app-open ad when the app returns from a tapped banner or native ad, or from a fullscreen ad, instead of stacking an ad on the user's return.
 - Ad widgets holding an ad keep their `PageView`, `ListView`, or `TabBarView` item alive, so scrolling back shows the same ad instead of requesting a new one.
 - `active`, `TickerMode`, and `Visibility` now gate only a host's first request. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
 - Only ads that were never shown are replaced after the TTL. A displayed ad keeps its impression and refreshes through AdMob.

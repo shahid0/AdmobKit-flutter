@@ -130,17 +130,12 @@ class _TaskFlowAppState extends State<TaskFlowApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      if (!AdmobKit.isShowingAd) {
-        _wasInBackground = true;
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      if (!_wasInBackground) return;
+    // AdmobKit skips this ad when the user is returning from an ad.
+    if (state == AppLifecycleState.paused) {
+      _wasInBackground = true;
+    } else if (state == AppLifecycleState.resumed && _wasInBackground) {
       _wasInBackground = false;
-
       if (SplashScreen.isSplashActive) return;
-      if (AdmobKit.isShowingAd) return;
-
       TaskStore.instance.appendLog('📱 [Lifecycle] App resumed from background. Showing App Open ad...');
       AdmobKit.show(SampleAds.appOpen);
     }

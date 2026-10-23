@@ -15,6 +15,9 @@ class GoogleMobileAdsDriver {
   final AdAnalyticsTracker? _analytics;
   final NativeAppearance? _appearance;
 
+  /// Called when the user taps a banner or native ad.
+  VoidCallback? onAdClicked;
+
   GoogleMobileAdsDriver({PlatformAdLogger? logger, AdAnalyticsTracker? analytics, NativeAppearance? appearance})
     : _logger = logger,
       _appearance = appearance,
@@ -143,7 +146,10 @@ class GoogleMobileAdsDriver {
           completer.completeError(error);
         },
         onAdImpression: (_) => nativeAd.hasImpression = true,
-        onAdClicked: (_) => _analytics?.onAdClicked(placement),
+        onAdClicked: (_) {
+          onAdClicked?.call();
+          _analytics?.onAdClicked(placement);
+        },
         onPaidEvent: (_, valueMicros, precision, currencyCode) {
           _analytics?.onPaidEvent(
             placement,
@@ -272,7 +278,10 @@ class GoogleMobileAdsDriver {
           }
         },
         onAdImpression: (_) => banner.hasImpression = true,
-        onAdClicked: (_) => _analytics?.onAdClicked(placement),
+        onAdClicked: (_) {
+          onAdClicked?.call();
+          _analytics?.onAdClicked(placement);
+        },
         onPaidEvent: (_, micros, precision, currency) =>
             _analytics?.onPaidEvent(
               placement,
