@@ -1,9 +1,10 @@
 name: admob_kit_flutter
 description: Flutter AdMob ads with adaptive banners, native templates, consent-aware loading, fullscreen presentation and live native styling.
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/shahid0/AdmobKit-flutter
 repository: https://github.com/shahid0/AdmobKit-flutter
 issue_tracker: https://github.com/shahid0/AdmobKit-flutter/issues
+documentation: https://github.com/shahid0/AdmobKit-flutter/tree/main/doc
 topics:
   - admob
   - ads

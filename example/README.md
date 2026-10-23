@@ -23,9 +23,9 @@ The gallery and monitor screens are for inspection; normal apps do not need them
 
 ## Read next
 
-- [Recipes](../doc/recipes.md) for each flow shown in the demo.
-- [Best practices](../doc/best-practices.md) and [Design decisions](../doc/design-decisions.md) for how and why.
-- [Platform setup](../doc/setup.md) before using these patterns in your own app.
-- [Native ads](../doc/native-ads.md#policy-and-production-limits) for text truncation limits to test before release.
+- [Recipes](https://github.com/shahid0/AdmobKit-flutter/blob/main/doc/recipes.md) for each flow shown in the demo.
+- [Best practices](https://github.com/shahid0/AdmobKit-flutter/blob/main/doc/best-practices.md) and [Design decisions](https://github.com/shahid0/AdmobKit-flutter/blob/main/doc/design-decisions.md) for how and why.
+- [Platform setup](https://github.com/shahid0/AdmobKit-flutter/blob/main/doc/setup.md) before using these patterns in your own app.
+- [Native ads](https://github.com/shahid0/AdmobKit-flutter/blob/main/doc/native-ads.md#policy-and-production-limits) for text truncation limits to test before release.
 
 Requires Dart 3.11.5 and Flutter 3.41.0 or later, with the Android or iOS development tools.
