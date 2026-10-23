@@ -17,6 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A banner or native slot left empty by no-fill or exhausted retries requests again when the app returns to the foreground, instead of staying blank for the session.
 - `waitFor` requests again after a placement's retries ran out, instead of returning `false` for the rest of the session.
 - A fullscreen placement with capacity 2 or more buffers distinct ads. It previously cached one ad several times, so a later `show` presented an ad that was already shown and disposed.
 - A fullscreen ad that Android refuses to show now settles `onDismissed` and releases the presentation lock, instead of blocking every later fullscreen ad for the session.

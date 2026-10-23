@@ -292,9 +292,11 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (mounted && _attached && _effectiveTemplate.isFullscreen) {
-      setState(_checkAndActivate);
-    }
+    if (!mounted || !_attached) return;
+    // An empty slot (no fill, retries exhausted) tries again when the app returns.
+    final retry = state == AppLifecycleState.resumed && _nativeAd == null && !_leasePending;
+    if (retry) _hasAttemptedLoad = false;
+    if (retry || _effectiveTemplate.isFullscreen) setState(_checkAndActivate);
   }
 
   @override

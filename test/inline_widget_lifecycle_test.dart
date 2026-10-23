@@ -178,6 +178,22 @@ void main() {
         expect(disposed, hasLength(1));
       });
 
+      testWidgets('an empty slot requests again when the app resumes', (tester) async {
+        await initialize();
+        await tester.pumpWidget(host());
+        driver.requests.single.result.complete(null);
+        await tester.pump();
+        await tester.pump();
+        expect(driver.requests, hasLength(1));
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(driver.requests, hasLength(2));
+        driver.requests.last.result.complete(null);
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+      });
+
       testWidgets('load failure while inactive retries when activated', (tester) async {
         await initialize();
         await tester.pumpWidget(host());

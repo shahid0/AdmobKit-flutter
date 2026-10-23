@@ -108,7 +108,7 @@ class _BannerHost extends StatefulWidget {
   State<_BannerHost> createState() => _BannerHostState();
 }
 
-class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientMixin {
+class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   AdaptiveBannerAd? _ad;
   // The layout [_ad] was requested for; differs from the widget's while a resize reloads.
   BannerLayout? _adLayout;
@@ -119,7 +119,18 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     AdmobKit.initializationStateListenable.addListener(_onInitializationChanged);
+  }
+
+  // An empty slot (no fill, retries exhausted) tries again when the app returns.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted || _ad != null || _pending) return;
+    setState(() {
+      _attempted = false;
+      _checkAndActivate();
+    });
   }
 
   // Lazy lists and page views would otherwise dispose a scrolled-away host and
@@ -233,6 +244,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AdmobKit.initializationStateListenable.removeListener(_onInitializationChanged);
     _resetLease();
     super.dispose();
