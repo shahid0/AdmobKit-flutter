@@ -64,13 +64,13 @@ void main() {
   );
   Widget adHost({String id = 'native', bool active = true, bool ticker = true, bool visible = true, Key? key}) =>
       TickerMode(
-        enabled: ticker,
+        enabled: ticker && active,
         child: Visibility(
           visible: visible,
           maintainState: true,
           maintainAnimation: true,
           maintainSize: true,
-          child: AdNativeView(key: key, placement: placement(id), active: active, showPlaceholder: false),
+          child: AdNativeView(key: key, placement: placement(id), showPlaceholder: false),
         ),
       );
   Widget page({bool active = true, bool ticker = true, bool visible = true}) => MaterialApp(
@@ -178,12 +178,12 @@ void main() {
     await finish(tester);
   });
 
-  for (final gate in ['active', 'ticker', 'visibility']) {
+  for (final gate in ['ticker', 'visibility']) {
     testWidgets('$gate releases ownership and restores the same fresh lease', (tester) async {
       await initialize(tester);
       await tester.pumpWidget(page());
       final ad = await completeLoad(tester);
-      await tester.pumpWidget(page(active: gate != 'active', ticker: gate != 'ticker', visible: gate != 'visibility'));
+      await tester.pumpWidget(page(ticker: gate != 'ticker', visible: gate != 'visibility'));
       expect(AdmobKit.isShowingAd, isFalse);
       expect(find.byType(AdWidget), findsNothing);
       await tester.pumpWidget(page());
@@ -392,7 +392,7 @@ void main() {
     driver.requests.single.completeError(LoadAdError(1, 'test', 'invalid request', null));
     await tester.pump();
     expect(AdmobKit.isShowingAd, isFalse);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Loading ad'), findsNothing);
     await finish(tester);
   });
 
@@ -409,7 +409,7 @@ void main() {
     await initialize(tester);
     AdmobKit.dispose();
     await tester.pumpWidget(MaterialApp(home: AdNativeView(placement: placement('restart'))));
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Loading ad'), findsNothing);
     expect(driver.requests, isEmpty);
     await initialize(tester);
     await tester.pump();
@@ -432,15 +432,15 @@ void main() {
     );
     final failure = expectLater(boot, throwsStateError);
     await tester.pumpWidget(MaterialApp(home: AdNativeView(placement: placement('failure'))));
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Loading ad'), findsOneWidget);
     expect(driver.requests, isEmpty);
     driver.sdk!.completeError(StateError('SDK initialization failed'));
     await failure;
     await tester.pump();
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Loading ad'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(MaterialApp(home: AdNativeView(placement: placement('after_failure'))));
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Loading ad'), findsNothing);
     expect(driver.requests, isEmpty);
     expect(AdmobKit.isShowingAd, isFalse);
     await finish(tester);

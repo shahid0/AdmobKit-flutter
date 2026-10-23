@@ -80,7 +80,7 @@ void main() {
 
       final sizedBox = tester.widget<SizedBox>(find.byType(SizedBox).first);
       expect(sizedBox.height, 340.0);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Loading ad'), findsOneWidget);
 
       completer.complete(Object());
       await tester.pump();
@@ -105,6 +105,38 @@ void main() {
 
       expect(find.text('Premium Features'), findsOneWidget);
       expect(find.byWidgetPredicate((widget) => widget is PopScope), findsOneWidget);
+    });
+
+    testWidgets('AdPaywallGuard dismisses once when exit is triggered repeatedly', (tester) async {
+      final driver = _HeldShowDriver();
+      await AdmobKitTestHarness.initialize(
+        networkInfo: _TestNetworkInfo(),
+        driver: driver,
+        initializeNativeGma: false,
+        config: const AdmobKitConfig(placements: [], requestConsent: false),
+      );
+      const inter = InterstitialPlacement(id: 'exit', androidId: '1', iosId: '1');
+      await AdmobKitTestHarness.preload(inter);
+      var dismissed = 0;
+      late VoidCallback exit;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdPaywallGuard(
+            placement: inter,
+            onDismiss: () => dismissed++,
+            builder: (context, triggerDismiss) {
+              exit = triggerDismiss;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      exit();
+      exit();
+      expect(dismissed, 0, reason: 'The second exit must not dismiss under the showing ad.');
+      driver.dismiss!();
+      expect(dismissed, 1);
     });
 
     testWidgets('AdNativeView defers ad loading when TickerMode is disabled', (tester) async {
@@ -327,6 +359,27 @@ class _TestDriver extends GoogleMobileAdsDriver {
   @override
   Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
     return onLoad();
+  }
+}
+
+/// Keeps a fullscreen ad on screen until the test dismisses it.
+class _HeldShowDriver extends GoogleMobileAdsDriver {
+  void Function()? dismiss;
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async =>
+      Object();
+
+  @override
+  void showFullscreenAd({
+    required FullscreenPlacement placement,
+    required dynamic adInstance,
+    required void Function() onDisplayed,
+    required void Function() onDismissed,
+    void Function(num amount, String type)? onRewardGranted,
+  }) {
+    onDisplayed();
+    dismiss = onDismissed;
   }
 }
 

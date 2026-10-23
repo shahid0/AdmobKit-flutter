@@ -317,6 +317,10 @@ class AdSession {
     return null;
   }
 
+  /// Drops a one-time placement's pending load when its last host leaves before delivery.
+  void abandonLease(InlinePlacement placement, {BannerLayout? bannerLayout}) =>
+      engine.abandonLease(placement, bannerLayout: bannerLayout);
+
   /// Presents through the current engine, preserving its splash settlement policy.
   void show(
     FullscreenPlacement placement, {

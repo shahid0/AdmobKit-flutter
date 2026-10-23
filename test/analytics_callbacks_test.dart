@@ -192,6 +192,7 @@ void main() {
       if (call.method == 'AdSize#getLargeAnchoredAdaptiveBannerAdSize') {
         return 60;
       }
+      if (call.method == 'getAdSize') return const AdSize(width: 320, height: 60);
       if (call.method == 'loadBannerAd') {
         allocated.add((call.arguments as Map)['adId'] as int);
       }

@@ -203,7 +203,7 @@ void main() {
     });
   }
 
-  testWidgets('a smaller height limit invalidates an earlier inline measurement', (tester) async {
+  testWidgets('a smaller height limit rejects an earlier inline measurement without re-measuring', (tester) async {
     await boot();
     await tester.pumpWidget(host(height: 200));
     await load(tester);
@@ -211,10 +211,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pumpWidget(host(height: 140));
-    expect(measurements, hasLength(2));
-    measurements.last.$2.complete(180);
-    await tester.pump();
-    await tester.pump();
+    expect(measurements, hasLength(1));
     expect(tester.takeException(), isA<FlutterError>());
     expect(find.byType(AdWidget), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());

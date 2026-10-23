@@ -139,7 +139,7 @@ class _PlacementStateMonitorScreenState extends State<PlacementStateMonitorScree
         padding: const EdgeInsets.all(14),
         child: LayoutBuilder(
           builder: (context, bounds) {
-            final bannerLayout = placement is BannerPlacement
+            final bannerLayout = placement is BannerPlacement && placement.sizing.isAdaptive
                 ? BannerLayout(
                     width: bounds.maxWidth.floor(),
                     orientation: MediaQuery.orientationOf(context) == Orientation.portrait

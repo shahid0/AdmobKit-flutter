@@ -1,60 +1,70 @@
 ---
 name: flutter-ads
-description: Integrate AdmobKit ads into Flutter apps through its public API. Use for startup, transitions, rewards, native layouts, adaptive banners, privacy settings, or ad diagnosis.
+description: Integrate Google AdMob ads into Flutter apps with the AdmobKit package (admob_kit_flutter). Use for initialization, splash and funnel ads, transitions, rewards, banners, native ads, tabs and lists, paywalls, app-open ads, premium users, privacy settings, migration from 0.0.2, or diagnosing missing ads.
 ---
 
-# AdmobKit app integration
+# AdmobKit integration
 
-Use `package:admob_kit_flutter/admob_kit_flutter.dart`.
-This skill is for app integration, not package-engine maintenance.
+Import `package:admob_kit_flutter/admob_kit_flutter.dart`. Use only the public API; never import `src/` files.
+This skill is for app integration. Change package internals only when maintaining the package itself.
 
-## Start from the use case
+## How to work
 
-1. Identify the app action or layout that needs an ad.
-2. Select the matching recipe in [Use cases](reference/recipes.md).
-3. Check method results and options in [Public API](reference/api.md).
-4. Use the public facade and package widgets. Do not add a parallel ad-loading controller.
+1. Identify the app flow that needs an ad.
+2. Pick the recipe in [Recipes](reference/recipes.md).
+3. Apply the rules in [Best practices](reference/best-practices.md).
+4. When a behavior seems surprising, or you want to change it, read [Design decisions](reference/design-decisions.md) first. Every public API exists for a specific use case; do not work around one.
+5. Check exact signatures in the [API reference](reference/api.md).
+6. Upgrading an app from 0.0.2: follow [Migrating from 0.0.2](reference/migration.md).
 
-The supported sequence is initialization, reachable placement registration, then presentation or widget mounting.
-The app owns navigation, rewards, purchase state, remote configuration, screen reachability, and frequency policy.
-The package owns consent resolution, ad loading, retries, freshness, exclusive instances, and presentation ownership.
+## The model
 
-## Select the public operation
+- The app owns: which screens get ads, when transitions show one, frequency, rewards, purchase state, and which placements are reachable.
+- The package owns: consent, loading, queueing, retries, caching, freshness, offline handling, and which widget gets which ad.
+- The package makes product decisions only when correctness or AdMob policy requires it.
 
-- Normal transition: `show`, with the normal action in `onDismissed`.
-- Startup or a feature needing an ad decision: `waitFor`, then the appropriate presentation.
-- Banner or native content: mount `AdBannerView` or `AdNativeView`; do not wait for an inline instance first.
-- Reward: grant only from `onRewardGranted`. Skipped ads also call `onDismissed`.
-- Fullscreen native: use a fullscreen native template with `AdNativeView`, not `show`.
-- Privacy settings: use `isPrivacyOptionsRequired` and `showPrivacyOptionsForm`.
-- Appearance: use `NativeAdStyle` and await `setNativeStyle`.
+Sequence: `initialize` once in `main`, `registerPlacements` for reachable screens, then `show` / `waitFor` / `waitForAll` and mount widgets.
 
-Registration can occur during initialization. It cannot occur before initialization starts.
-Resolve remote-selected placement identity before calling `waitFor` for it.
-`waitFor` already waits for eligibility. Do not skip it because `canRequestAds` is currently false.
+## Pick the operation
 
-Normal `show` calls do not wait for downloads. Splash calls can wait for an existing load.
-There is no guaranteed zero-millisecond SDK presentation time.
-A ready result does not reserve an ad or the display lock. Keep app continuation in the presentation callback.
+| Need | Use | Why |
+| :--- | :--- | :--- |
+| Transition ad | `show(placement, onDismissed: next)` | Never waits for a download; `onDismissed` always runs |
+| Splash ad | `await waitFor(splash)` then `show` | `waitFor` settles on its own; offline returns `false` at once |
+| Several ads before the next step (e.g. onboarding prepared on splash) | `await waitForAll([...])` | Loads in list order; loaded ads stay buffered for the next step |
+| Reward | `show(onRewardGranted: grant)` | `onDismissed` also runs for skipped or missing ads |
+| Banner or native content | Mount `AdBannerView` / `AdNativeView` | Widgets request, size, and keep their own ads |
+| Banner that must be ready before its screen | Fixed sizing (`standard`, `mrec`, ...) | Only fixed sizes preload; adaptive sizes need a measured width |
+| App-open on resume | `show(appOpenPlacement)` from your lifecycle code | Which resumes show an ad is the app's decision |
+| Paywall exit | `AdPaywallGuard` | One exit for close and back; starts once |
+| Premium users | `AdmobKitConfig(isPremium:)` | One synchronous check used everywhere |
+| Privacy entry | `isPrivacyOptionsRequired`, `showPrivacyOptionsForm` | Required by Google UMP in some regions |
 
-## Layout and ownership
+## Rules
 
-Read [Native ads](reference/native-ads.md) when selecting a template or changing style.
-Native hosts require bounded width >=320 logical pixels. Inline height follows measured content.
-Fullscreen hosts need bounded height and sufficient asset space; keep navigation outside ad assets.
-Pass `active` for retained or lazy pages whose selection is app-owned.
-Do not infer viewport visibility from mounting or manage ad instances and presentation locks in app code.
+- Call `waitFor` and `waitForAll` without `timeout`. Pass one only for a real time budget, such as how long a task the user is doing takes.
+- Register only placements whose screens this user can reach; registration preloads them.
+- Keep default priorities. Use `isSplash` for cold start. Never set `priority: AdPriority.immediate`.
+- Use `loadOnce: true` for one-time screens (splash, onboarding).
+- Use one native placement per template; set `placementCapacities` to the number of its widgets visible together.
+- Mount ad widgets directly in tabs, `PageView` pages, `IndexedStack` children, and lists. There is no `active` parameter; visibility is detected.
+- Keep widget keys and placements stable, or the widget becomes a new widget and requests again.
+- Native widgets need a bounded width of at least 320. Let inline templates size themselves. Fullscreen templates need bounded height; keep your dismiss button outside the ad.
+- Adaptive banners need a bounded width or an explicit `width:`.
+- Never show two fullscreen ads back to back.
 
-The native templates have an unresolved protected-copy truncation limit.
-Do not declare them production-compliant from layout tests or previews. Explain the limit when native ads are in scope.
+## Do not
+
+- Add retry loops, refresh timers, connectivity checks, visibility tracking, keep-alive wrappers, or `isShowingAd` guards around ads.
+- Await an ad before mounting `AdBannerView` or `AdNativeView`.
+- Grant rewards in `onDismissed`.
+- Pass native placements or adaptive banners to `show`; pass adaptive banners to `waitForAll`.
+- Call `dispose()` for screen changes or premium changes.
+- Declare native templates policy-safe from previews: at narrow widths or large text scales they can truncate copy below AdMob's minimums. Say so when native ads are in scope.
 
 ## Setup and diagnosis
 
-Read [Platform setup](reference/setup.md) for app IDs, consent messages, ATT, and test devices.
-Read [Troubleshooting](reference/troubleshooting.md) for missing ads, status, or platform errors.
-Status queries support diagnosis; they are not an alternative loading sequence.
-
-These references explain supported integration without internal source inspection.
-During app integration, do not import package `src/` files, test harnesses, pools, queues, or SDK drivers.
-If a supported flow still fails after public diagnosis, report the evidence as a package defect.
-Inspect or change package internals only when package maintenance is the assigned task.
+- Platform setup (app IDs, consent messages, ATT, test devices): [Platform setup](reference/setup.md).
+- Templates and styling: [Native ads](reference/native-ads.md).
+- Missing ads and errors: [Troubleshooting](reference/troubleshooting.md). Diagnose with `initializationState`, `getState`, verbose logs, and Ad Inspector.
+- If a supported flow still fails after diagnosis, report it as a package defect with the evidence instead of working around it in app code.

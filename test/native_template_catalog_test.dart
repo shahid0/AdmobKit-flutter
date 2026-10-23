@@ -144,7 +144,7 @@ void main() {
         child: SizedBox(
           width: width,
           height: height,
-          child: AdNativeView(placement: placement, active: active, showPlaceholder: false),
+          child: TickerMode(enabled: active, child: AdNativeView(placement: placement, showPlaceholder: false)),
         ),
       ),
     );

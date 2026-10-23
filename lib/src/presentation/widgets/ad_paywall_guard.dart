@@ -8,7 +8,7 @@ import '../admob_kit_facade.dart';
 ///
 /// Ensures free-tier users cannot bypass exit monetization via Android hardware back
 /// buttons or edge swipe navigation, while seamlessly passing through for premium/VIP users.
-class AdPaywallGuard extends StatelessWidget {
+class AdPaywallGuard extends StatefulWidget {
   /// The static paywall screen content widget.
   final Widget? child;
 
@@ -36,18 +36,27 @@ class AdPaywallGuard extends StatelessWidget {
     this.isPurchased = false,
   }) : assert(child != null || builder != null, 'Either child or builder must be provided.');
 
+  @override
+  State<AdPaywallGuard> createState() => _AdPaywallGuardState();
+}
+
+class _AdPaywallGuardState extends State<AdPaywallGuard> {
+  // Repeated taps or back presses while the exit ad opens must not dismiss twice.
+  bool _exiting = false;
+
   void _handleExit() {
-    if (isPurchased || AdmobKit.isUserPremium) {
-      onDismiss();
+    if (_exiting) return;
+    _exiting = true;
+    if (widget.isPurchased || AdmobKit.isUserPremium) {
+      widget.onDismiss();
       return;
     }
-
-    AdmobKit.show(placement, onDismissed: onDismiss);
+    AdmobKit.show(widget.placement, onDismissed: widget.onDismiss);
   }
 
   @override
   Widget build(BuildContext context) {
-    final body = builder != null ? builder!(context, _handleExit) : child!;
+    final body = widget.builder != null ? widget.builder!(context, _handleExit) : widget.child!;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {

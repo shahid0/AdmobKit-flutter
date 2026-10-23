@@ -11,19 +11,19 @@ Future<void> main(List<String> args) async {
   final check = args.contains('--check');
   final files = <String, String>{
     '.agents/skills/flutter-ads/SKILL.md': 'skills/flutter-ads/SKILL.md',
-    for (final name in ['api', 'recipes', 'native-ads', 'setup', 'troubleshooting']) ...{
-      'skills/flutter-ads/reference/$name.md': 'docs/$name.md',
-      '.agents/skills/flutter-ads/reference/$name.md': 'docs/$name.md',
+    for (final name in ['best-practices', 'design-decisions', 'migration', 'api', 'recipes', 'native-ads', 'setup', 'troubleshooting']) ...{
+      'skills/flutter-ads/reference/$name.md': 'doc/$name.md',
+      '.agents/skills/flutter-ads/reference/$name.md': 'doc/$name.md',
     },
   };
   var stale = false;
   for (final entry in files.entries) {
     var content = await File('${root.path}/${entry.value}').readAsString();
-    if (entry.value.startsWith('docs/')) {
+    if (entry.value.startsWith('doc/')) {
       content = content.replaceAll('../README.md', 'https://github.com/shahid0/AdmobKit-flutter/blob/main/README.md');
       content = content.replaceAll(
         'assets/native-template-catalog.png',
-        'https://raw.githubusercontent.com/shahid0/AdmobKit-flutter/main/docs/assets/native-template-catalog.png',
+        'https://raw.githubusercontent.com/shahid0/AdmobKit-flutter/main/doc/assets/native-template-catalog.png',
       );
     }
     final output = File('${root.path}/${entry.key}');

@@ -136,7 +136,7 @@ void main() {
       queue.dispose();
     });
 
-    test('Queue drain order: Splash drains before Immediate, Medium, and Low', () async {
+    test('Queue drain order follows tier rank: Immediate, Splash, Medium, Low', () async {
       final executionOrder = <String>[];
 
       final queue = AdEngine(
@@ -161,13 +161,12 @@ void main() {
 
       await Future.wait([f1, f2, f3, f4]);
 
-      // Splash drains first, then immediate, then medium, then low
-      expect(executionOrder, ['splash', 'immediate', 'medium', 'low']);
+      expect(executionOrder, ['immediate', 'splash', 'medium', 'low']);
 
       queue.dispose();
     });
 
-    test('Priority 0 Dispatch: Splash Inline loads before Splash Fullscreen under concurrency = 1', () async {
+    test('A promoted splash inline request loads before queued splash fullscreen under concurrency = 1', () async {
       final executionOrder = <String>[];
 
       final queue = AdEngine(
@@ -194,11 +193,40 @@ void main() {
 
       final f1 = queue.enqueue(splashFullscreen);
       final f2 = queue.enqueue(splashInline);
+      queue.promote(splashInline.id, AdPriority.immediate);
 
       await Future.wait([f1, f2]);
 
-      // Under concurrency = 1, splash inline loads first, then fullscreen
       expect(executionOrder, ['splash_inline', 'splash_fullscreen']);
+      queue.dispose();
+    });
+
+    test('An awaited fullscreen request loads before a background inline preload in the same tier', () async {
+      final executionOrder = <String>[];
+      final queue = AdEngine(
+        executor: (placement, {bannerLayout, validateRequest}) async {
+          executionOrder.add(placement.id);
+          return Object();
+        },
+        networkInfo: networkInfo,
+        diagnostics: diagnostics,
+      );
+      const preload = NativePlacement(
+        template: NativeAdTemplate.feedMediaFirst,
+        id: 'onboarding_native',
+        androidId: '1',
+        iosId: '1',
+        priority: AdPriority.immediate,
+      );
+      const splash = InterstitialPlacement(id: 'splash', androidId: '2', iosId: '2', isSplash: true);
+
+      final f1 = queue.enqueue(preload);
+      final f2 = queue.enqueue(splash);
+      queue.promote(splash.id, AdPriority.immediate);
+
+      await Future.wait([f1, f2]);
+
+      expect(executionOrder, ['splash', 'onboarding_native']);
       queue.dispose();
     });
 
@@ -280,7 +308,7 @@ void main() {
       queue.dispose();
     });
 
-    test('Inline placements generate distinct slot keys while fullscreen deduplicates', () async {
+    test('Each enqueue fills its own slot for inline and fullscreen placements', () async {
       int execCount = 0;
       final queue = AdEngine(
         executor: (placement, {bannerLayout, validateRequest}) async {
@@ -299,13 +327,12 @@ void main() {
       expect(identical(f1, f2), false, reason: 'Inline placements must NOT deduplicate to same Future');
 
       const fullscreenPlacement = InterstitialPlacement(id: 'game_over', androidId: '2', iosId: '2');
-      // Enqueueing fullscreen placement twice concurrently must deduplicate to the same task
       final fs1 = queue.enqueue(fullscreenPlacement);
       final fs2 = queue.enqueue(fullscreenPlacement);
-      expect(identical(fs1, fs2), true, reason: 'Fullscreen placements must deduplicate to the same Future');
+      expect(identical(fs1, fs2), false, reason: 'A second fullscreen slot must not share the first ad');
 
       await Future.wait([f1, f2, fs1, fs2]);
-      expect(execCount, 3, reason: 'Must execute 2 tasks for inline plus 1 deduplicated for fullscreen');
+      expect(execCount, 4);
       queue.dispose();
     });
 

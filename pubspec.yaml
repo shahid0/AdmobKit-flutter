@@ -21,6 +21,7 @@ dependencies:
   flutter:
     sdk: flutter
   google_mobile_ads: ^9.1.0
+  meta: ^1.16.0
 
 dev_dependencies:
   pigeon: 27.3.0

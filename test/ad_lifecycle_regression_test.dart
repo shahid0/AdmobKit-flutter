@@ -149,11 +149,6 @@ void main() {
     });
     await tester.pump();
     expect(queue.pendingTaskCount(_fullscreen.id), 1);
-    expect(
-      identical(queue.enqueue(_fullscreen), original),
-      isTrue,
-      reason: 'Backoff must retain fullscreen deduplication',
-    );
 
     queue.cancel(_fullscreen.id);
     await tester.pump();

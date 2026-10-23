@@ -64,7 +64,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: active, showPlaceholder: false),
+          child: TickerMode(enabled: active, child: const AdNativeView(placement: p, showPlaceholder: false)),
         ),
       ),
     );
@@ -104,7 +104,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('inactive host does not acquire or mount ad when background retry succeeds', (tester) async {
+  testWidgets('a hidden host is skipped on delivery and takes the buffered ad when visible again', (tester) async {
     final driver = Driver();
     await AdmobKitTestHarness.initialize(
       driver: driver,
@@ -117,7 +117,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: active, showPlaceholder: false),
+          child: TickerMode(enabled: active, child: const AdNativeView(placement: p, showPlaceholder: false)),
         ),
       ),
     );
@@ -144,11 +144,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Inactive host must NOT have mounted AdWidget, and ad remains ready in pool
+    // The hidden host is skipped and the ad waits in the buffer.
     expect(find.byType(AdWidget), findsNothing);
     expect(AdmobKit.isReady(p), isTrue);
+    expect(driver.requests, hasLength(2));
 
-    // When reactivated, it acquires the buffered ad
     await tester.pumpWidget(host(true));
     await tester.pump();
     await tester.pump();
@@ -176,7 +176,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: true, showPlaceholder: false),
+          child: const AdNativeView(placement: p, showPlaceholder: false),
         ),
       ),
     );

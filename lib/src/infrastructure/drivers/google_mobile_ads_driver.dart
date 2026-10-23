@@ -100,9 +100,6 @@ class GoogleMobileAdsDriver {
         return completer.future;
 
       case AdFormat.banner:
-        if (bannerLayout == null) {
-          throw ArgumentError('Banner requests require a BannerLayout.');
-        }
         return _loadBanner(placement as BannerPlacement, bannerLayout, adUnitId, validateRequest);
 
       case AdFormat.native:
@@ -145,6 +142,7 @@ class GoogleMobileAdsDriver {
           );
           completer.completeError(error);
         },
+        onAdImpression: (_) => nativeAd.hasImpression = true,
         onAdClicked: (_) => _analytics?.onAdClicked(placement),
         onPaidEvent: (_, valueMicros, precision, currencyCode) {
           _analytics?.onPaidEvent(
@@ -170,25 +168,26 @@ class GoogleMobileAdsDriver {
 
   Future<AdaptiveBannerAd> _loadBanner(
     BannerPlacement placement,
-    BannerLayout layout,
+    BannerLayout? layout,
     String unitId,
     void Function()? validateRequest,
   ) async {
-    layout.validate();
+    layout?.validate();
     final sizing = placement.sizing;
-    sizing.validate();
+    placement.validate();
     final maxHeight = sizing.maxHeight;
     final AdSize? size;
     if (sizing.isFixed) {
       size = AdSize(width: sizing.fixedWidth!, height: sizing.fixedHeight!);
     } else if (sizing.isInline) {
-      size = AdSize.getInlineAdaptiveBannerAdSize(layout.width, maxHeight!);
+      size = AdSize.getInlineAdaptiveBannerAdSize(layout!.width, maxHeight!);
     } else {
+      final host = layout!;
       size = await AdSize.getLargeAnchoredAdaptiveBannerAdSizeWithOrientation(
-        layout.orientation == BannerOrientation.portrait
+        host.orientation == BannerOrientation.portrait
             ? Orientation.portrait
             : Orientation.landscape,
-        layout.width,
+        host.width,
       );
     }
     if (size == null ||
@@ -197,7 +196,7 @@ class GoogleMobileAdsDriver {
       throw LoadAdError(
         1,
         'admob_kit',
-        'SDK could not resolve banner size for $layout.',
+        'SDK could not resolve banner size for ${layout ?? sizing}.',
         null,
       );
     }
@@ -214,18 +213,24 @@ class GoogleMobileAdsDriver {
     banner = AdaptiveBannerAd(
       adUnitId: unitId,
       size: size,
-      request: const AdRequest(),
+      request: placement.isCollapsible
+          ? AdRequest(
+              extras: {
+                'collapsible': placement.collapsible!.value,
+                'collapsible_request_id': DateTime.now().millisecondsSinceEpoch.toString(),
+              },
+            )
+          : const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) async {
           final current = ++revision;
           try {
-            final actual = sizing.isInline || sizing.isFixed
-                ? await banner.getPlatformAdSize()
-                : size;
+            // Anchored creatives can be shorter than the requested slot.
+            final actual = await banner.getPlatformAdSize();
             if (banner.isDisposed || current != revision) return;
             if (actual == null ||
                 actual.width <= 0 ||
-                actual.width > layout.width ||
+                (layout != null && actual.width > layout.width) ||
                 actual.height <= 0 ||
                 (maxHeight != null && actual.height > maxHeight) ||
                 (sizing.isFixed &&
@@ -266,6 +271,7 @@ class GoogleMobileAdsDriver {
             fail(error);
           }
         },
+        onAdImpression: (_) => banner.hasImpression = true,
         onAdClicked: (_) => _analytics?.onAdClicked(placement),
         onPaidEvent: (_, micros, precision, currency) =>
             _analytics?.onPaidEvent(
@@ -302,22 +308,28 @@ class GoogleMobileAdsDriver {
       );
     }
 
-    FullScreenContentCallback<T> createCallback<T extends Ad>() {
-      var completed = false;
-      void finishTerminal(T ad) {
-        if (completed) return;
-        completed = true;
-        try {
-          unawaited(ad.dispose().catchError((Object error, StackTrace stack) {
-            _logger?.warning('[Show] Failed to dispose ad: $error');
-          }));
-        } catch (error) {
-          _logger?.warning('[Show] Error while disposing ad: $error');
-        } finally {
-          onDismissed();
-        }
+    var completed = false;
+    void finishTerminal(Ad ad) {
+      if (completed) return;
+      completed = true;
+      try {
+        unawaited(ad.dispose().catchError((Object error, StackTrace stack) {
+          _logger?.warning('[Show] Failed to dispose ad: $error');
+        }));
+      } catch (error) {
+        _logger?.warning('[Show] Error while disposing ad: $error');
+      } finally {
+        onDismissed();
       }
+    }
 
+    // Android reports some show failures only through the returned future.
+    void showFailed(Object error) {
+      _logger?.warning('[Show] Ad failed to display: $error');
+      finishTerminal(adInstance as Ad);
+    }
+
+    FullScreenContentCallback<T> createCallback<T extends Ad>() {
       return FullScreenContentCallback<T>(
         onAdShowedFullScreenContent: (ad) {
           _logger?.info('[Show] Ad displayed on screen: ${placement.id}');
@@ -343,29 +355,37 @@ class GoogleMobileAdsDriver {
     if (adInstance is InterstitialAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<InterstitialAd>();
-      adInstance.show();
+      unawaited(adInstance.show().catchError(showFailed));
     } else if (adInstance is RewardedAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<RewardedAd>();
-      adInstance.show(
-        onUserEarnedReward: (ad, reward) {
-          _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
-          onRewardGranted?.call(reward.amount, reward.type);
-        },
+      unawaited(
+        adInstance
+            .show(
+              onUserEarnedReward: (ad, reward) {
+                _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
+                onRewardGranted?.call(reward.amount, reward.type);
+              },
+            )
+            .catchError(showFailed),
       );
     } else if (adInstance is RewardedInterstitialAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<RewardedInterstitialAd>();
-      adInstance.show(
-        onUserEarnedReward: (ad, reward) {
-          _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
-          onRewardGranted?.call(reward.amount, reward.type);
-        },
+      unawaited(
+        adInstance
+            .show(
+              onUserEarnedReward: (ad, reward) {
+                _logger?.info('[Reward] User earned reward: ${reward.amount} ${reward.type}');
+                onRewardGranted?.call(reward.amount, reward.type);
+              },
+            )
+            .catchError(showFailed),
       );
     } else if (adInstance is AppOpenAd) {
       adInstance.onPaidEvent = handlePaidEvent;
       adInstance.fullScreenContentCallback = createCallback<AppOpenAd>();
-      adInstance.show();
+      unawaited(adInstance.show().catchError(showFailed));
     } else {
       _logger?.error('[Show] Unknown fullscreen ad instance type: ${adInstance.runtimeType}');
       if (adInstance is Ad) {

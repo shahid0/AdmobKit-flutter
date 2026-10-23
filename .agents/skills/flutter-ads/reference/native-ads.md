@@ -1,8 +1,7 @@
-# Native Ads Guide
+# Native Ads
 
-Declare a `NativePlacement` and mount `AdNativeView` to show native ads.
-The engine registers 19 built-in native templates on Android and iOS.
-Your application requires no Android XML layouts or iOS XIB factories.
+Declare a `NativePlacement` and mount `AdNativeView`.
+AdmobKit ships 19 native templates for Android and iOS, so your app needs no XML layouts or XIB factories.
 
 ## Template Selection Guide
 
@@ -15,16 +14,16 @@ Select a template matching your screen layout and visual hierarchy:
 | **Card** | `cardContentTop`, `cardActionTop`, `cardContentTopTrailingIcon` | 132 logical pixels | Dashboard widgets, news summaries, medium cards |
 | **Feed** | `feedMediaFirst`, `feedContentFirst`, `feedActionMiddle`, `feedTrailingIcon` | 340 logical pixels | Full-width social feeds, video feeds, photo streams |
 | **Feed with side CTA** | `feedMediaTopSideCta`, `feedContentTopSideCta` | 280 logical pixels | Feed streams where call-to-action sits beside media |
-| **Fullscreen** | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle` | Full screen height ($\ge 320$) | Custom interstitial routes, full-page rewarded transitions |
+| **Fullscreen** | `fullscreenMediaFirst`, `fullscreenContentFirst`, `fullscreenActionMiddle`, `fullscreenTrailingIcon`, `fullscreenMediaSideCta` | Fills a bounded height of at least 320 | Full-page native ads between screens, onboarding pages |
 
-Template presets provide standard defaults:
+Five aliases name common choices:
 - `compactRow` = `rowWithLeadingIcon`
 - `smartMedia` = `splitMediaLeft`
 - `stackedCard` = `cardContentTop`
 - `feedCard` = `feedMediaFirst`
 - `fullscreen` = `fullscreenMediaFirst`
 
-![All 19 native templates with their API names](https://raw.githubusercontent.com/shahid0/AdmobKit-flutter/main/docs/assets/native-template-catalog.png)
+![All 19 native templates with their API names](https://raw.githubusercontent.com/shahid0/AdmobKit-flutter/main/doc/assets/native-template-catalog.png)
 
 Template names describe the vertical arrangement of creative assets:
 - **Row templates**: Keep the call-to-action button beside title and icon.
@@ -55,13 +54,16 @@ Follow these constraints when mounting `AdNativeView`:
    Do not mount fullscreen templates directly inside an unbounded scroll axis.
    Place dismiss buttons outside the ad content area.
 
-4. **Pass active state in retained pages**:
-   When hosting native ads in `PageView` or `TabBarView`, pass `active: pageIndex == selectedIndex`.
-   Only active, measured fullscreen ads claim presentation ownership.
+4. **Mount ads directly in tabs, pages, and lists**:
+   No extra parameters are needed. A returning ad goes to a visible widget, and a delivered ad stays with its widget.
+   A fullscreen template owns the presentation lock only while it is visible and measured.
+
+5. **Share a placement only across widgets with the same template**:
+   Changing a placement's template requires a new placement id. Set `placementCapacities` to the number of widgets of that placement visible together.
 
 ## Colors and Dynamic Styling
 
-Configure native template appearance through `NativeAdStyle`.
+Configure native template appearance through `NativeAdStyle`. While an ad loads, the host shows a shimmering "Loading ad" placeholder in your app's color scheme; pass `placeholder:` to replace it or `showPlaceholder: false` to hide it.
 Define initial styles in `NativePlacement.style` or global `AdmobKitConfig.nativeStyle`:
 
 ```dart

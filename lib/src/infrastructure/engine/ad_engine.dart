@@ -23,12 +23,18 @@ class AdTaskCancelledException implements Exception {
   String toString() => 'AdTaskCancelledException: Task for placement "$placementId" was cancelled.';
 }
 
+AdRequestKey _requestKey(AdPlacement placement, BannerLayout? bannerLayout) => (
+  placementId: placement.id,
+  bannerLayout: bannerLayout,
+  collapsible: placement is BannerPlacement ? placement.collapsible : null,
+);
+
 /// A load task representing an ad placement awaiting download.
 class AdLoadTask {
   final String key;
   final AdPlacement placement;
   final BannerLayout? bannerLayout;
-  AdRequestKey get requestKey => (placementId: placement.id, bannerLayout: bannerLayout);
+  AdRequestKey get requestKey => _requestKey(placement, bannerLayout);
   final AdPriority priority;
   final int retryAttempt;
   final Completer<dynamic> completer;
@@ -118,17 +124,14 @@ class AdEngine {
   bool _isPaused = false;
   bool _closed = false;
   bool _isDispatchScheduled = false;
-  int _inlineSlotSequence = 0;
+  int _slotSequence = 0;
   StreamSubscription<AdNetworkType>? _networkSub;
 
   AdEngine({
     Set<String>? consumedLoadOnceIds,
     GoogleMobileAdsDriver? driver,
-    Future<dynamic> Function(
-      AdPlacement placement, {
-      BannerLayout? bannerLayout,
-      void Function()? validateRequest,
-    })? executor,
+    Future<dynamic> Function(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest})?
+    executor,
     PresentationMutex? mutex,
     required AdNetworkInfo networkInfo,
     AdTimeoutConfig? timeoutConfig,
@@ -201,6 +204,7 @@ class AdEngine {
 
   /// A placement ID has one immutable configuration during this engine lifetime.
   void validatePlacement(AdPlacement placement) {
+    if (placement is BannerPlacement) placement.validate();
     final previous = _placements[placement.id];
     if (previous != null &&
         (previous.runtimeType != placement.runtimeType ||
@@ -209,7 +213,9 @@ class AdEngine {
             previous.loadOnce != placement.loadOnce ||
             previous.isSplash != placement.isSplash ||
             previous.priority != placement.priority ||
-            (previous is BannerPlacement && placement is BannerPlacement && previous.sizing != placement.sizing) ||
+            (previous is BannerPlacement &&
+                placement is BannerPlacement &&
+                (previous.sizing != placement.sizing || previous.collapsible != placement.collapsible)) ||
             (previous is NativePlacement &&
                 placement is NativePlacement &&
                 (previous.template != placement.template || previous.style != placement.style)))) {
@@ -220,12 +226,11 @@ class AdEngine {
 
   void _validateRequest(AdPlacement placement, BannerLayout? layout) {
     validatePlacement(placement);
-    if (placement is BannerPlacement) {
-      if (layout == null) throw ArgumentError('Banner requests require a BannerLayout.');
+    if (placement is BannerPlacement && placement.sizing.isAdaptive) {
+      if (layout == null) throw ArgumentError('Adaptive banner requests require a BannerLayout.');
       layout.validate();
-      placement.sizing.validate();
     } else if (layout != null) {
-      throw ArgumentError('BannerLayout is only valid for banner placements.');
+      throw ArgumentError('BannerLayout is only valid for adaptive banner placements.');
     }
   }
 
@@ -298,7 +303,10 @@ class AdEngine {
       return;
     }
 
-    final sorted = placements.where((placement) => placement is! BannerPlacement && !isConsumed(placement)).toList()
+    // Adaptive banners need a measured host, so they load when their view mounts.
+    final sorted = placements
+        .where((placement) => !(placement is BannerPlacement && placement.sizing.isAdaptive) && !isConsumed(placement))
+        .toList()
       ..sort((a, b) => a.priority.rank.compareTo(b.priority.rank));
     markInitialBatch(sorted.map((placement) => placement.id));
     _logger?.info('[Engine] 🚀 Priming startup queue with ${sorted.length} placement(s)...');
@@ -333,10 +341,7 @@ class AdEngine {
       return;
     }
 
-    final queue = _cache.putIfAbsent((
-      placementId: placement.id,
-      bannerLayout: bannerLayout,
-    ), () => ListQueue<AdCacheEntry>());
+    final queue = _cache.putIfAbsent(_requestKey(placement, bannerLayout), () => ListQueue<AdCacheEntry>());
 
     queue.removeWhere((entry) {
       if (entry.isStale) {
@@ -355,9 +360,7 @@ class AdEngine {
       if (totalBuffered + pendingTaskCount(placement.id, allLayouts: true) >= getCapacity(placement.id)) return;
     }
     final pending = pendingTaskCount(placement.id, bannerLayout: bannerLayout);
-    final openLeases = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]
-        ?.where((w) => w.isActive)
-        .length ?? 0;
+    final openLeases = _leaseWaiters[_requestKey(placement, bannerLayout)]?.where((w) => w.isActive).length ?? 0;
     final targetCapacity = getCapacity(placement.id);
     final effectiveCapacity = placement.loadOnce
         ? (forInlineDemand && openLeases > targetCapacity ? openLeases : targetCapacity)
@@ -389,10 +392,10 @@ class AdEngine {
       _analytics?.onAdLoaded(placement, stopwatch.elapsed);
 
       // Demand-based delivery: serve active lease waiters on a LIFO basis
-      final waiters = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)];
+      final waiters = _leaseWaiters[_requestKey(placement, bannerLayout)];
       while (waiters != null && waiters.isNotEmpty) {
         final waiter = waiters.removeLast();
-        if (waiters.isEmpty) _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
+        if (waiters.isEmpty) _leaseWaiters.remove(_requestKey(placement, bannerLayout));
         if (waiter.completer.isCompleted) continue;
         if (!waiter.isActive) {
           _logger?.info('[Engine] Skipping unmounted lease waiter for "${placement.id}".');
@@ -415,7 +418,7 @@ class AdEngine {
 
       if (placement is BannerPlacement) _makeBannerCacheRoom(placement.id);
       queue.addLast(AdCacheEntry(placement: placement, adInstance: adInstance, ttl: _adTtl));
-      _updateState((placementId: placement.id, bannerLayout: bannerLayout), AdPlacementState.ready);
+      _updateState(_requestKey(placement, bannerLayout), AdPlacementState.ready);
       _logger?.info(
         '[Engine] Buffer filled for "${placement.id}" (${queue.length}/$targetCapacity). Ready for instant display.',
       );
@@ -435,12 +438,12 @@ class AdEngine {
 
       final pending = pendingTaskCount(placement.id, bannerLayout: bannerLayout);
       if (pending == 0) {
-        final waiters = _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)];
+        final waiters = _leaseWaiters[_requestKey(placement, bannerLayout)];
         while (waiters != null && waiters.isNotEmpty) {
           final waiter = waiters.removeFirst();
           if (!waiter.completer.isCompleted) waiter.completer.complete(null);
         }
-        _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
+        _leaseWaiters.remove(_requestKey(placement, bannerLayout));
         _logger?.warning('[Engine] Ad load failed terminally for "${placement.id}". Settling lease waiters with null.');
       }
     }
@@ -452,32 +455,12 @@ class AdEngine {
       return Future<dynamic>.error(AdTaskCancelledException(placement.id));
     }
     final priority = overridePriority ?? placement.priority;
-    final effectiveKey = jsonEncode([placement.id, placement is InlinePlacement ? ++_inlineSlotSequence : null]);
-
-    if (placement is! InlinePlacement) {
-      for (final task in _inFlightTasks) {
-        if (task.key == effectiveKey && !task.isCancelled) {
-          _logger?.debug('[Engine] Task "$effectiveKey" is already in-flight.');
-          return task.completer.future;
-        }
-      }
-
-      final retry = _retries[effectiveKey];
-      if (retry != null) return retry.task.completer.future;
-
-      for (final queue in _buckets.values) {
-        for (final existing in queue) {
-          if (existing.key == effectiveKey) {
-            _logger?.debug('[Engine] Task "$effectiveKey" is already queued in ${existing.priority.name}.');
-            return existing.completer.future;
-          }
-        }
-      }
-    }
+    // Every task fills its own buffer slot; _load caps requests at the placement's capacity.
+    final effectiveKey = jsonEncode([placement.id, ++_slotSequence]);
 
     final task = AdLoadTask(key: effectiveKey, placement: placement, bannerLayout: bannerLayout, priority: priority);
     _buckets[priority]!.addLast(task);
-    _updateState((placementId: placement.id, bannerLayout: bannerLayout), AdPlacementState.loading);
+    _updateState(_requestKey(placement, bannerLayout), AdPlacementState.loading);
     _logger?.info(
       '[Engine] Enqueued "$effectiveKey" (${placement.id}) in [${priority.name}] tier. Total pending: $totalPending',
     );
@@ -494,9 +477,7 @@ class AdEngine {
       if (currentPriority <= newPriority) continue;
 
       final queue = entry.value;
-      final matching = queue
-          .where((t) => t.requestKey == (placementId: placementId, bannerLayout: bannerLayout))
-          .toList();
+      final matching = queue.where((t) => t.placement.id == placementId && t.bannerLayout == bannerLayout).toList();
       for (final task in matching) {
         queue.remove(task);
         final elevated = task.copyWith(priority: newPriority);
@@ -519,41 +500,12 @@ class AdEngine {
     });
   }
 
+  /// Serves tiers in rank order and tasks in queue order; promotions jump to the front.
   AdLoadTask? _pollNextTask() {
-    if (_buckets[AdPriority.splash]!.isNotEmpty) {
-      final splashQueue = _buckets[AdPriority.splash]!;
-      for (final task in splashQueue) {
-        if (task.placement is InlinePlacement) {
-          splashQueue.remove(task);
-          return task;
-        }
-      }
-      return splashQueue.removeFirst();
+    for (final priority in AdPriority.values) {
+      final queue = _buckets[priority]!;
+      if (queue.isNotEmpty) return queue.removeFirst();
     }
-
-    if (_buckets[AdPriority.immediate]!.isNotEmpty) {
-      final immediateQueue = _buckets[AdPriority.immediate]!;
-      for (final task in immediateQueue) {
-        if (task.placement is InlinePlacement) {
-          immediateQueue.remove(task);
-          return task;
-        }
-      }
-      return immediateQueue.removeFirst();
-    }
-
-    if (_buckets[AdPriority.high]!.isNotEmpty) {
-      return _buckets[AdPriority.high]!.removeFirst();
-    }
-
-    if (_buckets[AdPriority.medium]!.isNotEmpty) {
-      return _buckets[AdPriority.medium]!.removeFirst();
-    }
-
-    if (_buckets[AdPriority.low]!.isNotEmpty) {
-      return _buckets[AdPriority.low]!.removeFirst();
-    }
-
     return null;
   }
 
@@ -635,7 +587,9 @@ class AdEngine {
       stopwatch.stop();
 
       if (_handleCancelledInFlightTask(task, adInstance)) {
-        _logger?.info('[Engine] Task "${task.key}" for "${placement.id}" was cancelled. Discarding loaded ad instance.');
+        _logger?.info(
+          '[Engine] Task "${task.key}" for "${placement.id}" was cancelled. Discarding loaded ad instance.',
+        );
         return;
       }
 
@@ -785,7 +739,7 @@ class AdEngine {
         _retries.remove(retryKey);
         if (_closed || retriedTask.isCancelled) return;
         _buckets[retriedTask.priority]!.addFirst(retriedTask);
-        _updateState((placementId: placement.id, bannerLayout: bannerLayout), AdPlacementState.loading);
+        _updateState(_requestKey(placement, bannerLayout), AdPlacementState.loading);
         _dispatchNext();
       });
       _retries[retryKey] = (timer: timer, task: retriedTask);
@@ -805,7 +759,7 @@ class AdEngine {
         ),
       );
 
-      _updateState((placementId: placement.id, bannerLayout: bannerLayout), AdPlacementState.error);
+      _updateState(_requestKey(placement, bannerLayout), AdPlacementState.error);
 
       if (!task.completer.isCompleted) {
         task.completer.completeError(error ?? Exception('Ad load failed'));
@@ -817,7 +771,7 @@ class AdEngine {
   /// and marks in-flight tasks as cancelled so their loaded assets are immediately discarded.
   void cancel(String placementId, {BannerLayout? bannerLayout}) {
     final retryKeys = _retries.entries
-        .where((entry) => entry.value.task.requestKey == (placementId: placementId, bannerLayout: bannerLayout))
+        .where((entry) => entry.value.task.placement.id == placementId && entry.value.task.bannerLayout == bannerLayout)
         .map((entry) => entry.key)
         .toList();
     for (final key in retryKeys) {
@@ -828,7 +782,7 @@ class AdEngine {
 
     for (final queue in _buckets.values) {
       queue.removeWhere((task) {
-        if (task.requestKey == (placementId: placementId, bannerLayout: bannerLayout)) {
+        if (task.placement.id == placementId && task.bannerLayout == bannerLayout) {
           _cancelTask(task);
           return true;
         }
@@ -837,12 +791,17 @@ class AdEngine {
     }
 
     for (final task in _inFlightTasks) {
-      if (task.requestKey == (placementId: placementId, bannerLayout: bannerLayout)) {
+      if (task.placement.id == placementId && task.bannerLayout == bannerLayout) {
         _cancelTask(task);
       }
     }
 
-    _updateState((placementId: placementId, bannerLayout: bannerLayout), AdPlacementState.unloaded);
+    final requestKeys = _placementStates.keys
+        .where((key) => key.placementId == placementId && key.bannerLayout == bannerLayout)
+        .toList();
+    for (final key in requestKeys) {
+      _updateState(key, AdPlacementState.unloaded);
+    }
     _cleanupInitialBatch(placementId);
     _logger?.info('[Engine] 🛑 Cancelled pending and retrying tasks for "$placementId".');
   }
@@ -876,8 +835,17 @@ class AdEngine {
     }
   }
 
+  AdRequestKey _requestKeyForId(String placementId, BannerLayout? bannerLayout) => (
+    placementId: placementId,
+    bannerLayout: bannerLayout,
+    collapsible: switch (_placements[placementId]) {
+      BannerPlacement(:final collapsible) => collapsible,
+      _ => null,
+    },
+  );
+
   void _updateStateAfterEviction(String placementId, {BannerLayout? bannerLayout}) {
-    final key = (placementId: placementId, bannerLayout: bannerLayout);
+    final key = _requestKeyForId(placementId, bannerLayout);
     final count = _cache[key]?.length ?? 0;
     if (count > 0) {
       _updateState(key, AdPlacementState.ready);
@@ -893,7 +861,7 @@ class AdEngine {
     _validateRequest(placement, bannerLayout);
     if (!_adsAllowed) return false;
 
-    final queue = _cache[(placementId: placement.id, bannerLayout: bannerLayout)];
+    final queue = _cache[_requestKey(placement, bannerLayout)];
     if (queue == null || queue.isEmpty) return false;
 
     bool evictedAny = false;
@@ -934,7 +902,7 @@ class AdEngine {
   AdPlacementState getState(AdPlacement placement, {BannerLayout? bannerLayout}) {
     _validateRequest(placement, bannerLayout);
     if (isReady(placement, bannerLayout: bannerLayout)) return AdPlacementState.ready;
-    return _placementStates[(placementId: placement.id, bannerLayout: bannerLayout)] ??
+    return _placementStates[_requestKey(placement, bannerLayout)] ??
         (pendingTaskCount(placement.id, bannerLayout: bannerLayout) > 0
             ? AdPlacementState.loading
             : AdPlacementState.unloaded);
@@ -942,7 +910,7 @@ class AdEngine {
 
   /// Returns the current lifecycle state for [placementId].
   AdPlacementState getStateById(String placementId, {BannerLayout? bannerLayout}) {
-    final key = (placementId: placementId, bannerLayout: bannerLayout);
+    final key = _requestKeyForId(placementId, bannerLayout);
     final queue = _cache[key];
     if (queue != null && queue.isNotEmpty && !queue.first.isStale) {
       return AdPlacementState.ready;
@@ -957,14 +925,14 @@ class AdEngine {
   Stream<AdPlacementState> watchState(AdPlacement placement, {BannerLayout? bannerLayout}) {
     _validateRequest(placement, bannerLayout);
     return _stateController.stream
-        .where((e) => e.requestKey == (placementId: placement.id, bannerLayout: bannerLayout))
+        .where((e) => e.requestKey == _requestKey(placement, bannerLayout))
         .map((e) => e.state);
   }
 
   /// Observes state transitions for [placementId].
   Stream<AdPlacementState> watchStateById(String placementId, {BannerLayout? bannerLayout}) {
     return _stateController.stream
-        .where((e) => e.requestKey == (placementId: placementId, bannerLayout: bannerLayout))
+        .where((e) => e.requestKey.placementId == placementId && e.requestKey.bannerLayout == bannerLayout)
         .map((e) => e.state);
   }
 
@@ -976,13 +944,17 @@ class AdEngine {
     if (isConsumed(placement) && pendingTaskCount(placement.id, bannerLayout: bannerLayout) == 0) {
       return false;
     }
-    if (getState(placement, bannerLayout: bannerLayout) == AdPlacementState.error) return false;
 
     if (!isLoading(placement, bannerLayout: bannerLayout)) {
       preload(placement, bannerLayout: bannerLayout);
     }
 
     promote(placement.id, AdPriority.immediate, bannerLayout: bannerLayout);
+
+    if (_isPaused) {
+      _logger?.info('[Engine] Offline. Not waiting for "${placement.id}".');
+      return _missedSplash(placement, bannerLayout);
+    }
 
     Duration effectiveTimeout;
     if (timeout != null) {
@@ -998,7 +970,9 @@ class AdEngine {
 
     if (!_adsAllowed) return false;
     if (isReady(placement, bannerLayout: bannerLayout)) return true;
-    if (getState(placement, bannerLayout: bannerLayout) != AdPlacementState.loading) return false;
+    if (getState(placement, bannerLayout: bannerLayout) != AdPlacementState.loading) {
+      return _missedSplash(placement, bannerLayout);
+    }
 
     final settled = Completer<bool>();
     final subscription = watchState(placement, bannerLayout: bannerLayout).listen(
@@ -1010,13 +984,25 @@ class AdEngine {
         if (!settled.isCompleted) settled.complete(false);
       },
     );
+    bool ready;
     try {
-      return await settled.future.timeout(effectiveTimeout, onTimeout: () => false);
+      ready = await settled.future.timeout(effectiveTimeout, onTimeout: () => false);
     } catch (_) {
-      return false;
+      ready = false;
     } finally {
       await subscription.cancel();
     }
+    return ready || _missedSplash(placement, bannerLayout);
+  }
+
+  /// A splash moment that passed without an ad is over: drop its load so a
+  /// following show() continues at once instead of waiting a second time.
+  bool _missedSplash(AdPlacement placement, BannerLayout? bannerLayout) {
+    if (placement.isSplash) {
+      cancel(placement.id, bannerLayout: bannerLayout);
+      _markConsumed(placement, bannerLayout: bannerLayout);
+    }
+    return false;
   }
 
   Future<void> _settleSplashAndPresent(
@@ -1029,8 +1015,6 @@ class AdEngine {
     _settlingPresentations.remove(placement.id);
     if (!ready || !_adsAllowed) {
       _logger?.warning('[Show] Splash placement "${placement.id}" failed or timed out. Continuing user flow.');
-      cancel(placement.id);
-      _markConsumed(placement);
       onDismissed?.call();
       return;
     }
@@ -1051,9 +1035,7 @@ class AdEngine {
       return;
     }
 
-    if (isConsumed(placement) &&
-        (_cache[(placementId: placement.id, bannerLayout: null)]?.isEmpty ?? true) &&
-        !isLoading(placement)) {
+    if (isConsumed(placement) && (_cache[_requestKey(placement, null)]?.isEmpty ?? true) && !isLoading(placement)) {
       _logger?.info('[Show] Placement "${placement.id}" is consumed and unloaded. Skipping presentation.');
       onDismissed?.call();
       return;
@@ -1065,7 +1047,7 @@ class AdEngine {
       return;
     }
 
-    final queue = _cache[(placementId: placement.id, bannerLayout: null)];
+    final queue = _cache[_requestKey(placement, null)];
     final cached = (queue != null && queue.isNotEmpty) ? queue.removeFirst() : null;
     if (cached != null && queue != null && queue.isEmpty && !placement.loadOnce) {
       _updateStateAfterEviction(placement.id);
@@ -1154,10 +1136,7 @@ class AdEngine {
     if (!_adsAllowed) return null;
     if (bannerLayout != null) _preferredBannerLayouts[placement.id] = bannerLayout;
 
-    final queue = _cache.putIfAbsent((
-      placementId: placement.id,
-      bannerLayout: bannerLayout,
-    ), () => ListQueue<AdCacheEntry>());
+    final queue = _cache.putIfAbsent(_requestKey(placement, bannerLayout), () => ListQueue<AdCacheEntry>());
 
     while (queue.isNotEmpty && queue.first.isStale) {
       final stale = queue.removeFirst();
@@ -1183,21 +1162,18 @@ class AdEngine {
     promote(placement.id, AdPriority.immediate, bannerLayout: bannerLayout);
 
     final waiter = _LeaseWaiter(completer: Completer<dynamic>(), isMounted: isMounted);
-    _leaseWaiters
-        .putIfAbsent((placementId: placement.id, bannerLayout: bannerLayout), () => ListQueue<_LeaseWaiter>())
-        .addLast(waiter);
+    _leaseWaiters.putIfAbsent(_requestKey(placement, bannerLayout), () => ListQueue<_LeaseWaiter>()).addLast(waiter);
     _load(placement, forInlineDemand: true, bannerLayout: bannerLayout);
 
     if (timeout != null) {
       return waiter.completer.future.timeout(
         timeout,
         onTimeout: () {
-          _leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.remove(waiter);
-          if (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.isEmpty ?? false) {
-            _leaseWaiters.remove((placementId: placement.id, bannerLayout: bannerLayout));
+          _leaseWaiters[_requestKey(placement, bannerLayout)]?.remove(waiter);
+          if (_leaseWaiters[_requestKey(placement, bannerLayout)]?.isEmpty ?? false) {
+            _leaseWaiters.remove(_requestKey(placement, bannerLayout));
           }
-          if (placement.loadOnce &&
-              !_leaseWaiters.containsKey((placementId: placement.id, bannerLayout: bannerLayout))) {
+          if (placement.loadOnce && !_leaseWaiters.containsKey(_requestKey(placement, bannerLayout))) {
             cancel(placement.id, bannerLayout: bannerLayout);
             _markConsumed(placement, bannerLayout: bannerLayout);
           }
@@ -1210,11 +1186,27 @@ class AdEngine {
     return waiter.completer.future;
   }
 
+  /// A host left before its one-time ad arrived. Drop the pending load so the ad
+  /// never fills a screen the user has already passed, e.g. after reconnecting.
+  void abandonLease(InlinePlacement placement, {BannerLayout? bannerLayout}) {
+    if (!placement.loadOnce && !placement.isSplash) return;
+    final key = _requestKey(placement, bannerLayout);
+    final waiters = _leaseWaiters[key];
+    if (waiters != null && waiters.any((waiter) => waiter.isActive)) return;
+    _leaseWaiters.remove(key);
+    for (final waiter in waiters ?? <_LeaseWaiter>[]) {
+      if (!waiter.completer.isCompleted) waiter.completer.complete(null);
+    }
+    if (pendingTaskCount(placement.id, bannerLayout: bannerLayout) == 0) return;
+    _logger?.info('[Engine] Host for one-time "${placement.id}" left before its ad arrived. Dropping the load.');
+    cancel(placement.id, bannerLayout: bannerLayout);
+    _markConsumed(placement, bannerLayout: bannerLayout);
+  }
+
   void _scheduleReplenish(AdPlacement placement, {BannerLayout? bannerLayout}) {
     scheduleMicrotask(() {
       if (bannerLayout != null && _preferredBannerLayouts[placement.id] != bannerLayout) return;
-      if (_closed ||
-          (_leaseWaiters[(placementId: placement.id, bannerLayout: bannerLayout)]?.any((w) => w.isActive) ?? false)) {
+      if (_closed || (_leaseWaiters[_requestKey(placement, bannerLayout)]?.any((w) => w.isActive) ?? false)) {
         return;
       }
       _load(placement, bannerLayout: bannerLayout, background: true);

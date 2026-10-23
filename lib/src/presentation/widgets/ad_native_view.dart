@@ -9,6 +9,7 @@ import '../../infrastructure/drivers/managed_native_ad.dart';
 import '../../infrastructure/mutex/presentation_mutex.dart';
 import '../ad_session.dart';
 import '../admob_kit_facade.dart';
+import 'ad_loading_shimmer.dart';
 
 /// Native ad host measured from SDK assets and the available width.
 ///
@@ -18,10 +19,11 @@ import '../admob_kit_facade.dart';
 /// Fullscreen templates fill bounded height and own exclusive presentation only
 /// while a loaded ad is active. Keep app dismissal controls outside this host.
 ///
-/// Deferred loading: ad loads are gated on [TickerMode] (route coverage via
-/// Overlay) **and** [Visibility] (e.g. hidden `IndexedStack` tabs). Custom lazy
-/// containers that do not expose these gates must provide [active] from their
-/// selection state. Viewport visibility is not inferred from widget mounting.
+/// Deferred loading: the first request waits until [TickerMode] (route coverage
+/// via Overlay) and [Visibility] (e.g. hidden `IndexedStack` tabs) allow it.
+/// Once delivered, the ad stays mounted for the host's lifetime, so covering
+/// routes and tab switches never reload it. Unshown ads older than the
+/// configured TTL are replaced when the host becomes visible again.
 class AdNativeView extends StatelessWidget {
   /// The type-safe native placement descriptor.
   final NativePlacement placement;
@@ -34,15 +36,10 @@ class AdNativeView extends StatelessWidget {
   /// Defaults to `true`.
   final bool showPlaceholder;
 
-  /// Additional activity gate for hosts that do not expose Visibility/TickerMode.
-  /// Cannot override an inactive ancestor.
-  final bool active;
-
   /// Creates a host bound to the placement's template and dimensions.
   const AdNativeView({
     super.key,
     required this.placement,
-    this.active = true,
     this.placeholder,
     this.showPlaceholder = true,
   });
@@ -87,19 +84,18 @@ class _AdNativeHost extends StatefulWidget {
   State<_AdNativeHost> createState() => _AdNativeViewState();
 }
 
-class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserver {
+class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   NativeAd? _nativeAd;
   bool _isLoading = true;
   bool _hasAttemptedLoad = false;
   bool _leasePending = false;
-  bool _wasActive = false;
   bool _templateConflict = false;
   int _generation = 0;
   bool _attached = true;
   double? _layoutHeight;
   Object? _layoutError;
   int _layoutGeneration = 0;
-  ({double width, double? height, double limit, double headline, double body, double metadata, double action})?
+  ({double width, double? height, double headline, double body, double metadata, double action})?
   _layoutKey;
   PresentationMutex? _mutex;
   PresentationToken? _token;
@@ -124,7 +120,13 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     _isLoading = true;
     _leasePending = false;
     _hasAttemptedLoad = false;
+    updateKeepAlive();
   }
+
+  // Lazy lists and page views would otherwise dispose a scrolled-away host and
+  // request a new ad when it scrolls back.
+  @override
+  bool get wantKeepAlive => _nativeAd != null;
 
   void _onInitializationChanged() {
     if (!mounted) return;
@@ -168,8 +170,6 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     if (_templateConflict || !_attached) return;
     _bindPresentation();
     final active = _isSubtreeActive;
-    final reactivating = active && !_wasActive;
-    _wasActive = active;
     if (_nativeAd == null && !AdmobKit.canRequestAds) {
       final state = AdmobKit.initializationState;
       _isLoading =
@@ -179,19 +179,20 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     }
     final ad = _nativeAd;
     final ttl = activeAdSession?.config.adTtl;
-    if ((reactivating || (_effectiveTemplate.isFullscreen && _token == null)) &&
+    if (active &&
         ad is ManagedNativeAd &&
+        !ad.hasImpression &&
         ad.loadedAt != null &&
         ttl != null &&
         DateTime.now().difference(ad.loadedAt!) > ttl) {
       _resetLease();
     }
-    if (!_isSubtreeActive && _nativeAd == null && !_leasePending) {
+    if (!active && _nativeAd == null && !_leasePending) {
       // Deactivated with nothing loaded or settled (e.g. prior offline
       // failure): reset so reactivating this tab retries the lease instead of
       // staying blank. Skipped while a lease is still in-flight.
       _hasAttemptedLoad = false;
-    } else if (_isSubtreeActive && _nativeAd == null && !_hasAttemptedLoad && !_leasePending && AdmobKit.canRequestAds) {
+    } else if (active && _nativeAd == null && !_hasAttemptedLoad && !_leasePending && AdmobKit.canRequestAds) {
       _loadNative();
     }
     if (_nativeAd != null) _configureLayout();
@@ -203,7 +204,6 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     final key = (
       width: widget.width,
       height: _effectiveTemplate.isFullscreen ? widget.maxHeight : null,
-      limit: widget.maxHeight,
       headline: scaler.scale(15),
       body: scaler.scale(12),
       metadata: scaler.scale(11),
@@ -288,15 +288,16 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (mounted && _attached && _effectiveTemplate.isFullscreen) {
-      setState(_checkAndActivate);
-    }
+    if (!mounted || !_attached) return;
+    // An empty slot (no fill, retries exhausted) tries again when the app returns.
+    final retry = state == AppLifecycleState.resumed && _nativeAd == null && !_leasePending;
+    if (retry) _hasAttemptedLoad = false;
+    if (retry || _effectiveTemplate.isFullscreen) setState(_checkAndActivate);
   }
 
   @override
   void deactivate() {
     _attached = false;
-    _wasActive = false;
     _releasePresentation();
     super.deactivate();
   }
@@ -323,7 +324,8 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     // buffered or replenished. Settles instantly on terminal load failure.
     (activeAdSession?.leaseInlineAd(
           widget.config.placement,
-          isMounted: () => mounted && _attached && _isSubtreeActive,
+          // A hidden waiter is skipped; the engine buffers the ad for the visible host.
+          isMounted: () => mounted && _attached && generation == _generation && _isSubtreeActive,
         ) ??
         Future<dynamic>.value(null))
         .then((ad) {
@@ -332,19 +334,10 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
             if (ad is Ad) ad.dispose();
             return;
           }
-          if (ad is Ad && !_isSubtreeActive) {
-            ad.dispose();
-            _leasePending = false;
-            setState(() {
-              _nativeAd = null;
-              _isLoading = false;
-              _hasAttemptedLoad = false;
-            });
-            return;
-          }
           _leasePending = false;
           setState(() {
             _nativeAd = ad is NativeAd ? ad : null;
+            updateKeepAlive();
             _isLoading = false;
             _checkAndActivate();
             if (_nativeAd == null && !_isSubtreeActive) {
@@ -372,6 +365,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     AdmobKit.initializationStateListenable.removeListener(_onInitializationChanged);
     _generation++;
     _layoutGeneration++;
+    if (_leasePending) activeAdSession?.abandonLease(widget.config.placement);
     _nativeAd?.dispose();
     super.dispose();
   }
@@ -381,7 +375,6 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   /// IndexedStack hidden tabs). Plain screens satisfy both by default.
   bool get _isSubtreeActive =>
       _attached &&
-      widget.config.active &&
       (!_effectiveTemplate.isFullscreen ||
           WidgetsBinding.instance.lifecycleState == null ||
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) &&
@@ -392,6 +385,7 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_templateConflict) {
       throw ArgumentError('Changing a native template requires a distinct placement ID.');
     }
@@ -402,14 +396,20 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
       throw FlutterError('Native layout failed: $_layoutError');
     }
 
-    final isSubtreeActive = _isSubtreeActive;
-
+    final layoutHeight = _layoutHeight;
+    if (layoutHeight != null && layoutHeight > widget.maxHeight + 1) {
+      throw FlutterError(
+        'Native ad assets require $layoutHeight logical pixels of height; '
+        'the host provides ${widget.maxHeight}. Allow inline ads to size themselves.',
+      );
+    }
     final height = _effectiveTemplate.isFullscreen
         ? widget.maxHeight
-        : (_layoutHeight ?? _effectiveTemplate.height).clamp(widget.minHeight, widget.maxHeight);
-    // Retained inactive hosts keep their measured size without mounting a platform view.
-    if (!isSubtreeActive) {
-      return SizedBox(width: widget.width, height: height, child: widget.config.placeholder ?? const SizedBox.shrink());
+        : (layoutHeight ?? _effectiveTemplate.height).clamp(widget.minHeight, widget.maxHeight);
+
+    // Hosts that have not requested yet stay quiet instead of showing a spinner.
+    if (_nativeAd == null && !_isSubtreeActive) {
+      return SizedBox(width: widget.width, height: height, child: widget.config.placeholder);
     }
 
     return SizedBox(
@@ -418,28 +418,9 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
       child: _nativeAd != null && _layoutHeight != null && (!_effectiveTemplate.isFullscreen || _token != null)
           ? AdWidget(key: ObjectKey(_nativeAd), ad: _nativeAd!)
           : ((_isLoading || _nativeAd != null) && widget.config.showPlaceholder
-                ? (widget.config.placeholder ?? _buildDefaultPlaceholder(context))
+                ? (widget.config.placeholder ?? const AdLoadingShimmer(borderRadius: BorderRadius.all(Radius.circular(10))))
                 : const SizedBox.shrink()),
     );
   }
 
-  Widget _buildDefaultPlaceholder(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      alignment: Alignment.center,
-      child: SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-        ),
-      ),
-    );
-  }
 }

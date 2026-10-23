@@ -95,7 +95,7 @@ void main() async {
     ),
   );
 
-  AdmobKit.registerPlacements(SampleAds.allPlacements, placementCapacities: {'multi_widget_showcase': 2});
+  AdmobKit.registerPlacements(SampleAds.allPlacements);
 
   runApp(const TaskFlowApp());
   try {

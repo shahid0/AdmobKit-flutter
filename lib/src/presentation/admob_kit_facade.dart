@@ -49,6 +49,8 @@ abstract final class AdmobKit {
   ///
   /// Call this as soon as your ad configuration is ready (e.g. after Firebase Remote Config
   /// or backend API has loaded). Can be called multiple times to register new placements.
+  /// Fixed banners preload with fullscreen and native placements; adaptive banners
+  /// load when their [AdBannerView] measures its width.
   static void registerPlacements(Iterable<AdPlacement> placements, {Map<String, int>? placementCapacities}) {
     final session = activeAdSession;
     if (session == null) {
@@ -78,6 +80,7 @@ abstract final class AdmobKit {
   }
 
   /// Whether a fresh buffered ad is available for this placement/layout.
+  /// Pass [bannerLayout] only for adaptive banners.
   static bool isReady(AdPlacement placement, {BannerLayout? bannerLayout}) {
     return activeAdSession?.isReady(placement, bannerLayout: bannerLayout) ?? false;
   }
@@ -105,6 +108,24 @@ abstract final class AdmobKit {
   /// applies to the ad wait, not to time spent resolving consent or the SDK.
   static Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout}) {
     return activeAdSession?.waitFor(placement, timeout: timeout, bannerLayout: bannerLayout) ?? Future.value(false);
+  }
+
+  /// Deterministically awaits every placement, to hold a funnel step until its ads are ready.
+  ///
+  /// Requests load in list order, ahead of background preloads. Returns true only
+  /// when every placement is ready; ads that load stay buffered for their widgets
+  /// and [show] calls either way. [timeout] is an optional time budget for the
+  /// whole group. Adaptive banners cannot preload and throw [ArgumentError].
+  static Future<bool> waitForAll(Iterable<AdPlacement> placements, {Duration? timeout}) async {
+    final ordered = placements.toList();
+    for (final placement in ordered) {
+      if (placement is BannerPlacement && placement.sizing.isAdaptive) {
+        throw ArgumentError.value(placement.id, 'placements', 'Adaptive banners load on layout and cannot be awaited.');
+      }
+    }
+    // Each wait moves its request to the front of the queue, so start the last first.
+    final waits = [for (final placement in ordered.reversed) waitFor(placement, timeout: timeout)];
+    return (await Future.wait(waits)).every((ready) => ready);
   }
 
   /// Whether the user is currently entitled to an ad-free experience.

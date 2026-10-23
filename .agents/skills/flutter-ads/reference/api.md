@@ -1,306 +1,242 @@
-# Public API Reference
-
-Import the public library into your Flutter application:
+# API Reference
 
 ```dart
 import 'package:admob_kit_flutter/admob_kit_flutter.dart';
 ```
 
-The package manages ad loading, warm memory caching, retries, and presentation safety.
-Your application manages navigation, user rewards, screen reachability, purchase state, and display frequency.
-For complete implementation sequences, read [Use cases](recipes.md).
+Everything below is exported by that one library. For when to use each API, read [Best practices](best-practices.md); for why it behaves as it does, read [Design decisions](design-decisions.md).
 
-## Lifecycle and Initialization
+## Lifecycle
 
 ### `AdmobKit.initialize`
 
-`Future<void> AdmobKit.initialize({AdmobKitConfig config = const AdmobKitConfig()})`
+`Future<void> initialize({AdmobKitConfig config = const AdmobKitConfig()})`
 
-Initializes consent, native SDK drivers, native template factories, and the background ad engine.
+Collects consent (Google UMP, and Apple ATT on iOS), initializes the Google Mobile Ads SDK, registers the native templates, and starts the ad engine.
 
-- **Parameters**:
-  - `config`: Optional configuration object specifying timeouts, concurrency, and callbacks.
-- **Behavior**:
-  - Runs Google UMP consent and Apple ATT permission requests when `config.requestConsent` is `true`.
-  - Initializes Google Mobile Ads SDK and registers native ad template factories.
-  - Primes initial non-banner placements specified in `config.placements`.
-  - Repeated calls return the active session and retain the original configuration.
-  - To apply a new configuration, call `AdmobKit.dispose()` before you call `initialize()` again.
-  - A consent denial completes initialization without throwing an exception.
-  - If a fatal SDK or platform error occurs, the returned future completes with that error.
+- Placements in `config.placements` are registered and preloaded.
+- Repeated calls share the first session. Call `dispose()` before initializing with a different configuration.
+- Consent denial completes normally; no ads are requested.
+- Throws `ArgumentError` for a concurrency below 1 or a TTL or timeout of zero or less. A fatal SDK or platform error completes the future with that error.
 
 ### `AdmobKit.dispose`
 
-`void AdmobKit.dispose()`
+`void dispose()`
 
-Disposes the active ad session, cancels running background tasks, and evicts all cached ads.
-
-- Call this method only during user logout, account switching, or app shutdown.
-- Do not call this method when you close individual screens.
-- Widgets dispose their own leased ad instances automatically.
-
-## Placement Registration
+Ends the session: cancels pending work, disposes cached ads, and releases the presentation lock. Use it for logout, account switching, or tests, not when closing a screen. Widgets dispose their own ads.
 
 ### `AdmobKit.registerPlacements`
 
-`void AdmobKit.registerPlacements(Iterable<AdPlacement> placements, {Map<String, int>? placementCapacities})`
+`void registerPlacements(Iterable<AdPlacement> placements, {Map<String, int>? placementCapacities})`
 
-Registers ad placements and starts eligible background preloading.
+Registers placements and starts preloading fullscreen, native, and fixed banner placements. Adaptive banners load when their widget lays out.
 
-- **Parameters**:
-  - `placements`: Collection of placement configurations to register.
-  - `placementCapacities`: Optional map from placement identifiers to target buffer capacities (defaults to 1).
-- **Behavior**:
-  - Starts background preloading for registered fullscreen and native placements.
-  - Accepts calls while initialization is still in progress.
-  - Throws `StateError` if called before `initialize()` or after `dispose()`.
-  - Throws `ArgumentError` if you re-register an existing identifier with different configuration properties.
-  - Banners require layout dimensions from their host widget before loading starts.
+- `placementCapacities`: buffered ads per placement id (default 1).
+- Allowed while initialization is still running.
+- Throws `StateError` before `initialize()` or after `dispose()`, and `ArgumentError` when an id is registered again with a different configuration.
 
-## Presentation and Waits
+## Waiting and presenting
 
 ### `AdmobKit.show`
 
-`void AdmobKit.show(FullscreenPlacement placement, {VoidCallback? onDismissed, void Function(num amount, String type)? onRewardGranted, VoidCallback? onDisplayed})`
+`void show(FullscreenPlacement placement, {VoidCallback? onDismissed, void Function(num amount, String type)? onRewardGranted, VoidCallback? onDisplayed})`
 
-Presents a cached fullscreen ad immediately without waiting for a network download.
+Presents a cached interstitial, rewarded, rewarded interstitial, or app-open ad.
 
-- **Parameters**:
-  - `placement`: The fullscreen placement to present (`InterstitialPlacement`, `RewardedPlacement`, `RewardedInterstitialPlacement`, or `AppOpenPlacement`).
-  - `onDismissed`: Callback executed when the ad closes, fails, or skips. Place navigation logic here.
-  - `onRewardGranted`: Callback executed when the SDK grants a user reward.
-  - `onDisplayed`: Optional callback executed when the SDK renders the ad on screen.
-- **Behavior**:
-  - If an ad is ready in the warm cache, presents the ad immediately.
-  - If no ad is ready, or if ads are blocked, executes `onDismissed` at once (0ms wait time).
-  - Never call `show()` for native placements; native ads must mount using `AdNativeView`.
-  - Grant user rewards exclusively inside `onRewardGranted`.
-  - Never unlock user rewards inside `onDismissed`.
+- Never waits for a download. If no ad is ready, ads are unavailable, or another fullscreen ad owns the screen, `onDismissed` runs at once.
+- A splash placement whose load is already in flight is awaited before presenting.
+- `onDismissed` always runs exactly once: after the ad closes, fails, or is unavailable. Put navigation here.
+- `onRewardGranted` runs when the SDK grants a reward. Grant rewards only here.
+- `onDisplayed` runs when the ad appears on screen.
+- Native placements are shown with `AdNativeView`, never with `show`.
 
 ### `AdmobKit.waitFor`
 
-`Future<bool> AdmobKit.waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout})`
+`Future<bool> waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout})`
 
-Deterministically awaits an ad placement until it becomes ready, fails, or times out.
+Deterministically prepares one placement and reports whether its ad is ready.
 
-- **Parameters**:
-  - `placement`: The ad placement to prepare.
-  - `timeout`: Maximum wait duration applied to the ad request (defaults to configured network timeout).
-  - `bannerLayout`: Required layout dimensions when awaiting a banner placement.
-- **Returns**:
-  - `true`: A fresh ad is ready in the memory cache.
-  - `false`: Consent denial, network failure, timeout, premium user, or disposal.
-- **Behavior**:
-  - Waits for pending consent and SDK initialization before it starts the ad timer.
-  - Promotes the placement to immediate queue priority.
-  - Does not guarantee that `show()` will present an ad later if another request consumes it first.
+- Waits for consent and SDK setup, requests the ad if needed, and moves it to the front of the queue.
+- Returns `true` when the ad is ready, `false` when it cannot come: consent denied, offline, retries exhausted, premium user, or disposal.
+- `timeout`: optional time budget, such as the length of a task the user is doing. Without it, the wait settles on its own.
+- Offline it returns `false` at once; the load stays queued and resumes when the network returns.
+- For a splash placement, `false` ends the splash moment: its load is dropped, so a following `show` continues immediately.
+- `bannerLayout`: required for adaptive banners and rejected for every other placement.
+- A ready result does not reserve the ad; another `show` or widget can still take it.
 
-## Declarative Widgets
+### `AdmobKit.waitForAll`
+
+`Future<bool> waitForAll(Iterable<AdPlacement> placements, {Duration? timeout})`
+
+Deterministically prepares a funnel step, for example every onboarding ad while the splash screen is up.
+
+- Loads the placements in list order, ahead of background preloads.
+- Returns `true` only when every placement is ready. Ads that load stay buffered for the next step's widgets and `show` calls either way.
+- `timeout`: optional time budget for the whole group.
+- Throws `ArgumentError` for adaptive banners, which load on layout.
+
+### Status
+
+| Member | Type | Meaning |
+| :--- | :--- | :--- |
+| `initializationState` | `AdInitializationState` | `uninitialized`, `gatheringConsent`, `initializingSdk`, `ready`, `updatingConsent`, `consentDenied`, `failed`, or `disposed` |
+| `initializationStateListenable` | `ValueListenable<AdInitializationState>` | The same value, for reactive UI |
+| `canRequestAds` | `bool` | Initialization finished, consent allows ads, and the user is not premium |
+| `waitUntilCanRequestAds()` | `Future<bool>` | Settles when eligibility is resolved |
+| `isUserPremium` | `bool` | Current result of `AdmobKitConfig.isPremium` |
+| `isShowingAd` | `bool` | A fullscreen ad, including a fullscreen native ad, owns the screen |
+| `isReady(placement)` | `bool` | A fresh ad is buffered now |
+| `isLoading(placement)` | `bool` | A request is queued, in flight, or waiting to retry |
+| `getState(placement)` | `AdPlacementState` | `unloaded`, `loading`, `ready`, or `error` |
+| `watchState(placement)` | `Stream<AdPlacementState>` | State changes, for diagnosis |
+
+`isReady`, `isLoading`, `getState`, and `watchState` take an optional `bannerLayout` for adaptive banners. They support diagnosis; use `waitFor` for decisions.
+
+## Privacy and tools
+
+| Member | Type | Meaning |
+| :--- | :--- | :--- |
+| `isPrivacyOptionsRequired()` | `Future<bool>` | Google UMP requires a privacy settings entry in your app |
+| `showPrivacyOptionsForm()` | `Future<bool>` | Opens the UMP form; cached ads are discarded and reload under the new consent. Returns `false` over a fullscreen ad |
+| `openAdInspector([onComplete])` | `void` | Opens Google Ad Inspector for on-device checks |
+| `setNativeStyle(style, {placement})` | `Future<void>` | Restyles native ads live; see [Native ads](native-ads.md) |
+
+## Widgets
 
 ### `AdBannerView`
 
-`AdBannerView({required BannerPlacement placement, double? width, bool? reserveSpace, Widget? placeholder, bool active = true})`
+`AdBannerView({Key? key, required BannerPlacement placement, double? width, bool? reserveSpace, Widget? placeholder})`
 
-Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
-
-- **Parameters**:
-  - `placement`: The `BannerPlacement` configuration.
-  - `width`: Available host width. Defaults to the parent's bounded width. In an unbounded parent, fixed banners use `sizing.fixedWidth`; adaptive banners require explicit `width`.
-  - `reserveSpace`: Optional override of `placement.sizing.reserveSpace`. `true` reserves `maxHeight` or `fixedHeight`; `false` collapses until the ad has render dimensions, then uses its actual height.
-  - `placeholder`: Optional widget displayed while loading when space is reserved.
-  - `active`: Controls whether the widget can request and retain ads. Pass `false` on offscreen tabs.
-- **Behavior**:
-  - Calculates adaptive banner height automatically from available width and orientation.
-  - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
-  - Fixed banners request exact dimensions and are centered when the host is wider. The host must be wide enough for the chosen fixed size.
-  - Throws `FlutterError` for adaptive banners within unbounded width without explicit `width`.
+- `width`: host width. Defaults to the parent's bounded width, or the fixed banner width in an unbounded parent. Adaptive banners in an unbounded parent require it.
+- `reserveSpace`: overrides `placement.sizing.reserveSpace`. When `true`, the configured height is kept before and after loading; when `false`, the host collapses until the ad has a size.
+- `placeholder`: shown while loading in reserved space. Defaults to a shimmering "Loading ad" placeholder.
+- Requests its first ad when visible, keeps the delivered banner for its lifetime, and sizes itself to the rendered creative.
+- On a width or orientation change, an adaptive banner keeps the current ad on screen until the new size arrives.
+- A fixed banner wider than its host renders nothing and makes no request.
+- Throws `FlutterError` for an unbounded width without `width`.
 
 ### `AdNativeView`
 
-`AdNativeView({required NativePlacement placement, bool active = true, Widget? placeholder, bool showPlaceholder = true})`
+`AdNativeView({Key? key, required NativePlacement placement, Widget? placeholder, bool showPlaceholder = true})`
 
-Embeds a native template ad into your Flutter widget tree.
-
-- **Parameters**:
-  - `placement`: The `NativePlacement` configuration.
-  - `active`: Controls whether the widget requests and retains an ad instance.
-  - `placeholder`: Custom widget rendered while loading.
-  - `showPlaceholder`: Whether to display a placeholder while loading (defaults to `true`).
-- **Behavior**:
-  - Requires bounded width of at least 320 logical pixels.
-  - Height adapts to actual creative text and media dimensions.
-  - Leases an ad instance exclusively; disposes the instance cleanly when unmounted.
-  - Throws `FlutterError` if horizontal constraints are unbounded or less than 320 logical pixels.
+- Needs a bounded width of at least 320 logical pixels. Inline templates size themselves to their content; fullscreen templates fill a bounded height of at least 320.
+- `placeholder`: shown while loading. Defaults to a shimmering "Loading ad" placeholder; `showPlaceholder: false` hides it.
+- Requests its first ad when visible, keeps the delivered ad for its lifetime, and keeps its list or page item alive when scrolled away.
+- A fullscreen template owns the presentation lock only while it is visible and measured.
+- Throws `FlutterError` for invalid bounds, or when measured content needs more height than the host provides.
 
 ### `AdPaywallGuard`
 
-`AdPaywallGuard({required FullscreenPlacement placement, required VoidCallback onDismiss, Widget? child, Widget Function(BuildContext, VoidCallback close)? builder, bool isPurchased = false})`
+`AdPaywallGuard({Key? key, required FullscreenPlacement placement, required VoidCallback onDismiss, Widget? child, Widget Function(BuildContext context, VoidCallback triggerDismiss)? builder, bool isPurchased = false})`
 
-Guards modal screen dismissals and Android hardware back navigation with a fullscreen ad.
+Routes a paywall's close button (via `builder`) and the Android back button through one exit that shows `placement`, then calls `onDismiss`.
 
-- **Parameters**:
-  - `placement`: Fullscreen placement to show when the user exits without purchasing.
-  - `onDismiss`: Callback executed when the screen must close.
-  - `child`: Static child widget tree.
-  - `builder`: Builder function providing the dismiss callback to custom close buttons.
-  - `isPurchased`: Whether the user completed a purchase. If `true`, bypasses the ad immediately.
+- `isPurchased: true` or a premium user closes at once without an ad.
+- The exit starts once; repeated taps or back presses are ignored.
 
-## Placement Specifications
+## Placements
 
-### Placement Classes
-
-| Class | Supported Format | Default Priority | Special Properties |
+| Class | Format | Default priority | Extra parameters |
 | :--- | :--- | :--- | :--- |
-| `InterstitialPlacement` | Interstitial | `high` (or `splash`) | `isSplash` |
-| `RewardedPlacement` | Rewarded Video | `medium` | None |
-| `RewardedInterstitialPlacement` | Rewarded Interstitial | `medium` | None |
-| `AppOpenPlacement` | App Open | `high` (or `splash`) | `isSplash` |
-| `BannerPlacement` | Adaptive or Fixed Banner | `medium` (or `splash`) | `sizing`, `isSplash` |
-| `NativePlacement` | Native Template | `medium` (or `splash`) | `template`, `style`, `isSplash` |
+| `InterstitialPlacement` | Interstitial | `high`, or `splash` with `isSplash` | `isSplash` |
+| `AppOpenPlacement` | App open | `high`, or `splash` with `isSplash` | `isSplash` |
+| `RewardedPlacement` | Rewarded | `medium` | |
+| `RewardedInterstitialPlacement` | Rewarded interstitial | `medium` | |
+| `BannerPlacement` | Banner | `medium`, or `splash` with `isSplash` | `sizing`, `collapsible`, `isSplash` |
+| `NativePlacement` | Native | `medium`, or `splash` with `isSplash` | `template`, `style`, `isSplash` |
 
-### Common Placement Parameters
+Shared parameters:
+- `androidId`, `iosId`: ad unit IDs (they contain `/`).
+- `id`: unique placement id; defaults to `androidId`.
+- `priority`: queue tier (`immediate`, `splash`, `high`, `medium`, `low`). Leave the default; see [Best practices](best-practices.md#2-leave-priorities-at-their-defaults).
+- `loadOnce`: the placement is used once; no spare is loaded after it is shown.
 
-All placement constructors accept these parameters:
+### Banner sizing
 
-- `id`: Unique string identifier for this placement.
-- `androidId`: AdMob ad unit identifier for Android.
-- `iosId`: AdMob ad unit identifier for iOS.
-- `priority`: Initial queue priority tier (`immediate`, `splash`, `high`, `medium`, or `low`).
-- `loadOnce`: If `true`, stops background preloading after first ad consumption (defaults to `false`).
-
-### Banner Sizing Modes
-
-- `const BannerSizing.anchoredAdaptive()`: SDK-calculated height; `reserveSpace` is `false`.
-- `const BannerSizing.inlineAdaptive({required int maxHeight, bool reserveSpace = true})`: Adaptive width and creative height up to `maxHeight` (minimum 32 logical pixels).
-- `const BannerSizing.fixed({required int width, required int height, bool reserveSpace = true})`: Exact positive dimensions in logical pixels, without adaptive calculations.
-- Fixed convenience constructors (each accepts `bool reserveSpace = true`): `standard()` (320×50), `mediumRectangle()` or `mrec()` (300×250), `largeBanner()` (320×100), and `leaderboard()` (728×90).
-
-`maxHeight` is non-null only for inline adaptive sizing. `fixedWidth` and `fixedHeight` are non-null only for fixed sizing. `isFixed`, `isAdaptive`, and `isInline` identify the mode; `isInline` identifies inline adaptive sizing specifically. Equality includes dimensions and `reserveSpace`.
-
-With `reserveSpace: false` on the sizing policy or widget, loading takes zero height and no placeholder is rendered. Once loaded, the host uses the actual creative height. With reservation enabled, the host keeps the configured height before and after loading.
-
-## Dynamic Native Styling
-
-Update colors and corner radius on built-in native templates without reloading ads:
-
-`Future<void> AdmobKit.setNativeStyle(NativeAdStyle style, {NativePlacement? placement})`
-
-- **Parameters**:
-  - `style`: Visual styling properties (background, text colors, and CTA corner radius).
-  - `placement`: Optional placement target. Omit to update global appearance.
-
-### `NativeAdStyle` Properties
-
-Colors must be 32-bit unsigned ARGB integers (`0xAARRGGBB`):
-
-- `background`: Container background color.
-- `headline`: Title text color.
-- `body`: Body text and metadata color.
-- `callToActionBackground`: Button background color.
-- `callToActionText`: Button text color.
-- `callToActionCornerRadius`: Button radius in logical pixels (defaults to 8).
-
-Use `const NativeAdStyle()` to reset a scope to inherited defaults.
-
-## Configuration Options
-
-Configure engine behavior during `AdmobKit.initialize()`:
-
-```dart
-Future<void> configureEngine() async {
-  await AdmobKit.initialize(
-    config: const AdmobKitConfig(
-      initialConcurrency: 1,
-      subsequentConcurrency: 1,
-      adTtl: Duration(minutes: 50),
-      timeouts: AdTimeoutConfig.standard,
-    ),
-  );
-}
-```
-
-| Field | Type | Default | Description |
+| Constructor | Size | Reserves space | Loads |
 | :--- | :--- | :--- | :--- |
-| `placements` | `List<AdPlacement>?` | `null` | Initial placements to register and prime at startup |
-| `requestConsent` | `bool` | `true` | Automates Google UMP and iOS ATT consent collection |
-| `consentTestConfig` | `ConsentTestConfig?` | `null` | Test geography and device identifiers for UMP testing |
-| `isPremium` | `bool Function()?` | `null` | Universal entitlement check. When `true`, suppresses all ads |
-| `nativeStyle` | `NativeAdStyle` | `const NativeAdStyle()` | Global styling overrides for native templates |
-| `initialConcurrency` | `int` | `1` | Maximum parallel downloads during app startup |
-| `subsequentConcurrency` | `int` | `1` | Maximum parallel downloads during background preloads |
-| `placementCapacities` | `Map<String, int>?` | `null` | Target buffer depth per placement identifier |
-| `adTtl` | `Duration` | `Duration(minutes: 50)` | Expiration time before an unused cached ad is evicted |
-| `timeouts` | `AdTimeoutConfig` | `AdTimeoutConfig.standard` | Adaptive network timeout profile |
-| `testDeviceIds` | `List<String>?` | `null` | AdMob test device hashed identifiers |
-| `analytics` | `AdAnalyticsTracker?` | `null` | Impression-level revenue and funnel tracker |
-| `diagnostics` | `AdDiagnosticsTracker?` | `null` | Internal network latency and timeout diagnostics |
-| `logLevel` | `AdLogLevel?` | `null` | Verbose in debug builds; silent in release builds |
+| `BannerSizing.anchoredAdaptive()` (default) | SDK height at the host width | No | On layout |
+| `BannerSizing.inlineAdaptive(maxHeight: 160)` | Host width, height up to `maxHeight` (at least 32) | Yes | On layout |
+| `BannerSizing.fixed(width: 468, height: 60)` | Exact | Yes | At registration |
+| `standard()`, `mediumRectangle()` / `mrec()`, `large()` / `largeBanner()`, `leaderboard()` | 320×50, 300×250, 320×100, 728×90 | Yes | At registration |
 
-## Network Timeout Profiles
+Inline and fixed constructors accept `reserveSpace`. `isFixed`, `isAdaptive`, and `isInline` describe the mode.
 
-`AdTimeoutConfig` provides adaptive download windows separating fullscreen, inline, and splash formats:
+### Banner layout
 
-| Profile | Fullscreen (Wi-Fi / Cellular) | Splash (Wi-Fi / Cellular) | Inline (Wi-Fi / Cellular) | Best Use Case |
+`BannerLayout({required int width, required BannerOrientation orientation})` describes an adaptive banner's host for `waitFor` and the status methods. `BannerOrientation` is `portrait` or `landscape`.
+
+### Collapsible banners
+
+`BannerPlacement.collapsible({CollapsibleAnchor anchor = CollapsibleAnchor.bottom, String? id, required String androidId, required String iosId, AdPriority? priority, bool loadOnce = false})`
+
+Requests an anchored adaptive banner that may expand as a collapsible overlay. Use `CollapsibleAnchor.top` for a top banner. The host animates height changes over 200 ms; Google's SDK owns the overlay and its collapse button. See [Google's collapsible banner guide](https://developers.google.com/admob/flutter/banner/collapsible).
+
+### Native templates and style
+
+`NativeAdTemplate` has 19 templates and five aliases; `NativeAdStyle` sets colors and the button radius. Both are described in [Native ads](native-ads.md).
+
+## Configuration
+
+`AdmobKitConfig` is passed to `initialize`.
+
+| Field | Type | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| `placements` | `List<AdPlacement>?` | `null` | Placements registered during initialization |
+| `requestConsent` | `bool` | `true` | Run Google UMP and Apple ATT before requesting ads |
+| `consentTestConfig` | `ConsentTestConfig?` | `null` | Debug geography and test device IDs for UMP |
+| `isPremium` | `bool Function()?` | `null` | Synchronous entitlement check; `true` suppresses all ads |
+| `nativeStyle` | `NativeAdStyle` | `NativeAdStyle()` | App-wide native template style |
+| `initialConcurrency` | `int` | `1` | Parallel downloads during the startup batch |
+| `subsequentConcurrency` | `int` | `1` | Parallel downloads afterwards |
+| `placementCapacities` | `Map<String, int>?` | `null` | Buffered ads per placement id |
+| `adTtl` | `Duration` | 50 minutes | Age after which an unshown ad is replaced |
+| `timeouts` | `AdTimeoutConfig` | `AdTimeoutConfig.standard` | Per-request download windows |
+| `testDeviceIds` | `List<String>?` | `null` | AdMob test device IDs |
+| `analytics` | `AdAnalyticsTracker?` | `null` | Revenue and lifecycle events |
+| `diagnostics` | `AdDiagnosticsTracker?` | `null` | Network and retry health events |
+| `logLevel` | `AdLogLevel?` | `null` | `verbose`, `info`, `warning`, `error`, or `none`. Defaults to verbose in debug and silent in release |
+
+`ConsentTestConfig({DebugGeography debugGeography = DebugGeography.debugGeographyDisabled, List<String> testIdentifiers = const []})` simulates consent regions; `DebugGeography` is exported.
+
+### Timeout profiles
+
+`AdTimeoutConfig` holds an `AdTimeoutPolicy` for fullscreen, inline, and splash requests, each with Wi-Fi, cellular, ethernet, and other-network windows. These bound one download, not your `waitFor` calls.
+
+| Profile | Fullscreen (Wi-Fi / cellular) | Splash | Inline | Use |
 | :--- | :--- | :--- | :--- | :--- |
-| `standard` | 30s / 50s | 25s / 45s | 20s / 35s | Default for global mobile networks |
-| `emergingMarkets` | 45s / 75s | 35s / 65s | 30s / 50s | Regions with 2G/3G or high latency (Ethiopia, Pakistan) |
-| `relaxed` | 35s / 60s | 30s / 50s | 25s / 40s | Apps with large media assets |
-| `aggressive` | 15s / 25s | 15s / 25s | 10s / 15s | Low-latency Tier-1 environments |
+| `standard` | 30 s / 50 s | 25 s / 45 s | 20 s / 35 s | Default |
+| `emergingMarkets` | 45 s / 75 s | 35 s / 65 s | 30 s / 50 s | High-latency or 2G/3G networks |
+| `relaxed` | 35 s / 60 s | 30 s / 50 s | 25 s / 40 s | Large media creatives |
+| `aggressive` | 15 s / 25 s | 15 s / 25 s | 10 s / 15 s | Fast, reliable networks |
 
-## Status and Privacy Methods
-
-| Method / Getter | Return Type | Purpose |
-| :--- | :--- | :--- |
-| `initializationState` | `AdInitializationState` | Current stage: `uninitialized`, `gatheringConsent`, `initializingSdk`, `ready`, `consentDenied`, `failed`, or `disposed` |
-| `initializationStateListenable` | `ValueListenable<AdInitializationState>` | Observable stage for reactive status interfaces |
-| `isReady(placement)` | `bool` | Reports whether a fresh ad is cached and ready now |
-| `isLoading(placement)` | `bool` | Reports whether in-flight loading or retry work exists |
-| `getState(placement)` | `AdPlacementState` | Returns buffer state: `unloaded`, `loading`, `ready`, or `error` |
-| `watchState(placement)` | `Stream<AdPlacementState>` | Stream of placement state changes |
-| `isShowingAd` | `bool` | Reports whether a fullscreen ad holds presentation ownership |
-| `isUserPremium` | `bool` | Returns current result of configured `isPremium` callback |
-| `canRequestAds` | `bool` | Snapshot of consent and SDK readiness |
-| `waitUntilCanRequestAds()` | `Future<bool>` | Awaits eligibility resolution |
-| `isPrivacyOptionsRequired()` | `Future<bool>` | Checks if Google UMP requires a settings entry point |
-| `showPrivacyOptionsForm()` | `Future<bool>` | Opens the UMP consent form for user updates |
-| `openAdInspector([onComplete])` | `void` | Opens Google Ad Inspector for on-device testing |
-
-## Telemetry Contracts
+## Telemetry
 
 ### `AdAnalyticsTracker`
 
-Implement `AdAnalyticsTracker` to capture revenue and lifecycle events:
-
-- `onAdRequested(placement)`: Emitted once when a logical load cycle begins.
-- `onAdLoaded(placement, loadTime)`: Emitted once when an ad becomes ready in memory.
-- `onAdFailedToLoad(placement, error, errorCode)`: Emitted once upon terminal load failure.
-- `onAdDisplayed(placement)`: Emitted when an ad renders on screen.
-- `onAdDismissed(placement)`: Emitted when an ad is closed.
-- `onAdClicked(placement)`: Emitted when a user taps the ad.
-- `onPaidEvent(placement, revenue)`: Emitted with precision and revenue value (`value`, `currencyCode`, `micros`).
+| Callback | When |
+| :--- | :--- |
+| `onAdRequested(placement)` | A load starts |
+| `onAdLoaded(placement, loadTime)` | An ad is ready. `loadTime` runs from the request and includes queue wait |
+| `onAdFailedToLoad(placement, error, errorCode)` | A load fails for good |
+| `onAdDisplayed(placement)` | A fullscreen ad appears |
+| `onAdDismissed(placement)` | A fullscreen ad closes |
+| `onAdClicked(placement)` | The user taps an ad |
+| `onPaidEvent(placement, revenue)` | An impression earns revenue: `AdRevenueValue` with `micros`, `value`, `currencyCode`, and `precision` |
 
 ### `AdDiagnosticsTracker`
 
-Implement `AdDiagnosticsTracker` to monitor network health:
+`onDiagnosticReport(AdDiagnosticReport report)` receives events of type `requested`, `loaded`, `failedToLoad`, `timeout`, `retryScheduled`, `circuitBroken`, `staleEvicted`, `blackHoleSuspected`, `displayed`, and `dismissed`. Each report carries the placement id, format, attempt, elapsed network time, AdMob error code and message, and network type.
 
-- `onDiagnosticReport(report)`: Receives diagnostic reports containing attempt number, elapsed time, error codes, and network type.
-- Event types: `requested`, `loaded`, `failedToLoad`, `timeout`, `retryScheduled`, `circuitBroken`, `staleEvicted`, and `blackHoleSuspected`.
+## Test ad unit IDs
 
-## Test Ad Identifiers
+`AdMobTestIds` holds Google's official test unit IDs. Use them during development.
 
-Use official AdMob test identifiers during development:
-
-| Ad Format | Android Test Unit ID | iOS Test Unit ID |
+| Format | Android | iOS |
 | :--- | :--- | :--- |
-| **Banner** | `AdMobTestIds.bannerAndroid` | `AdMobTestIds.bannerIos` |
-| **Native** | `AdMobTestIds.nativeAndroid` | `AdMobTestIds.nativeIos` |
-| **Interstitial** | `AdMobTestIds.interstitialAndroid` | `AdMobTestIds.interstitialIos` |
-| **Rewarded** | `AdMobTestIds.rewardedAndroid` | `AdMobTestIds.rewardedIos` |
-| **Rewarded Interstitial** | `AdMobTestIds.rewardedInterstitialAndroid` | `AdMobTestIds.rewardedInterstitialIos` |
-| **App Open** | `AdMobTestIds.appOpenAndroid` | `AdMobTestIds.appOpenIos` |
-
-`AdMobTestIds` also exports sample application IDs:
-- `AdMobTestIds.androidAppId`
-- `AdMobTestIds.iosAppId`
-- `AdMobTestIds.nativeVideoAndroid`
-- `AdMobTestIds.nativeVideoIos`
+| Banner | `bannerAndroid` | `bannerIos` |
+| Native | `nativeAndroid` | `nativeIos` |
+| Interstitial | `interstitialAndroid` | `interstitialIos` |
+| Rewarded | `rewardedAndroid` | `rewardedIos` |
+| Rewarded interstitial | `rewardedInterstitialAndroid` | `rewardedInterstitialIos` |
+| App open | `appOpenAndroid` | `appOpenIos` |

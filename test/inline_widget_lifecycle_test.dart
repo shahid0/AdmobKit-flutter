@@ -58,10 +58,10 @@ void main() {
             child: SizedBox(
               width: width,
               child: TickerMode(
-                enabled: ticker,
+                enabled: ticker && active,
                 child: native
-                    ? AdNativeView(placement: placement(id) as NativePlacement, active: active, showPlaceholder: false)
-                    : AdBannerView(placement: placement(id) as BannerPlacement, active: active),
+                    ? AdNativeView(placement: placement(id) as NativePlacement, showPlaceholder: false)
+                    : AdBannerView(placement: placement(id) as BannerPlacement),
               ),
             ),
           ),
@@ -121,7 +121,7 @@ void main() {
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
 
-      testWidgets('late placement result is disposed without replacing current ad', (tester) async {
+      testWidgets('late placement result is buffered without replacing current ad', (tester) async {
         await initialize();
         await tester.pumpWidget(host());
         await tester.pumpWidget(host(id: 'second'));
@@ -136,12 +136,12 @@ void main() {
         final staleId = instanceManager.adIdFor(stale);
         driver.requests[0].result.complete(stale);
         await tester.pump();
-        expect(disposed, contains(staleId));
+        expect(disposed, isNot(contains(staleId)), reason: 'A superseded lease leaves the ad buffered for reuse.');
         expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(current));
         await tester.pumpWidget(const SizedBox());
       });
 
-      testWidgets('activity gate hides loaded platform view and reuses lease on return', (tester) async {
+      testWidgets('activity gate only defers the first request; a delivered ad stays mounted', (tester) async {
         await initialize();
         await tester.pumpWidget(host(active: false));
         expect(driver.requests, isEmpty);
@@ -154,7 +154,7 @@ void main() {
         await tester.pump();
         expect(find.byType(AdWidget), findsOneWidget);
         await tester.pumpWidget(host(active: false));
-        expect(find.byType(AdWidget), findsNothing);
+        expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
         expect(disposed, isEmpty);
         await tester.pumpWidget(host());
         expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
@@ -178,6 +178,22 @@ void main() {
         expect(disposed, hasLength(1));
       });
 
+      testWidgets('an empty slot requests again when the app resumes', (tester) async {
+        await initialize();
+        await tester.pumpWidget(host());
+        driver.requests.single.result.complete(null);
+        await tester.pump();
+        await tester.pump();
+        expect(driver.requests, hasLength(1));
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(driver.requests, hasLength(2));
+        driver.requests.last.result.complete(null);
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+      });
+
       testWidgets('load failure while inactive retries when activated', (tester) async {
         await initialize();
         await tester.pumpWidget(host());
@@ -192,7 +208,7 @@ void main() {
       });
 
       if (native) {
-        testWidgets('expired retained native is replaced on reactivation without renewing cache age', (tester) async {
+        testWidgets('only an expired native that was never shown is replaced', (tester) async {
           await initialize();
           await tester.pumpWidget(host());
           final ad = await loadedAd() as ManagedNativeAd;
@@ -201,10 +217,12 @@ void main() {
           await tester.pump();
           await tester.pump();
           ad.loadedAt = DateTime.now().subtract(const Duration(hours: 1));
-          // A theme/parent rebuild must not replace an ad currently being seen.
+          ad.hasImpression = true;
+          await tester.pumpWidget(host(active: false));
           await tester.pumpWidget(host());
           expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
           expect(driver.requests, hasLength(1));
+          ad.hasImpression = false;
           await tester.pumpWidget(host(active: false));
           expect(driver.requests, hasLength(1));
           await tester.pumpWidget(host());
@@ -217,7 +235,7 @@ void main() {
       }
 
       if (!native) {
-        testWidgets('resize and orientation replace request identity, rejecting stale completion', (tester) async {
+        testWidgets('resize and orientation request a new size, keeping the current banner until it arrives', (tester) async {
           await initialize();
           await tester.pumpWidget(host(width: 320));
           await tester.pumpWidget(host(width: 600));
@@ -226,16 +244,22 @@ void main() {
           final staleId = instanceManager.adIdFor(stale);
           driver.requests[0].result.complete(stale);
           await tester.pump();
-          expect(disposed, contains(staleId));
-          driver.requests[1].result.complete(await loadedAd());
+          expect(disposed, isNot(contains(staleId)), reason: 'A superseded lease leaves the ad buffered for reuse.');
+          final portrait = await loadedAd();
+          final portraitId = instanceManager.adIdFor(portrait);
+          driver.requests[1].result.complete(portrait);
           await tester.pump();
           await tester.pump();
           expect(find.byType(AdWidget), findsOneWidget);
           await tester.pumpWidget(host(width: 600, landscape: true));
-          expect(find.byType(AdWidget), findsNothing);
           expect(driver.requests.last.layout!.orientation, BannerOrientation.landscape);
-          driver.requests.last.result.complete(await loadedAd());
+          expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(portrait), reason: 'Kept until the new size arrives');
+          final landscape = await loadedAd();
+          driver.requests.last.result.complete(landscape);
           await tester.pump();
+          await tester.pump();
+          expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(landscape));
+          expect(disposed, contains(portraitId));
           await tester.pumpWidget(const SizedBox());
         });
 

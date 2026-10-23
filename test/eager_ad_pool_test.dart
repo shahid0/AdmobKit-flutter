@@ -124,6 +124,27 @@ class _ThrowingShowDriver extends FakeDriver {
   }) => throw StateError('platform presentation failed');
 }
 
+/// Fails fatally until [fail] is cleared.
+class _FlakyDriver extends GoogleMobileAdsDriver {
+  bool fail = true;
+  int loadCalls = 0;
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
+    loadCalls++;
+    if (fail) throw LoadAdError(1, 'invalid_request', 'fatal', null);
+    return Object();
+  }
+}
+
+class _OfflineNetworkInfo implements AdNetworkInfo {
+  @override
+  Future<AdNetworkType> getNetworkType() async => AdNetworkType.none;
+
+  @override
+  Stream<AdNetworkType> get onNetworkTypeChanged => Stream.value(AdNetworkType.none);
+}
+
 class FakeNetworkInfo implements AdNetworkInfo {
   @override
   Future<AdNetworkType> getNetworkType() async => AdNetworkType.wifi;
@@ -357,6 +378,136 @@ void main() {
       expect(driver.loadCalls, 1, reason: 'Consumed loadOnce placement must ignore subsequent preloads');
 
       pool.dispose();
+    });
+
+    test('a one-time placement whose host left before delivery drops its load', () async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const splashNative = NativePlacement(id: 'splash_native', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+      var mounted = true;
+
+      final lease = pool.leaseInlineAd(splashNative, isMounted: () => mounted);
+      await pumpEventQueue();
+      expect(pool.pendingTaskCount(splashNative.id), 1);
+
+      mounted = false;
+      pool.abandonLease(splashNative);
+      expect(await lease, isNull);
+      expect(pool.pendingTaskCount(splashNative.id), 0);
+      expect(pool.isConsumed(splashNative), isTrue);
+    });
+
+    test('a recurring placement keeps loading when its host leaves', () async {
+      final driver = _DelayedDriver(delay: const Duration(milliseconds: 50));
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const feed = NativePlacement(id: 'feed', androidId: '1', iosId: '1');
+      var mounted = true;
+
+      pool.leaseInlineAd(feed, isMounted: () => mounted);
+      await pumpEventQueue();
+      mounted = false;
+      pool.abandonLease(feed);
+      expect(pool.pendingTaskCount(feed.id), 1);
+    });
+
+    test('waitFor requests again after a placement failed terminally', () async {
+      final driver = _FlakyDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const rewarded = RewardedPlacement(id: 'reward', androidId: '1', iosId: '1');
+
+      expect(await pool.waitFor(rewarded, timeout: const Duration(seconds: 1)), isFalse);
+      expect(pool.getState(rewarded), AdPlacementState.error);
+      driver.fail = false;
+      expect(await pool.waitFor(rewarded, timeout: const Duration(seconds: 1)), isTrue);
+      expect(driver.loadCalls, 2);
+      pool.dispose();
+    });
+
+    test('fullscreen capacity 2 buffers two distinct ads without extra requests', () async {
+      final pool = AdEngine(
+        consumedLoadOnceIds: {},
+        driver: driver,
+        mutex: mutex,
+        networkInfo: networkInfo,
+        placementCapacities: {'inter': 2},
+      );
+      const inter = InterstitialPlacement(id: 'inter', androidId: '1', iosId: '1');
+
+      pool.primeAll([inter]);
+      await pumpEventQueue();
+      expect(driver.loadCalls, 2);
+
+      pool.show(inter);
+      expect(pool.isReady(inter), isTrue, reason: 'The second slot holds its own ad.');
+      pool.dispose();
+    });
+
+    test('primeAll preloads fixed banners and leaves adaptive banners to their views', () async {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'mrec', androidId: '1', iosId: '1', sizing: BannerSizing.mrec());
+      const adaptive = BannerPlacement(id: 'anchored', androidId: '2', iosId: '2');
+
+      pool.primeAll([fixed, adaptive]);
+      await pumpEventQueue();
+
+      expect(driver.loadCalls, 1);
+      expect(pool.isReady(fixed), isTrue);
+      pool.dispose();
+    });
+
+    test('Fixed banner lease takes the preloaded ad and replenishes', () async {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'standard', androidId: '1', iosId: '1', sizing: BannerSizing.standard());
+
+      await pool.preload(fixed);
+      expect(await pool.leaseInlineAd(fixed), isNotNull);
+      expect(driver.loadCalls, 1, reason: 'Lease must use the preloaded ad');
+      await pumpEventQueue();
+
+      expect(driver.loadCalls, 2);
+      expect(pool.isReady(fixed), isTrue);
+      pool.dispose();
+    });
+
+    test('Only adaptive banners take a BannerLayout', () {
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const fixed = BannerPlacement(id: 'mrec', androidId: '1', iosId: '1', sizing: BannerSizing.mrec());
+      const adaptive = BannerPlacement(id: 'anchored', androidId: '2', iosId: '2');
+      const layout = BannerLayout(width: 360, orientation: BannerOrientation.portrait);
+
+      expect(() => pool.isReady(fixed, bannerLayout: layout), throwsArgumentError);
+      expect(() => pool.isReady(adaptive), throwsArgumentError);
+      expect(pool.isReady(adaptive, bannerLayout: layout), isFalse);
+      pool.dispose();
+    });
+
+    testWidgets('offline splash: waitFor returns at once and show continues without a second wait', (tester) async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: _OfflineNetworkInfo());
+      addTearDown(pool.dispose);
+      await tester.pump();
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+
+      expect(await pool.waitFor(splash), isFalse);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      expect(dismissed, 1);
+      expect(pool.isLoading(splash), isFalse);
+    });
+
+    test('a timed-out splash waitFor lets the following show continue at once', () async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+
+      expect(await pool.waitFor(splash, timeout: const Duration(milliseconds: 50)), isFalse);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      expect(dismissed, 1);
+      expect(driver.showCalls, 0);
     });
 
     test('Deterministic Splash Settlement: show() awaits in-flight splash placement', () async {
