@@ -325,11 +325,11 @@ class AdSession with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
-    if (lifecycle == AppLifecycleState.paused) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
       _returningFromAd = _adClickPending || mutex.isLocked;
       _adClickPending = false;
-    } else if (lifecycle == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed) {
       // A tap that opened an in-app overlay returns without pausing the app.
       _adClickPending = false;
     }
