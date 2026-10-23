@@ -46,6 +46,7 @@ Every loaded ad that is never shown lowers the app's show rate. Apply these by d
 Registration can occur during initialization. It cannot occur before initialization starts.
 Resolve remote-selected placement identity before calling `waitFor` for it.
 `waitFor` already waits for eligibility. Do not skip it because `canRequestAds` is currently false.
+`waitFor` returns `false` at once while offline and queued loads resume when the network returns. Do not add connectivity checks around ad calls.
 
 Normal `show` calls do not wait for downloads. Splash calls can wait for an existing load.
 There is no guaranteed zero-millisecond SDK presentation time.
