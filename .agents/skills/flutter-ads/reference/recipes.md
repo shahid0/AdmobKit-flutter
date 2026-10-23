@@ -19,6 +19,7 @@ The engine manages background loading, warm caching, retry intervals, and presen
 | In-feed cards matching app design | [Banners and Native Content](#banners-and-native-content) | `AdNativeView()` |
 | High-latency networks (Pakistan, Ethiopia) | [High-Latency and Emerging Markets](#high-latency-and-emerging-markets) | `AdTimeoutConfig.emergingMarkets` |
 | Startup and cold app open | [Startup and Remote Configuration](#startup-and-remote-configuration) | `AdmobKit.waitFor()` |
+| Funnel step needing several ads ready | [Funnels](best-practices.md#5-funnels-wait-for-a-steps-ads-together) | `AdmobKit.waitForAll()` |
 | Bottom tabs and PageViews | [Tabs and Retained Pages](#tabs-and-retained-pages) | `AdNativeView()` |
 | Paywall dismiss and hardware back | [Paywall Exit Guard](#paywall-exit-guard) | `AdPaywallGuard()` |
 | App foreground from background | [App-Open Ads on Resume](#app-open-ads-on-resume) | `AdmobKit.show(AppOpenPlacement)` |

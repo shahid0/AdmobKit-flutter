@@ -35,6 +35,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `AdmobKit.waitForAll` awaits several placements as one funnel step, loading them in list order.
 - `registerPlacements` preloads fixed banners. `AdBannerView` shows the preloaded ad at any host width and does not reload on width or orientation changes.
 - Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.
 - Added a minimal app using only the public API, plus consumer access and documentation code checks.

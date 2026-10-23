@@ -26,7 +26,8 @@ Every loaded ad that is never shown lowers the app's show rate. Apply these by d
 
 - Register only placements for screens this user can reach; registration preloads them.
 - Keep default priorities and use `isSplash` for cold start. Never set `priority: AdPriority.immediate`; it takes the single loading slot before the screen the user is waiting on.
-- Splash: `waitFor` with a timeout, then `show`, and continue in `onDismissed`. Transitions: `show` without awaiting. Never show two fullscreen ads back to back.
+- Splash: `waitFor`, then `show`, and continue in `onDismissed`. `waitFor` is deterministic; pass `timeout` only for a real time budget (such as a task the user is doing), never as a habit.
+- Funnel step needing several ads (e.g. onboarding prepared on splash): `waitForAll`; loaded ads stay buffered for the next step's widgets and `show` calls. Transitions: `show` without awaiting. Never show two fullscreen ads back to back.
 - Banners: fixed sizing when the banner must be ready before its screen opens (it preloads); anchored adaptive for sticky bars and inline adaptive in scrolling content (they load on layout). Share one recurring placement across screens; use `loadOnce` for a single-screen banner.
 - Natives: one placement per template; set `placementCapacities` to the number of slots visible together; `loadOnce` for onboarding.
 - Do not add refresh timers, reload logic, visibility tracking, or keep-alive wrappers. Delivered ads stay mounted across routes and tabs and keep lazy list or page items alive; AdMob refreshes visible banners; unshown ads are replaced after the TTL.

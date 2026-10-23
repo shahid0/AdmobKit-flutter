@@ -56,24 +56,40 @@ On a device test this delayed the splash interstitial behind an onboarding nativ
 The cost is that later placements become ready later: on Wi-Fi each load took about one second, and the first load after a cold start took several seconds.
 If you register many placements and most users are on fast networks, `initialConcurrency: 2` readies the batch sooner.
 
-## 4. Splash: Wait With a Deadline, Then Continue
+## 4. Splash: Wait for the Ad, Then Continue
 
 Await the splash ad together with your own startup work, and always continue in `onDismissed`.
 
 ```dart
 Future<void> runSplash(BuildContext context, Future<void> appReady, VoidCallback onContinue) async {
-  await Future.wait([appReady, AdmobKit.waitFor(AppAds.transition, timeout: const Duration(seconds: 5))]);
+  await Future.wait([appReady, AdmobKit.waitFor(AppAds.transition)]);
   if (!context.mounted) return;
   AdmobKit.show(AppAds.transition, onDismissed: onContinue);
 }
 ```
 
-**Why:** `waitFor` waits for consent and SDK setup before its timer starts, then promotes the placement to the front of the queue.
-Offline it returns `false` at once, and a timed-out splash wait ends the splash moment, so `show` never waits a second time. Without these rules, a device test with no network sat on the splash screen for 70 seconds.
+**Why:** `waitFor` is deterministic. It waits for consent and SDK setup, moves the request to the front of the queue, and settles when the ad is ready or cannot come: consent denied, offline, or retries exhausted. You do not need a timeout to stay safe.
+Offline it returns `false` at once, and a failed splash wait ends the splash moment, so `show` never waits a second time.
+
+Pass `timeout` only when you have a real time budget, for example a task that takes the user about ten seconds, after which the ad should already be ready.
+
+## 5. Funnels: Wait for a Step's Ads Together
+
+When a step needs several ads ready before the user moves on, wait for them as a group. A typical case is a splash screen that prepares every onboarding ad:
+
+```dart
+Future<void> prepareOnboarding(VoidCallback openOnboarding) async {
+  await AdmobKit.waitForAll([AppAds.native, AppAds.transition]);
+  openOnboarding();
+}
+```
+
+**Why:** the requests load in list order, ahead of background preloads, and the call settles once every ad is ready or unavailable. Ads that load stay buffered for the widgets and `show` calls on the next step, so the user never sees an empty slot.
+With one download at a time, the group takes roughly a second per ad on Wi-Fi. If you gate a funnel at startup, consider `initialConcurrency: 2`.
 `show` never waits for a download, so a missing ad cannot block navigation.
 Use `isSplash: true` and `loadOnce: true` for a cold-start-only placement so it does not keep refilling after launch.
 
-## 5. Transitions: Show, Never Await
+## 6. Transitions: Show, Never Await
 
 Call `show` at the moment of the transition and put the navigation in `onDismissed`.
 Your app owns frequency: decide in your own code how often a transition may show an ad.
@@ -81,7 +97,7 @@ Your app owns frequency: decide in your own code how often a transition may show
 **Do not** show two fullscreen ads back to back, for example a splash ad and then another when a paywall closes.
 **Why:** consecutive interstitials hurt retention and can break AdMob placement policies. The package presents whatever you ask for; frequency is a product decision.
 
-## 6. Banners: Choose the Sizing by Where the Banner Lives
+## 7. Banners: Choose the Sizing by Where the Banner Lives
 
 | Sizing | Use it for | Loads | Why |
 | :--- | :--- | :--- | :--- |
@@ -102,7 +118,7 @@ The next view for that placement then shows instantly.
 - Use one shared recurring placement when the same banner appears on several screens. The spare makes each new screen instant.
 - Set `loadOnce: true` for a banner that appears on a single screen once. **Why:** a mounted banner refreshes itself, so a spare for a screen that never mounts a second host is a wasted request.
 
-## 7. Native Ads: One Placement per Template, Capacity per Visible Slot
+## 8. Native Ads: One Placement per Template, Capacity per Visible Slot
 
 - Declare one placement per template. Hosts sharing a placement must share its template.
 - Set `placementCapacities` to the number of slots that can be on screen together. **Why:** each slot leases its own ad, and capacity decides how many stay ready.
@@ -115,7 +131,7 @@ void registerFeed() => AdmobKit.registerPlacements(
 );
 ```
 
-## 8. Hidden Tabs, Covered Routes, and Lazy Lists
+## 9. Hidden Tabs, Covered Routes, and Lazy Lists
 
 There is nothing to configure. Flutter's own signals decide two things, and only these two:
 
@@ -126,13 +142,13 @@ Once a widget holds an ad, nothing hides or reloads it. It keeps the ad for its 
 
 **Why:** each ad goes to exactly one widget, and a delivered ad is never thrown away, so moving between tabs or scrolling up and down never costs a new request.
 
-## 9. Freshness
+## 10. Freshness
 
 Loaded ads that were never shown expire after `adTtl` (50 minutes by default), inside Google's freshness window for loaded ads.
 The package replaces them automatically.
 An ad that was shown keeps its slot. Banners refresh through AdMob and natives stay until their widget leaves the tree.
 
-## 10. Measure the Right Numbers
+## 11. Measure the Right Numbers
 
 - `AdDiagnosticsTracker` reports network time: `REQUESTED` to `LOADED` is how long AdMob took.
 - `AdAnalyticsTracker.onAdLoaded` reports time from request to ready, **including queue wait**. Use it to see how long users wait for an ad, not to measure network speed.
@@ -142,7 +158,7 @@ An ad that was shown keeps its slot. Banners refresh through AdMob and natives s
 
 1. Register only placements for screens this user can reach.
 2. Leave priorities at their defaults, use `isSplash` for cold start, and never set `immediate` yourself.
-3. Splash: `waitFor` with a timeout, then `show` and continue in `onDismissed`.
+3. Splash: `waitFor`, then `show` and continue in `onDismissed`. Use `waitForAll` to prepare a whole funnel step. Pass `timeout` only for a real time budget.
 4. Transitions: `show` without awaiting, with your own frequency rules, and never two in a row.
 5. Banners: fixed when they must be instant, adaptive otherwise. Shared recurring placements across screens, `loadOnce` for single screens.
 6. Natives: one placement per template and capacity equal to the number of visible slots.

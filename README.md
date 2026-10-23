@@ -155,10 +155,7 @@ Use `AdmobKit.waitFor()` only when a user flow must pause for an ad decision.
 
 ```dart
 Future<void> handleAppColdStart(VoidCallback launchHome) async {
-  final ready = await AdmobKit.waitFor(
-    AppAds.transition,
-    timeout: const Duration(seconds: 4),
-  );
+  final ready = await AdmobKit.waitFor(AppAds.transition);
   if (ready) {
     AdmobKit.show(AppAds.transition, onDismissed: launchHome);
   } else {

@@ -81,11 +81,11 @@ Presents a cached fullscreen ad immediately without waiting for a network downlo
 
 `Future<bool> AdmobKit.waitFor(AdPlacement placement, {Duration? timeout, BannerLayout? bannerLayout})`
 
-Deterministically awaits an ad placement until it becomes ready, fails, or times out.
+Deterministically awaits an ad placement until it is ready or definitively unavailable.
 
 - **Parameters**:
   - `placement`: The ad placement to prepare.
-  - `timeout`: Maximum wait duration applied to the ad request (defaults to configured network timeout).
+  - `timeout`: Optional time budget. Pass it only when the ad must be ready within a known time, such as the length of a task the user is doing. Without it, the wait settles on its own when the ad is ready or cannot come.
   - `bannerLayout`: Required for adaptive banners. Omit it for fixed banners and other formats; passing it throws `ArgumentError`.
 - **Returns**:
   - `true`: A fresh ad is ready in the memory cache.
@@ -96,6 +96,23 @@ Deterministically awaits an ad placement until it becomes ready, fails, or times
   - For a splash placement, a `false` result ends the splash moment: its load is dropped, so a following `show` continues immediately instead of waiting again.
   - Promotes the placement to immediate queue priority.
   - Does not guarantee that `show()` will present an ad later if another request consumes it first.
+
+### `AdmobKit.waitForAll`
+
+`Future<bool> AdmobKit.waitForAll(Iterable<AdPlacement> placements, {Duration? timeout})`
+
+Deterministically awaits several placements, to hold a funnel step until its ads are ready. For example, a splash screen can wait for every onboarding ad before letting the user in.
+
+- **Parameters**:
+  - `placements`: The placements to prepare. Fullscreen, native, and fixed banner placements are supported.
+  - `timeout`: Optional time budget for the whole group, with the same meaning as in `waitFor`.
+- **Returns**:
+  - `true`: Every placement is ready.
+  - `false`: At least one placement is unavailable.
+- **Behavior**:
+  - Requests load in list order, ahead of background preloads.
+  - Ads that load stay buffered either way: widgets mounted later take them instantly, and `show` presents them.
+  - Throws `ArgumentError` for adaptive banners, which need a measured width and load on layout.
 
 ## Declarative Widgets
 
