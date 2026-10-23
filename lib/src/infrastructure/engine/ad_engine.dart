@@ -944,7 +944,6 @@ class AdEngine {
     if (isConsumed(placement) && pendingTaskCount(placement.id, bannerLayout: bannerLayout) == 0) {
       return false;
     }
-    if (getState(placement, bannerLayout: bannerLayout) == AdPlacementState.error) return false;
 
     if (!isLoading(placement, bannerLayout: bannerLayout)) {
       preload(placement, bannerLayout: bannerLayout);

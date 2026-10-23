@@ -124,6 +124,19 @@ class _ThrowingShowDriver extends FakeDriver {
   }) => throw StateError('platform presentation failed');
 }
 
+/// Fails fatally until [fail] is cleared.
+class _FlakyDriver extends GoogleMobileAdsDriver {
+  bool fail = true;
+  int loadCalls = 0;
+
+  @override
+  Future<dynamic> loadAd(AdPlacement placement, {BannerLayout? bannerLayout, void Function()? validateRequest}) async {
+    loadCalls++;
+    if (fail) throw LoadAdError(1, 'invalid_request', 'fatal', null);
+    return Object();
+  }
+}
+
 class _OfflineNetworkInfo implements AdNetworkInfo {
   @override
   Future<AdNetworkType> getNetworkType() async => AdNetworkType.none;
@@ -364,6 +377,19 @@ void main() {
       await pool.preload(oneOffNative);
       expect(driver.loadCalls, 1, reason: 'Consumed loadOnce placement must ignore subsequent preloads');
 
+      pool.dispose();
+    });
+
+    test('waitFor requests again after a placement failed terminally', () async {
+      final driver = _FlakyDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      const rewarded = RewardedPlacement(id: 'reward', androidId: '1', iosId: '1');
+
+      expect(await pool.waitFor(rewarded, timeout: const Duration(seconds: 1)), isFalse);
+      expect(pool.getState(rewarded), AdPlacementState.error);
+      driver.fail = false;
+      expect(await pool.waitFor(rewarded, timeout: const Duration(seconds: 1)), isTrue);
+      expect(driver.loadCalls, 2);
       pool.dispose();
     });
 
