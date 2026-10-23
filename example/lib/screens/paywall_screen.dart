@@ -52,8 +52,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return AdPaywallGuard(
       placement: SampleAds.mainInterstitial,
       onDismiss: _dismissPaywall,
-      // The onboarding paywall follows the splash ad; skip a second fullscreen ad in a row.
-      isPurchased: _isPurchased || widget.isFromOnboarding,
+      isPurchased: _isPurchased,
       child: Scaffold(
         backgroundColor: TaskColors.canvasGround,
         body: SafeArea(
