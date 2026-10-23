@@ -15,6 +15,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Invalid concurrency, freshness TTL, and request timeouts now fail before initialization instead of preventing useful loading.
 - Fixed banners no longer take a `BannerLayout`. Passing one to `waitFor`, `isReady`, `getState`, or `watchState` throws `ArgumentError`.
 
+### Fixed
+
+- The load queue serves `immediate` before `splash`, as documented. `waitFor` on a splash placement no longer demotes it, and a background native preload no longer jumps ahead of an awaited fullscreen ad.
+- Anchored adaptive banners size their host to the rendered creative instead of the requested slot, removing blank space above and below shorter creatives.
+
 ### Added
 
 - `registerPlacements` preloads fixed banners. `AdBannerView` shows the preloaded ad at any host width and does not reload on width or orientation changes.

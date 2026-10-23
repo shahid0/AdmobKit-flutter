@@ -520,41 +520,12 @@ class AdEngine {
     });
   }
 
+  /// Serves tiers in rank order and tasks in queue order; promotions jump to the front.
   AdLoadTask? _pollNextTask() {
-    if (_buckets[AdPriority.splash]!.isNotEmpty) {
-      final splashQueue = _buckets[AdPriority.splash]!;
-      for (final task in splashQueue) {
-        if (task.placement is InlinePlacement) {
-          splashQueue.remove(task);
-          return task;
-        }
-      }
-      return splashQueue.removeFirst();
+    for (final priority in AdPriority.values) {
+      final queue = _buckets[priority]!;
+      if (queue.isNotEmpty) return queue.removeFirst();
     }
-
-    if (_buckets[AdPriority.immediate]!.isNotEmpty) {
-      final immediateQueue = _buckets[AdPriority.immediate]!;
-      for (final task in immediateQueue) {
-        if (task.placement is InlinePlacement) {
-          immediateQueue.remove(task);
-          return task;
-        }
-      }
-      return immediateQueue.removeFirst();
-    }
-
-    if (_buckets[AdPriority.high]!.isNotEmpty) {
-      return _buckets[AdPriority.high]!.removeFirst();
-    }
-
-    if (_buckets[AdPriority.medium]!.isNotEmpty) {
-      return _buckets[AdPriority.medium]!.removeFirst();
-    }
-
-    if (_buckets[AdPriority.low]!.isNotEmpty) {
-      return _buckets[AdPriority.low]!.removeFirst();
-    }
-
     return null;
   }
 

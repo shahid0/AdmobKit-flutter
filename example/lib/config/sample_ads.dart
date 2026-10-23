@@ -31,7 +31,7 @@ abstract final class SampleAds {
     id: 'onboarding_big_native',
     androidId: AdMobTestIds.nativeAndroid,
     iosId: AdMobTestIds.nativeIos,
-    priority: AdPriority.immediate,
+    priority: AdPriority.high,
     loadOnce: true,
   );
 
@@ -87,27 +87,6 @@ abstract final class SampleAds {
     iosId: AdMobTestIds.nativeIos,
   );
 
-  static const fullscreenNative = NativePlacement(
-    template: NativeAdTemplate.fullscreenMediaFirst,
-    id: 'fullscreen_native_showcase',
-    androidId: AdMobTestIds.nativeAndroid,
-    iosId: AdMobTestIds.nativeIos,
-  );
-
-  static const inlineAdaptiveBanner = BannerPlacement(
-    id: 'inline_adaptive_banner',
-    androidId: AdMobTestIds.bannerAndroid,
-    iosId: AdMobTestIds.bannerIos,
-    sizing: BannerSizing.inlineAdaptive(maxHeight: 250),
-  );
-
-  static const anchoredAdaptiveBanner = BannerPlacement(
-    id: 'anchored_adaptive_banner',
-    androidId: AdMobTestIds.bannerAndroid,
-    iosId: AdMobTestIds.bannerIos,
-    sizing: BannerSizing.anchoredAdaptive(),
-  );
-
   // Fixed banners are preloaded by registerPlacements.
   static const standardBanner = BannerPlacement(
     id: 'gallery_standard_banner',
@@ -138,9 +117,6 @@ abstract final class SampleAds {
     mediumNative,
     smallNative,
     multiWidgetNative,
-    fullscreenNative,
-    inlineAdaptiveBanner,
-    anchoredAdaptiveBanner,
     standardBanner,
     mrecBanner,
   ];

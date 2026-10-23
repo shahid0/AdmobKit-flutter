@@ -196,17 +196,19 @@ void main() {
       );
     });
 
-    testWidgets('anchored uses explicit orientation and SDK-selected height', (tester) async {
+    testWidgets('anchored requests the SDK slot and renders the creative height', (tester) async {
+      response = (call) =>
+          call.method == 'AdSize#getLargeAnchoredAdaptiveBannerAdSize' ? 120 : const AdSize(width: 600, height: 60);
       final result = GoogleMobileAdsDriver().loadAd(_banner, bannerLayout: _wide);
       await tester.pump();
       expect(calls.first.arguments, {'orientation': 'landscape', 'width': 600});
       final ad = banners.single;
       expect(ad.size.width, 600);
-      expect(ad.size.height, 60);
+      expect(ad.size.height, 120);
       expect(ad.request.extras, isNull);
       ad.listener.onAdLoaded!(ad);
       expect(await result, same(ad));
-      expect(ad.renderSize.value!.height, 60);
+      expect(ad.renderSize.value, const AdSize(width: 600, height: 60));
     });
 
     for (final anchor in CollapsibleAnchor.values) {

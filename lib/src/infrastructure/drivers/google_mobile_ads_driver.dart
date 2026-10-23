@@ -224,9 +224,8 @@ class GoogleMobileAdsDriver {
         onAdLoaded: (_) async {
           final current = ++revision;
           try {
-            final actual = placement.isCollapsible || sizing.isInline || sizing.isFixed
-                ? await banner.getPlatformAdSize()
-                : size;
+            // Anchored creatives can be shorter than the requested slot.
+            final actual = await banner.getPlatformAdSize();
             if (banner.isDisposed || current != revision) return;
             if (actual == null ||
                 actual.width <= 0 ||
