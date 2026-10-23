@@ -17,6 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `AdPaywallGuard` starts its exit once. Repeated taps or back presses while the exit ad opens no longer dismiss the paywall twice and pop the screen beneath it.
 - Adaptive banners keep the current banner on screen while a new size loads after rotation or a width change, instead of collapsing and shifting the layout.
 - `waitFor` returns `false` at once while offline, and a failed splash wait ends the splash moment so the following `show` does not wait again. An offline cold start no longer holds the splash screen for two full timeouts.
 - `show` skips an app-open ad when the app returns from a tapped banner or native ad, or from a fullscreen ad, instead of stacking an ad on the user's return.
