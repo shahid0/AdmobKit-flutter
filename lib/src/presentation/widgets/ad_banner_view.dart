@@ -6,6 +6,7 @@ import '../../infrastructure/drivers/adaptive_banner_ad.dart';
 import '../../infrastructure/engine/ad_cache_entry.dart';
 import '../ad_session.dart';
 import '../admob_kit_facade.dart';
+import 'ad_loading_shimmer.dart';
 
 /// Adaptive or fixed banner centered within its parent's available logical width.
 ///
@@ -29,7 +30,8 @@ class AdBannerView extends StatelessWidget {
   /// When false, collapses until render dimensions are available.
   final bool? reserveSpace;
 
-  /// Displayed while loading only when space is reserved.
+  /// Displayed while loading only when space is reserved. Defaults to a
+  /// shimmering "Loading ad" placeholder.
   final Widget? placeholder;
 
   const AdBannerView({
@@ -271,7 +273,7 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
                 child: AdWidget(key: ObjectKey(ad), ad: ad),
               ),
             )
-          : (_pending && widget.reserveSpace ? widget.placeholder : null),
+          : (_pending && widget.reserveSpace ? widget.placeholder ?? const AdLoadingShimmer() : null),
     );
   }
 }

@@ -126,7 +126,7 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
   - `placement`: The `BannerPlacement` configuration.
   - `width`: Available host width. Defaults to the parent's bounded width. In an unbounded parent, fixed banners use `sizing.fixedWidth`; adaptive banners require explicit `width`.
   - `reserveSpace`: Optional override of `placement.sizing.reserveSpace`. `true` reserves `maxHeight` or `fixedHeight`; `false` collapses until the ad has render dimensions, then uses its actual height.
-  - `placeholder`: Optional widget displayed while loading when space is reserved.
+  - `placeholder`: Widget displayed while loading when space is reserved. Defaults to a shimmering "Loading ad" placeholder.
 - **Behavior**:
   - Calculates adaptive banner height automatically from available width and orientation.
   - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
@@ -143,7 +143,7 @@ Embeds a native template ad into your Flutter widget tree.
 
 - **Parameters**:
   - `placement`: The `NativePlacement` configuration.
-  - `placeholder`: Custom widget rendered while loading.
+  - `placeholder`: Widget rendered while loading. Defaults to a shimmering "Loading ad" placeholder.
   - `showPlaceholder`: Whether to display a placeholder while loading (defaults to `true`).
 - **Behavior**:
   - Requires bounded width of at least 320 logical pixels.

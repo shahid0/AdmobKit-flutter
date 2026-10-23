@@ -9,6 +9,7 @@ import '../../infrastructure/drivers/managed_native_ad.dart';
 import '../../infrastructure/mutex/presentation_mutex.dart';
 import '../ad_session.dart';
 import '../admob_kit_facade.dart';
+import 'ad_loading_shimmer.dart';
 
 /// Native ad host measured from SDK assets and the available width.
 ///
@@ -417,28 +418,9 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
       child: _nativeAd != null && _layoutHeight != null && (!_effectiveTemplate.isFullscreen || _token != null)
           ? AdWidget(key: ObjectKey(_nativeAd), ad: _nativeAd!)
           : ((_isLoading || _nativeAd != null) && widget.config.showPlaceholder
-                ? (widget.config.placeholder ?? _buildDefaultPlaceholder(context))
+                ? (widget.config.placeholder ?? const AdLoadingShimmer(borderRadius: BorderRadius.all(Radius.circular(10))))
                 : const SizedBox.shrink()),
     );
   }
 
-  Widget _buildDefaultPlaceholder(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      alignment: Alignment.center,
-      child: SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-        ),
-      ),
-    );
-  }
 }

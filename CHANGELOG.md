@@ -36,6 +36,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Banner and native hosts show a shimmering "Loading ad" placeholder by default while loading in reserved space. It follows the app's color scheme, holds still under reduced motion, and is announced to screen readers.
 - `AdmobKit.waitForAll` awaits several placements as one funnel step, loading them in list order.
 - `registerPlacements` preloads fixed banners. `AdBannerView` shows the preloaded ad at any host width and does not reload on width or orientation changes.
 - Added `isPrivacyOptionsRequired` for privacy settings. It waits for current resolution, propagates SDK query errors, and releases pending checks on disposal.

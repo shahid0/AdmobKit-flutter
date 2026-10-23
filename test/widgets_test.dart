@@ -80,7 +80,7 @@ void main() {
 
       final sizedBox = tester.widget<SizedBox>(find.byType(SizedBox).first);
       expect(sizedBox.height, 340.0);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Loading ad'), findsOneWidget);
 
       completer.complete(Object());
       await tester.pump();
