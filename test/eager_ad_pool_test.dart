@@ -124,6 +124,14 @@ class _ThrowingShowDriver extends FakeDriver {
   }) => throw StateError('platform presentation failed');
 }
 
+class _OfflineNetworkInfo implements AdNetworkInfo {
+  @override
+  Future<AdNetworkType> getNetworkType() async => AdNetworkType.none;
+
+  @override
+  Stream<AdNetworkType> get onNetworkTypeChanged => Stream.value(AdNetworkType.none);
+}
+
 class FakeNetworkInfo implements AdNetworkInfo {
   @override
   Future<AdNetworkType> getNetworkType() async => AdNetworkType.wifi;
@@ -396,6 +404,33 @@ void main() {
       expect(() => pool.isReady(adaptive), throwsArgumentError);
       expect(pool.isReady(adaptive, bannerLayout: layout), isFalse);
       pool.dispose();
+    });
+
+    testWidgets('offline splash: waitFor returns at once and show continues without a second wait', (tester) async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: _OfflineNetworkInfo());
+      addTearDown(pool.dispose);
+      await tester.pump();
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+
+      expect(await pool.waitFor(splash), isFalse);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      expect(dismissed, 1);
+      expect(pool.isLoading(splash), isFalse);
+    });
+
+    test('a timed-out splash waitFor lets the following show continue at once', () async {
+      final driver = _PendingSplashDriver();
+      final pool = AdEngine(consumedLoadOnceIds: {}, driver: driver, mutex: mutex, networkInfo: networkInfo);
+      addTearDown(pool.dispose);
+      const splash = InterstitialPlacement(id: 'splash', androidId: '1', iosId: '1', isSplash: true, loadOnce: true);
+
+      expect(await pool.waitFor(splash, timeout: const Duration(milliseconds: 50)), isFalse);
+      var dismissed = 0;
+      pool.show(splash, onDismissed: () => dismissed++);
+      expect(dismissed, 1);
+      expect(driver.showCalls, 0);
     });
 
     test('Deterministic Splash Settlement: show() awaits in-flight splash placement', () async {

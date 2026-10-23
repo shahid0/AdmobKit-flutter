@@ -69,6 +69,7 @@ Future<void> runSplash(BuildContext context, Future<void> appReady, VoidCallback
 ```
 
 **Why:** `waitFor` waits for consent and SDK setup before its timer starts, then promotes the placement to the front of the queue.
+Offline it returns `false` at once, and a timed-out splash wait ends the splash moment, so `show` never waits a second time. Without these rules, a device test with no network sat on the splash screen for 70 seconds.
 `show` never waits for a download, so a missing ad cannot block navigation.
 Use `isSplash: true` and `loadOnce: true` for a cold-start-only placement so it does not keep refilling after launch.
 

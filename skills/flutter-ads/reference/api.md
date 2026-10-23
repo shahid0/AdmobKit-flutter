@@ -93,6 +93,8 @@ Deterministically awaits an ad placement until it becomes ready, fails, or times
   - `false`: Consent denial, network failure, timeout, premium user, or disposal.
 - **Behavior**:
   - Waits for pending consent and SDK initialization before it starts the ad timer.
+  - Returns `false` at once while the device is offline. Non-splash requests stay queued and load when the network returns.
+  - For a splash placement, a `false` result ends the splash moment: its load is dropped, so a following `show` continues immediately instead of waiting again.
   - Promotes the placement to immediate queue priority.
   - Does not guarantee that `show()` will present an ad later if another request consumes it first.
 

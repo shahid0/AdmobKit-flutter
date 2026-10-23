@@ -972,6 +972,11 @@ class AdEngine {
 
     promote(placement.id, AdPriority.immediate, bannerLayout: bannerLayout);
 
+    if (_isPaused) {
+      _logger?.info('[Engine] Offline. Not waiting for "${placement.id}".');
+      return _missedSplash(placement, bannerLayout);
+    }
+
     Duration effectiveTimeout;
     if (timeout != null) {
       effectiveTimeout = timeout;
@@ -986,7 +991,9 @@ class AdEngine {
 
     if (!_adsAllowed) return false;
     if (isReady(placement, bannerLayout: bannerLayout)) return true;
-    if (getState(placement, bannerLayout: bannerLayout) != AdPlacementState.loading) return false;
+    if (getState(placement, bannerLayout: bannerLayout) != AdPlacementState.loading) {
+      return _missedSplash(placement, bannerLayout);
+    }
 
     final settled = Completer<bool>();
     final subscription = watchState(placement, bannerLayout: bannerLayout).listen(
@@ -998,13 +1005,25 @@ class AdEngine {
         if (!settled.isCompleted) settled.complete(false);
       },
     );
+    bool ready;
     try {
-      return await settled.future.timeout(effectiveTimeout, onTimeout: () => false);
+      ready = await settled.future.timeout(effectiveTimeout, onTimeout: () => false);
     } catch (_) {
-      return false;
+      ready = false;
     } finally {
       await subscription.cancel();
     }
+    return ready || _missedSplash(placement, bannerLayout);
+  }
+
+  /// A splash moment that passed without an ad is over: drop its load so a
+  /// following show() continues at once instead of waiting a second time.
+  bool _missedSplash(AdPlacement placement, BannerLayout? bannerLayout) {
+    if (placement.isSplash) {
+      cancel(placement.id, bannerLayout: bannerLayout);
+      _markConsumed(placement, bannerLayout: bannerLayout);
+    }
+    return false;
   }
 
   Future<void> _settleSplashAndPresent(
@@ -1017,8 +1036,6 @@ class AdEngine {
     _settlingPresentations.remove(placement.id);
     if (!ready || !_adsAllowed) {
       _logger?.warning('[Show] Splash placement "${placement.id}" failed or timed out. Continuing user flow.');
-      cancel(placement.id);
-      _markConsumed(placement);
       onDismissed?.call();
       return;
     }
