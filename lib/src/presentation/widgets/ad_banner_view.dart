@@ -12,7 +12,7 @@ import '../admob_kit_facade.dart';
 /// Inline and fixed banners reserve their configured height by default. Set
 /// [reserveSpace] to false to collapse while loading and use the actual loaded
 /// height. Anchored banners always use the SDK-selected height when available.
-/// The first request waits for Visibility, TickerMode, and [active]. Once
+/// The first request waits for Visibility and TickerMode. Once
 /// delivered, the banner stays mounted for the host's lifetime; the SDK only
 /// refreshes it while it is on screen.
 /// Fixed banners use an ad preloaded by [AdmobKit.registerPlacements] when one is
@@ -32,16 +32,12 @@ class AdBannerView extends StatelessWidget {
   /// Displayed while loading only when space is reserved.
   final Widget? placeholder;
 
-  /// Additional gate for retained-page hosts without Flutter visibility signals.
-  final bool active;
-
   const AdBannerView({
     super.key,
     required this.placement,
     this.width,
     this.reserveSpace,
     this.placeholder,
-    this.active = true,
   });
 
   @override
@@ -76,7 +72,6 @@ class AdBannerView extends StatelessWidget {
                   width: available.floor(),
                   orientation: orientation == Orientation.portrait ? BannerOrientation.portrait : BannerOrientation.landscape,
                 ),
-          active: active,
           reserveSpace: reserveSpace ?? sizing.reserveSpace,
           placeholder: placeholder,
         );
@@ -91,7 +86,6 @@ class _BannerHost extends StatefulWidget {
 
   /// Request layout for adaptive banners; null for fixed banners.
   final BannerLayout? layout;
-  final bool active;
   final bool reserveSpace;
   final Widget? placeholder;
 
@@ -99,7 +93,6 @@ class _BannerHost extends StatefulWidget {
     required this.placement,
     required this.width,
     required this.layout,
-    required this.active,
     required this.reserveSpace,
     this.placeholder,
   });
@@ -186,7 +179,8 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
     _checkAndActivate();
   }
 
-  bool get _active => widget.active && TickerMode.valuesOf(context).enabled && Visibility.of(context);
+  // Decides when to request and which host receives an ad; a delivered banner stays mounted.
+  bool get _active => TickerMode.valuesOf(context).enabled && Visibility.of(context);
 
   void _checkAndActivate() {
     if (!_active) {
@@ -210,7 +204,8 @@ class _BannerHostState extends State<_BannerHost> with AutomaticKeepAliveClientM
       final ad = await session?.leaseInlineAd(
         widget.placement,
         bannerLayout: widget.layout,
-        isMounted: () => mounted && generation == _generation,
+        // A hidden waiter is skipped; the engine buffers the ad for the visible host.
+        isMounted: () => mounted && generation == _generation && _active,
       );
       if (!mounted || generation != _generation) {
         await AdCacheEntry.disposeAdInstance(ad);

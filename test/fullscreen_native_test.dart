@@ -64,13 +64,13 @@ void main() {
   );
   Widget adHost({String id = 'native', bool active = true, bool ticker = true, bool visible = true, Key? key}) =>
       TickerMode(
-        enabled: ticker,
+        enabled: ticker && active,
         child: Visibility(
           visible: visible,
           maintainState: true,
           maintainAnimation: true,
           maintainSize: true,
-          child: AdNativeView(key: key, placement: placement(id), active: active, showPlaceholder: false),
+          child: AdNativeView(key: key, placement: placement(id), showPlaceholder: false),
         ),
       );
   Widget page({bool active = true, bool ticker = true, bool visible = true}) => MaterialApp(
@@ -178,12 +178,12 @@ void main() {
     await finish(tester);
   });
 
-  for (final gate in ['active', 'ticker', 'visibility']) {
+  for (final gate in ['ticker', 'visibility']) {
     testWidgets('$gate releases ownership and restores the same fresh lease', (tester) async {
       await initialize(tester);
       await tester.pumpWidget(page());
       final ad = await completeLoad(tester);
-      await tester.pumpWidget(page(active: gate != 'active', ticker: gate != 'ticker', visible: gate != 'visibility'));
+      await tester.pumpWidget(page(ticker: gate != 'ticker', visible: gate != 'visibility'));
       expect(AdmobKit.isShowingAd, isFalse);
       expect(find.byType(AdWidget), findsNothing);
       await tester.pumpWidget(page());

@@ -58,10 +58,10 @@ void main() {
             child: SizedBox(
               width: width,
               child: TickerMode(
-                enabled: ticker,
+                enabled: ticker && active,
                 child: native
-                    ? AdNativeView(placement: placement(id) as NativePlacement, active: active, showPlaceholder: false)
-                    : AdBannerView(placement: placement(id) as BannerPlacement, active: active),
+                    ? AdNativeView(placement: placement(id) as NativePlacement, showPlaceholder: false)
+                    : AdBannerView(placement: placement(id) as BannerPlacement),
               ),
             ),
           ),

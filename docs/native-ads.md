@@ -55,10 +55,9 @@ Follow these constraints when mounting `AdNativeView`:
    Do not mount fullscreen templates directly inside an unbounded scroll axis.
    Place dismiss buttons outside the ad content area.
 
-4. **Pass active state in retained pages**:
-   When hosting native ads in `PageView` or `TabBarView`, pass `active: pageIndex == selectedIndex`.
-   It defers the first request only; a delivered ad stays mounted when the page is hidden.
-   Only active, measured fullscreen ads claim presentation ownership.
+4. **Mount ads directly in tabs and pages**:
+   `PageView`, `TabBarView`, `IndexedStack`, and covered routes are handled automatically; a delivered ad stays with its page.
+   Only visible, measured fullscreen ads claim presentation ownership.
 
 ## Colors and Dynamic Styling
 

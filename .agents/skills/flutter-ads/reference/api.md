@@ -102,7 +102,7 @@ Deterministically awaits an ad placement until it becomes ready, fails, or times
 
 ### `AdBannerView`
 
-`AdBannerView({required BannerPlacement placement, double? width, bool? reserveSpace, Widget? placeholder, bool active = true})`
+`AdBannerView({required BannerPlacement placement, double? width, bool? reserveSpace, Widget? placeholder})`
 
 Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
 
@@ -111,7 +111,6 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
   - `width`: Available host width. Defaults to the parent's bounded width. In an unbounded parent, fixed banners use `sizing.fixedWidth`; adaptive banners require explicit `width`.
   - `reserveSpace`: Optional override of `placement.sizing.reserveSpace`. `true` reserves `maxHeight` or `fixedHeight`; `false` collapses until the ad has render dimensions, then uses its actual height.
   - `placeholder`: Optional widget displayed while loading when space is reserved.
-  - `active`: Defers the first request while `false`. A delivered banner stays mounted when `active` turns `false`. Pass it for pages Flutter cannot detect, such as `PageView` pages.
 - **Behavior**:
   - Calculates adaptive banner height automatically from available width and orientation.
   - Inline adaptive and fixed banners reserve their configured height by default, keeping the loaded creative centered at its actual size.
@@ -122,13 +121,12 @@ Embeds an adaptive or fixed Google AdMob banner into your Flutter widget tree.
 
 ### `AdNativeView`
 
-`AdNativeView({required NativePlacement placement, bool active = true, Widget? placeholder, bool showPlaceholder = true})`
+`AdNativeView({required NativePlacement placement, Widget? placeholder, bool showPlaceholder = true})`
 
 Embeds a native template ad into your Flutter widget tree.
 
 - **Parameters**:
   - `placement`: The `NativePlacement` configuration.
-  - `active`: Defers the first request while `false`. A delivered ad stays mounted; fullscreen templates release presentation ownership while inactive.
   - `placeholder`: Custom widget rendered while loading.
   - `showPlaceholder`: Whether to display a placeholder while loading (defaults to `true`).
 - **Behavior**:

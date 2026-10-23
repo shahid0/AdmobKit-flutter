@@ -121,25 +121,16 @@ void registerFeed() => AdmobKit.registerPlacements(
 );
 ```
 
-## 8. Hidden Tabs, Covered Routes, and `active`
+## 8. Hidden Tabs, Covered Routes, and Lazy Lists
 
-Ad widgets defer their **first** request until the subtree is visible: `TickerMode` (covered routes), `Visibility` (hidden `IndexedStack` tabs), and `active` must all allow it.
-Once a widget holds an ad, it keeps it for its lifetime, even while a route covers it or its tab is hidden.
-Inside `PageView`, `ListView`, and `TabBarView`, a widget holding an ad also keeps itself alive when scrolled away, so scrolling back shows the same ad without a new request.
+There is nothing to configure. Flutter's own signals decide two things, and only these two:
 
-**Why:** tearing down a delivered ad loses the impression in progress, makes the view flicker on return, and makes the widget request again.
-An offstage subtree is not painted, so keeping the ad mounted costs nothing visible.
+1. **When a widget requests.** A widget requests its first ad only while it is visible: not under a covering route (`TickerMode`) and not in a hidden `IndexedStack` tab (`Visibility`). `PageView`, `TabBarView`, and lazy lists build a page or item only when it scrolls into view.
+2. **Which widget receives an ad.** When several widgets share a placement, a returning ad goes to one the user can see. A widget that was hidden while it waited is skipped, and the ad is buffered; that widget takes it from the buffer when it becomes visible again, without a new request.
 
-Pass `active` only for pages Flutter cannot detect, such as `PageView` pages:
+Once a widget holds an ad, nothing hides or reloads it. It keeps the ad for its lifetime across covering routes and tab switches, and keeps its `PageView`, `ListView`, or `TabBarView` item alive when scrolled away, so scrolling back shows the same ad.
 
-```dart
-Widget pagedNative(int pageIndex, int selectedIndex) => AdNativeView(
-  placement: AppAds.native,
-  active: pageIndex == selectedIndex,
-);
-```
-
-This stops pages the user never swipes to from requesting ads.
+**Why:** each ad goes to exactly one widget, and a delivered ad is never thrown away, so moving between tabs or scrolling up and down never costs a new request.
 
 ## 9. Freshness
 
@@ -161,4 +152,4 @@ An ad that was shown keeps its slot. Banners refresh through AdMob and natives s
 4. Transitions: `show` without awaiting, with your own frequency rules, and never two in a row.
 5. Banners: fixed when they must be instant, adaptive otherwise. Shared recurring placements across screens, `loadOnce` for single screens.
 6. Natives: one placement per template and capacity equal to the number of visible slots.
-7. Pass `active` only for pages Flutter cannot detect.
+7. Keep widget keys and placements stable so a widget keeps its ad.

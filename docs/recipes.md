@@ -19,7 +19,7 @@ The engine manages background loading, warm caching, retry intervals, and presen
 | In-feed cards matching app design | [Banners and Native Content](#banners-and-native-content) | `AdNativeView()` |
 | High-latency networks (Pakistan, Ethiopia) | [High-Latency and Emerging Markets](#high-latency-and-emerging-markets) | `AdTimeoutConfig.emergingMarkets` |
 | Startup and cold app open | [Startup and Remote Configuration](#startup-and-remote-configuration) | `AdmobKit.waitFor()` |
-| Bottom tabs and PageViews | [Tabs and Retained Pages](#tabs-and-retained-pages) | `AdNativeView(active: ...)` |
+| Bottom tabs and PageViews | [Tabs and Retained Pages](#tabs-and-retained-pages) | `AdNativeView()` |
 | Paywall dismiss and hardware back | [Paywall Exit Guard](#paywall-exit-guard) | `AdPaywallGuard()` |
 | App foreground from background | [App-Open Ads on Resume](#app-open-ads-on-resume) | `AdmobKit.show(AppOpenPlacement)` |
 | Paid subscriber ad removal | [Premium Access](#premium-access) | `AdmobKitConfig(isPremium: ...)` |
@@ -197,19 +197,15 @@ Recurring placements keep one spare ready after each display; see [Spares and `l
 
 ## Tabs and Retained Pages
 
-Covered routes and hidden `IndexedStack` tabs are detected automatically.
-For `PageView`, `TabBarView`, or other retained pages, pass the selection status to `active`.
+Mount ad widgets directly in tabs, `PageView` pages, and list items. No extra parameters are needed.
 
 ```dart
-Widget nativePage(int pageIndex, int selectedIndex) => AdNativeView(
-  placement: AppAds.native,
-  active: pageIndex == selectedIndex,
-);
+Widget nativePage() => const AdNativeView(placement: AppAds.native);
 ```
 
-`active` defers only the first request. Once a page shows its ad, the ad stays mounted when the user swipes away and back, so it is not reloaded.
-For fullscreen native ads, always supply the actual page activity.
-The engine does not grant fullscreen presentation ownership to inactive offscreen pages.
+Covered routes and hidden `IndexedStack` tabs are detected automatically, and lazy pages build only when they scroll into view.
+A returning ad goes to a widget the user can see. Once a page has its ad, swiping away and back shows the same ad without reloading it.
+Fullscreen native ads own presentation only while their page is visible.
 
 ## First-Run Screens and Shared Placements
 

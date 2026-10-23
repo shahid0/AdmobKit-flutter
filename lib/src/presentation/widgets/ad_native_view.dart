@@ -19,10 +19,10 @@ import '../admob_kit_facade.dart';
 /// while a loaded ad is active. Keep app dismissal controls outside this host.
 ///
 /// Deferred loading: the first request waits until [TickerMode] (route coverage
-/// via Overlay), [Visibility] (e.g. hidden `IndexedStack` tabs) and [active] all
-/// allow it. Once delivered, the ad stays mounted for the host's lifetime, so
-/// covering routes and tab switches never reload it. Unshown ads older than the
-/// configured TTL are replaced when the host becomes active again.
+/// via Overlay) and [Visibility] (e.g. hidden `IndexedStack` tabs) allow it.
+/// Once delivered, the ad stays mounted for the host's lifetime, so covering
+/// routes and tab switches never reload it. Unshown ads older than the
+/// configured TTL are replaced when the host becomes visible again.
 class AdNativeView extends StatelessWidget {
   /// The type-safe native placement descriptor.
   final NativePlacement placement;
@@ -35,15 +35,10 @@ class AdNativeView extends StatelessWidget {
   /// Defaults to `true`.
   final bool showPlaceholder;
 
-  /// Additional activity gate for hosts that do not expose Visibility/TickerMode.
-  /// Cannot override an inactive ancestor.
-  final bool active;
-
   /// Creates a host bound to the placement's template and dimensions.
   const AdNativeView({
     super.key,
     required this.placement,
-    this.active = true,
     this.placeholder,
     this.showPlaceholder = true,
   });
@@ -328,7 +323,8 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
     // buffered or replenished. Settles instantly on terminal load failure.
     (activeAdSession?.leaseInlineAd(
           widget.config.placement,
-          isMounted: () => mounted && _attached && generation == _generation,
+          // A hidden waiter is skipped; the engine buffers the ad for the visible host.
+          isMounted: () => mounted && _attached && generation == _generation && _isSubtreeActive,
         ) ??
         Future<dynamic>.value(null))
         .then((ad) {
@@ -377,7 +373,6 @@ class _AdNativeViewState extends State<_AdNativeHost> with WidgetsBindingObserve
   /// IndexedStack hidden tabs). Plain screens satisfy both by default.
   bool get _isSubtreeActive =>
       _attached &&
-      widget.config.active &&
       (!_effectiveTemplate.isFullscreen ||
           WidgetsBinding.instance.lifecycleState == null ||
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) &&

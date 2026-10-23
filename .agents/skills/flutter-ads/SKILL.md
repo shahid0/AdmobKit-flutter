@@ -58,7 +58,7 @@ Read [Native ads](reference/native-ads.md) when selecting a template or changing
 Native hosts require bounded width >=320 logical pixels. Inline height follows measured content.
 Fullscreen hosts need bounded height and sufficient asset space; keep navigation outside ad assets.
 Covered routes and hidden `IndexedStack` tabs are detected automatically.
-Pass `active` only for retained pages whose selection is app-owned, such as `PageView`. It defers the first request; a delivered ad stays mounted.
+Tabs, `PageView` pages, and lazy lists need no extra parameters: a returning ad goes to a visible widget, and a delivered ad stays with its widget.
 Keep widget keys and placements stable, or the host reloads its ad.
 Do not infer viewport visibility from mounting or manage ad instances and presentation locks in app code.
 

@@ -18,7 +18,7 @@ Your application only declares placements and triggers display at natural transi
 | **Consent Management** | Manual Google UMP boilerplate and state loops | **Automated UMP and Apple ATT** synchronization |
 | **Network Resilience** | Fails silently on network errors | **Exponential backoff with randomized jitter** |
 | **Slow Connections** | Requests drop on high-latency networks | **`emergingMarkets` timeout profile** (up to 75s) |
-| **Hidden Tabs and Pages** | Hidden pages request ads users never see, and returning reloads them | **Deferred first request, retained ads** via visibility signals and `active` |
+| **Hidden Tabs and Pages** | Hidden pages request ads users never see, and returning reloads them | **Deferred first request, retained ads**, with no parameters to wire |
 | **Presentation Safety** | Overlapping fullscreen ads crash or hide content | **Hardware presentation mutex** prevents collisions |
 
 ## System Responsibilities

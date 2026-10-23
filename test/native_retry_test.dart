@@ -64,7 +64,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: active, showPlaceholder: false),
+          child: TickerMode(enabled: active, child: const AdNativeView(placement: p, showPlaceholder: false)),
         ),
       ),
     );
@@ -104,7 +104,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('a retry started while active delivers to the host after it deactivates', (tester) async {
+  testWidgets('a hidden host is skipped on delivery and takes the buffered ad when visible again', (tester) async {
     final driver = Driver();
     await AdmobKitTestHarness.initialize(
       driver: driver,
@@ -117,7 +117,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: active, showPlaceholder: false),
+          child: TickerMode(enabled: active, child: const AdNativeView(placement: p, showPlaceholder: false)),
         ),
       ),
     );
@@ -144,9 +144,10 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // The host keeps the ad it asked for instead of dropping it and asking again.
-    expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(ad));
-    expect(driver.requests, hasLength(3), reason: 'The third request refills the recurring buffer.');
+    // The hidden host is skipped and the ad waits in the buffer.
+    expect(find.byType(AdWidget), findsNothing);
+    expect(AdmobKit.isReady(p), isTrue);
+    expect(driver.requests, hasLength(2));
 
     await tester.pumpWidget(host(true));
     await tester.pump();
@@ -175,7 +176,7 @@ void main() {
       home: Center(
         child: SizedBox(
           width: 320,
-          child: AdNativeView(placement: p, active: true, showPlaceholder: false),
+          child: const AdNativeView(placement: p, showPlaceholder: false),
         ),
       ),
     );

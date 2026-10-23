@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Breaking changes
 
+- Removed `active` from `AdBannerView` and `AdNativeView`. Tabs, `PageView` pages, lazy lists, and covered routes are handled automatically.
 - Removed public pool, mutex, logger, inline lease, freshness, and test controls from `AdmobKit`.
 - Removed public `preload`. Registration prepares reachable placements; `waitFor` gives an explicit ad decision.
 - Removed the legacy `flutter_ads.dart` entry point and test-only SDK/retry configuration from `AdmobKitConfig`.
@@ -28,7 +29,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `waitFor` returns `false` at once while offline, and a failed splash wait ends the splash moment so the following `show` does not wait again. An offline cold start no longer holds the splash screen for two full timeouts.
 - `show` skips an app-open ad when the app returns from a tapped banner or native ad, or from a fullscreen ad, instead of stacking an ad on the user's return.
 - Ad widgets holding an ad keep their `PageView`, `ListView`, or `TabBarView` item alive, so scrolling back shows the same ad instead of requesting a new one.
-- `active`, `TickerMode`, and `Visibility` now gate only a host's first request. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
+- `TickerMode` and `Visibility` now decide only when a host requests and which visible host receives a returning ad. A delivered ad stays mounted while a route covers it or its tab hides, instead of being torn down and requested again.
 - Only ads that were never shown are replaced after the TTL. A displayed ad keeps its impression and refreshes through AdMob.
 - Inline native hosts no longer re-measure, and briefly unmount, when only the available height changes.
 - The load queue serves `immediate` before `splash`, as documented. `waitFor` on a splash placement no longer demotes it, and a background native preload no longer jumps ahead of an awaited fullscreen ad.
